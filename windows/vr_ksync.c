@@ -97,6 +97,7 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     Irp->IoStatus.Information = IoStackIrp->Parameters.Write.Length;
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
     return STATUS_SUCCESS;
 }
 
@@ -136,6 +137,7 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
     Irp->IoStatus.Status = STATUS_SUCCESS;
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
     return STATUS_SUCCESS;
 }
 

@@ -60,7 +60,7 @@ vr_extract_token(char *string, char token_separator)
     if (sep) {
         length = sep - string;
         /* terminate the token with NULL */
-        string[sep - string] = '\0';
+        string[sep - string] = '\0'; 
         length = strlen(string);
     }
 

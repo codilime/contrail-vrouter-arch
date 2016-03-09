@@ -30,6 +30,24 @@
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
 extern HANDLE Section;
+
+struct vr_htable {
+    struct vrouter *ht_router;
+    unsigned int ht_hentries;
+    unsigned int ht_oentries;
+    unsigned int ht_entry_size;
+    unsigned int ht_key_size;
+    unsigned int ht_bucket_size;
+    struct vr_btable *ht_htable;
+    struct vr_btable *ht_otable;
+    struct vr_btable *ht_dtable;
+    get_hentry_key ht_get_key;
+    vr_hentry_t *ht_free_oentry_head;
+    unsigned int ht_used_oentries;
+    unsigned int ht_used_entries;
+};
+
+
 /*
  * host can provide its own memory . Point in case is the DPDK. In DPDK,
  * we allocate the table from hugepages and just ask the flow module to
@@ -2086,6 +2104,10 @@ vr_flow_req_get(vr_flow_req *ref_req)
 void
 vr_flow_req_process(void *s_req)
 {
+#if defined(_WINDOWS)
+    SetSectionAddress();
+#endif
+
     int ret = 0;
     unsigned int i, object = VR_FLOW_OBJECT_ID;
     bool need_destroy = false;
@@ -2096,6 +2118,9 @@ vr_flow_req_process(void *s_req)
     vr_flow_req *resp = NULL;
 
     router = vrouter_get(req->fr_rid);
+    ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
+    ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
+
     switch (req->fr_op) {
     case FLOW_OP_FLOW_TABLE_GET:
         resp = vr_flow_req_get(req);
@@ -2145,7 +2170,9 @@ send_response:
     if (need_destroy) {
         vr_flow_req_destroy(resp);
     }
-
+#if defined(_WINDOWS)
+    UnmapSectionAddress();
+#endif
     return;
 }
 
@@ -2331,9 +2358,7 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
         vr_fragment_table_exit(router);
         vr_link_local_ports_exit(router);
     }
-#if defined(_WINDOWS)
-    UnmapSectionAddress();
-#endif
+
     return;
 }
 
@@ -2352,6 +2377,8 @@ vr_flow_init(struct vrouter *router)
 
     if ((ret = vr_link_local_ports_init(router)))
         return ret;
-
+#if defined(_WINDOWS)
+    UnmapSectionAddress();
+#endif
     return 0;
 }

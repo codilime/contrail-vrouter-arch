@@ -62,6 +62,9 @@ MemoryInit(void)
     OBJECT_ATTRIBUTES ObjectAttributes;
     ULONG Attributes = OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | OBJ_OPENIF;;
     LARGE_INTEGER MaxSize;
+    size_t flow_table_size;
+    PVOID BaseAddress = NULL;
+    SIZE_T ViewSize = 0;
 
     RtlInitUnicodeString(&_SectionName, SectionName);
 
@@ -69,7 +72,7 @@ MemoryInit(void)
 
     compute_size_oflow_table();
 
-    size_t flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
 
     MaxSize.QuadPart = flow_table_size;
 
@@ -86,6 +89,19 @@ MemoryInit(void)
             return 0;
         }
     }
+
+    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+
+    status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
+    if (status != STATUS_SUCCESS)
+    {
+        DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
+    }
+
+    RtlZeroMemory(BaseAddress, flow_table_size);
+
+    vr_flow_table = BaseAddress;
+    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
 
     return 0;
 }

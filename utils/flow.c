@@ -53,6 +53,9 @@
 #include "vr_packet.h"
 
 #define TABLE_FLAG_VALID        0x1
+
+#define MAX_FLOW_NL_MSG_BUNCH   15
+
 #define MEM_DEV                 "/dev/flow"
 
 static int mem_fd;
@@ -62,7 +65,8 @@ static int help_set, match_set, get_set;
 static unsigned short dvrf;
 static int list, flow_cmd, mirror = -1;
 static unsigned long flow_index;
-static int rate, stats;
+static int rate, stats, perf, flush, bunch = 1;
+static bool more = false;
 
 #define FLOW_GET_FIELD_LENGTH   30
 #define FLOW_COMPONENT_NH_COUNT 16
@@ -1248,9 +1252,8 @@ flow_dump_table(struct flow_table *ft)
                 }
             }
 
-
             if ((fe->fe_type == VP_TYPE_IP) || (fe->fe_type == VP_TYPE_IP6)) {
-                inet_ntop(VR_FLOW_FAMILY(fe->fe_type), fe->fe_key.flow_ip,
+                inet_ntop(VR_FLOW_FAMILY(fe->fe_type),&fe->fe_key.flow_ip,
                             in_src, sizeof(in_src));
                 inet_ntop(VR_FLOW_FAMILY(fe->fe_type),
                       &fe->fe_key.flow_ip[VR_IP_ADDR_SIZE(fe->fe_type)],
@@ -1739,8 +1742,8 @@ flow_make_flow_req(vr_flow_req *req)
 
     error = 0;
     ret = sandesh_encode(req, "vr_flow_req", vr_find_sandesh_info,
-                             (nl_get_buf_ptr(cl) + attr_len),
-                             (nl_get_buf_len(cl) - attr_len), &error);
+        (nl_get_buf_ptr(cl) + attr_len),
+        (nl_get_buf_len(cl) - attr_len), &error);
 
     if ((ret <= 0) || error) {
         return ret;
@@ -1755,7 +1758,7 @@ flow_make_flow_req(vr_flow_req *req)
     if ((ret = nl_recvmsg(cl)) > 0) {
 #if defined(__linux__)
         resp = nl_parse_reply(cl);
-        
+
         if (resp->nl_op == SANDESH_REQUEST) {
             sandesh_decode(resp->nl_data, resp->nl_len, vr_find_sandesh_info, &ret);
         }
@@ -1772,6 +1775,7 @@ flow_make_flow_req(vr_flow_req *req)
 
     return ret;
 }
+
 
 static int
 flow_table_get(void)
@@ -1805,6 +1809,7 @@ flow_table_setup(void)
     if (ret <= 0)
         return ret;
 #endif
+
     return ret;
 }
 
@@ -1814,6 +1819,7 @@ flow_do_op(unsigned long flow_index, char action)
     struct vr_flow_entry *fe;
 
     memset(&flow_req, 0, sizeof(flow_req));
+    flow_req.fr_flow_ip_size = 8;
 
     fe = flow_get(flow_index);
     if (!fe) {
@@ -1858,6 +1864,7 @@ flow_do_op(unsigned long flow_index, char action)
     flow_req.fr_flow_sport = fe->fe_key.flow_sport;
     flow_req.fr_flow_dport = fe->fe_key.flow_dport;
     flow_req.fr_flow_nh_id = fe->fe_key.flow_nh_id;
+    flow_req.fr_gen_id     = fe->fe_gen_id;
 
     switch (action) {
     case 'd':
@@ -1894,6 +1901,235 @@ exit_validate:
     }
 
     return;
+}
+
+static int
+flow_make_flow_req_perf(vr_flow_req *req)
+{
+    int ret, attr_len, error;
+    struct nl_response *resp;
+    static count = 0;
+    static struct iovec iov[MAX_FLOW_NL_MSG_BUNCH];
+    uint8_t *base;
+
+    base = nl_get_buf_ptr(cl);
+
+    if (!count) {
+        ret = nl_build_nlh(cl, cl->cl_genl_family_id, NLM_F_REQUEST);
+        if (ret)
+            return ret;
+
+        ret = nl_build_genlh(cl, SANDESH_REQUEST, 0);
+        if (ret)
+            return ret;
+
+        attr_len = nl_get_attr_hdr_size();
+    } else {
+        attr_len = 0;
+    }
+
+    error = 0;
+    ret = sandesh_encode(req, "vr_flow_req", vr_find_sandesh_info,
+                         (nl_get_buf_ptr(cl) + attr_len),
+                         (nl_get_buf_len(cl) - attr_len), &error);
+
+    if ((ret <= 0) || error)
+        return ret;
+
+    if (!count) {
+        nl_build_attr(cl, ret, NL_ATTR_VR_MESSAGE_PROTOCOL);
+    } else {
+        nl_update_attr_len(cl, ret);
+    }
+
+    nl_update_nlh(cl);
+
+    iov[count].iov_base = base;
+    iov[count].iov_len = nl_get_buf_ptr(cl) - base;
+    count++;
+    if (bunch != count && more)
+        return 0;
+
+//    struct msghdr msg;
+//    memset(&msg, 0, sizeof(msg));
+#if defined (__linux__)
+    msg.msg_name = cl->cl_sa;
+    msg.msg_namelen = cl->cl_sa_len;
+#endif
+
+//    msg.msg_iov = iov;
+//    msg.msg_iovlen = count;
+    nl_sendmsg(cl);
+    //ret = sendmsg(cl->cl_sock, &msg, 0);
+    //if (ret <= 0)
+      //  return ret;
+
+    cl->cl_buf_offset = 0;
+    count = 0;
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+        ret = 0;
+
+    return ret;
+}
+
+void run_perf(void) {
+
+    struct vr_flow_entry *fe;
+    struct nl_response *resp;
+    uint32_t sip = inet_addr("1.1.1.1");
+    uint32_t dip = inet_addr("2.2.2.2");
+    int ret;
+    uint8_t proto = 0xFF;
+    uint16_t sport = 1000;
+    uint16_t nhid = 1;
+
+    memset(&flow_req, 0, sizeof(flow_req));
+    flow_req.fr_family = AF_INET;
+    flow_req.fr_flow_ip = malloc(8);
+    if (!flow_req.fr_flow_ip)
+        return;
+    flow_req.fr_flow_ip_size = 8;
+    flow_req.fr_op = FLOW_OP_FLOW_SET;
+    flow_req.fr_index = -1;
+    flow_req.fr_flags = VR_FLOW_FLAG_ACTIVE;
+    memcpy(flow_req.fr_flow_ip, (uint8_t *)&sip, sizeof(sip));
+    memcpy(flow_req.fr_flow_ip + 4, (uint8_t *)&dip, sizeof(dip));
+    flow_req.fr_flow_proto = proto;
+    flow_req.fr_flow_sport = htons(sport);
+    flow_req.fr_flow_nh_id = nhid;
+    flow_req.fr_gen_id = 1;
+
+    struct timeval last_time;
+    gettimeofday(&last_time, NULL);
+
+    int i = 0;
+    for (i = 0; i < perf; i++) {
+        flow_req.fr_action = VR_FLOW_ACTION_HOLD;
+        flow_req.fr_flow_dport = htons(i);
+        flow_make_flow_req_perf(&flow_req);
+    }
+
+    /* process responses from previous requests */
+    while (i != 0) {
+        i--;
+        cl->cl_buf_offset = 0;
+        if ((ret = nl_recvmsg(cl)) > 0) {
+            printf("Ret %d\n", ret);
+    //        resp = nl_parse_reply(cl);
+    //        if (resp->nl_op == SANDESH_REQUEST) {
+                sandesh_decode(cl->cl_buf, ret,
+                                vr_find_sandesh_info, &ret);
+      //      }
+        }
+    }
+    cl->cl_buf_offset = 0;
+
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    int diff_ms;
+    diff_ms = (now.tv_sec - last_time.tv_sec) * 1000;
+    diff_ms += (now.tv_usec - last_time.tv_usec) / 1000;
+    printf("Created %d HOLD entries in %d msec\n", perf, diff_ms);
+    
+    int flow_index[50000];
+
+    for (i = 0; i < perf; i++)
+        flow_index[i] = -1;
+    struct flow_table *ft = &main_table;
+    
+    for (i = 0; i < ft->ft_num_entries; i++) {
+        fe = flow_get(i);
+        if (fe->fe_type != VP_TYPE_IP)
+            continue;
+        if (fe->fe_key.flow4_proto != proto)
+            continue;
+
+        flow_index[ntohs(fe->fe_key.flow4_dport)] = i;
+
+    }
+    
+    gettimeofday(&last_time, NULL);
+   
+    for (i = 0; i < perf; i++) {
+        memcpy(flow_req.fr_flow_ip, (uint8_t *)&dip, sizeof(dip));
+        memcpy(flow_req.fr_flow_ip + 4, (uint8_t *)&sip, sizeof(sip));
+        flow_req.fr_flow_sport = htons(i);
+        flow_req.fr_flow_dport = htons(sport);
+        flow_req.fr_index = -1;
+        flow_req.fr_action = VR_FLOW_ACTION_FORWARD;
+        more = true;
+
+        flow_make_flow_req_perf(&flow_req);
+
+        memcpy(flow_req.fr_flow_ip, (uint8_t *)&sip, sizeof(sip));
+
+        memcpy(flow_req.fr_flow_ip + 4, (uint8_t *)&dip, sizeof(dip));
+
+        flow_req.fr_flow_sport = htons(sport);
+        flow_req.fr_flow_dport = htons(i);
+        flow_req.fr_index = flow_index[i];
+        flow_req.fr_action = VR_FLOW_ACTION_FORWARD;
+        if (i == (perf - 1)) {
+            more = false;
+        }
+        flow_make_flow_req_perf(&flow_req);
+    }
+
+    /* process responses from previous requests */
+    i *= 2; /* there were two requests per one loop cycle */
+    while (i != 0) {
+        i--;
+        cl->cl_buf_offset = 0;
+        if ((ret = nl_recvmsg(cl)) > 0) {
+
+    //        resp = nl_parse_reply(cl);
+    //        if (resp->nl_op == SANDESH_REQUEST) {
+                sandesh_decode(cl->cl_buf, ret,
+                                vr_find_sandesh_info, &ret);
+
+    //        }
+        }
+    }
+    cl->cl_buf_offset = 0;
+
+    gettimeofday(&now, NULL);
+    diff_ms = (now.tv_sec - last_time.tv_sec) * 1000;
+    diff_ms += (now.tv_usec - last_time.tv_usec) / 1000;
+    printf("Created %d HOLD and %d FWD entries in %d msec\n",
+            perf, perf, diff_ms);
+
+    free(flow_req.fr_flow_ip);
+
+    for (i = 0; i < ft->ft_num_entries; i++) {
+        fe = flow_get(i);
+        if (fe->fe_type != VP_TYPE_IP)
+            continue;
+        flow_do_op(i, 'i');
+    }
+}
+
+void run_flush(void) {
+    struct vr_flow_entry *fe;
+    struct flow_table *ft = &main_table;
+    struct timeval now;
+    struct timeval last_time;
+    int diff_ms;
+
+    gettimeofday(&last_time, NULL);
+    int i;
+    int count = 0;
+    for (i = 0; i < ft->ft_num_entries; i++) {
+        fe = flow_get(i);
+        if (fe->fe_type != VP_TYPE_IP)
+            continue;
+        count++;
+        flow_do_op(i, 'i');
+    }
+
+    gettimeofday(&now, NULL);
+    diff_ms = (now.tv_sec - last_time.tv_sec) * 1000;
+    diff_ms += (now.tv_usec - last_time.tv_usec) / 1000;
+    printf("Deleted %d entries in %d msec\n", count, diff_ms);
 }
 
 static void
@@ -1955,7 +2191,8 @@ static struct option long_options[] = {
 static void
 validate_options(void)
 {
-    if (!flow_index && !list && !rate && !stats && !match_set)
+    if (!flow_index && !list && !rate && !stats && !match_set
+        && !perf && !flush)
         Usage();
 
     if (show_evicted_set && !list)
@@ -2252,7 +2489,7 @@ main(int argc, char *argv[])
     int ret;
     int option_index;
 
-    while ((opt = getopt_long(argc, argv, "d:f:g:i:lrs",
+    while ((opt = getopt_long(argc, argv, "d:f:g:i:p:b:lrsF",
                     long_options, &option_index)) >= 0) {
 
         switch (opt) {
@@ -2271,9 +2508,31 @@ main(int argc, char *argv[])
         case 'r':
             rate = 1;
             break;
+
         case 's':
             stats = 1;
             break;
+
+        case 'F':
+            flush = 1;
+            break;
+
+        case 'p':
+            perf = strtoul(optarg, NULL, 0);
+            break;
+
+        case 'b' :
+            bunch = strtoul(optarg, NULL, 0);
+            if (bunch < 1) {
+                bunch = 1;
+            }
+            if (bunch > MAX_FLOW_NL_MSG_BUNCH) {
+                printf("Max NETLINK messages in a bunch cannot exceed %u.\n",
+                        MAX_FLOW_NL_MSG_BUNCH);
+                bunch = MAX_FLOW_NL_MSG_BUNCH;
+            }
+            break;
+
         case 0:
             parse_long_opts(option_index, optarg);
             break;
@@ -2282,13 +2541,10 @@ main(int argc, char *argv[])
             Usage();
         }
     }
-
     validate_options();
-
     ret = flow_table_setup();
     if (ret < 0)
         return ret;
-
 
     ret = flow_table_get();
 
@@ -2301,6 +2557,10 @@ main(int argc, char *argv[])
         flow_rate();
     } else if (stats) {
         flow_stats();
+    } else if (perf) {
+        run_perf();
+    } else if (flush) {
+        run_flush();
     } else {
         if (flow_index >= main_table.ft_num_entries) {
             printf("Flow index %lu is greater than available indices (%u)\n",
