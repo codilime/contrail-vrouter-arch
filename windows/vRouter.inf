@@ -24,7 +24,7 @@ DriverVer   = 07/29/2011,2.0
 [Install]
 AddReg=Inst_Ndi
 Characteristics=0x40000
-NetCfgInstanceId="{37d9eae6-5bae-48c5-bff1-63a7cdd7e4f4}"
+NetCfgInstanceId="{56553588-1538-4be6-b8e0-cb46402dc205}"
 Copyfiles = vRouter.copyfiles.sys
 
 [SourceDisksNames]

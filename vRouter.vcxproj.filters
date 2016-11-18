@@ -31,6 +31,12 @@
     <ClInclude Include="windows\SxBase\SxBase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="windows\precomp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vrouter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">
@@ -43,6 +49,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vrouter_mod.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_mem.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

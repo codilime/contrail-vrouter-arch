@@ -1,37 +1,29 @@
-#include <ndis.h>
-#include <netiodef.h>
-#include <intsafe.h>
-#include <ntintsafe.h>
+#include "precomp.h"
 
-#include "SxBase\SxBase.h"
-#include "SxBase\SxApi.h"
-#include "SxBase\SxLibrary.h"
+UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
+UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 
-UCHAR  SxExtMajorNdisVersion;
+PWCHAR SxExtFriendlyName = L"OpenContrail's vRouter forwarding extension";
 
-UCHAR  SxExtMinorNdisVersion;
+PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
 
-PWCHAR SxExtFriendlyName;
+PWCHAR SxExtServiceName = L"vRouter";
 
-PWCHAR SxExtUniqueName;
-
-PWCHAR SxExtServiceName;
-
-ULONG  SxExtAllocationTag;
-
-ULONG  SxExtOidRequestId;
+ULONG  SxExtOidRequestId = 'RVCO';
 
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
+	DbgPrint("SxExtInitialize\r\n");
 	UNREFERENCED_PARAMETER(DriverObject);
 
-	return 0;
+	return NDIS_STATUS_SUCCESS;
 }
 
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
+	DbgPrint("SxExtUninitialize\r\n");
 	UNREFERENCED_PARAMETER(DriverObject);
 }
 
@@ -41,6 +33,7 @@ SxExtCreateSwitch(
 	_Outptr_result_maybenull_ PNDIS_HANDLE *ExtensionContext
 )
 {
+	DbgPrint("SxExtCreateSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 
@@ -53,6 +46,7 @@ SxExtDeleteSwitch(
 	_In_ NDIS_HANDLE ExtensionContext
 )
 {
+	DbgPrint("SxExtDeleteSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 }
@@ -63,6 +57,7 @@ SxExtActivateSwitch(
 	_In_ NDIS_HANDLE ExtensionContext
 )
 {
+	DbgPrint("SxExtActivateSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 }
@@ -73,6 +68,7 @@ SxExtRestartSwitch(
 	_In_ NDIS_HANDLE ExtensionContext
 )
 {
+	DbgPrint("SxExtRestartSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 
@@ -85,6 +81,7 @@ SxExtPauseSwitch(
 	_In_ NDIS_HANDLE ExtensionContext
 )
 {
+	DbgPrint("SxExtPauseSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 }
@@ -96,6 +93,7 @@ SxExtCreatePort(
 	_In_ PNDIS_SWITCH_PORT_PARAMETERS Port
 )
 {
+	DbgPrint("SxExtCreatePort\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Port);
@@ -110,6 +108,7 @@ SxExtUpdatePort(
 	_In_ PNDIS_SWITCH_PORT_PARAMETERS Port
 )
 {
+	DbgPrint("SxExtUpdatePort\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Port);
@@ -122,6 +121,7 @@ SxExtCreateNic(
 	_In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
+	DbgPrint("SxExtCreateNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
@@ -136,6 +136,7 @@ SxExtConnectNic(
 	_In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
+	DbgPrint("SxExtConnectNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
@@ -148,6 +149,7 @@ SxExtUpdateNic(
 	_In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
+	DbgPrint("SxExtUpdateNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
@@ -160,6 +162,8 @@ SxExtDisconnectNic(
 	_In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
+	DbgPrint("SxExtDisconnectNic\r\n");
+	Nic->
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
@@ -172,6 +176,7 @@ SxExtDeleteNic(
 	_In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
+	DbgPrint("SxExtDeleteNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
@@ -184,6 +189,7 @@ SxExtTeardownPort(
 	_In_ PNDIS_SWITCH_PORT_PARAMETERS Port
 )
 {
+	DbgPrint("SxExtTeardownPort\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Port);
@@ -196,6 +202,7 @@ SxExtDeletePort(
 	_In_ PNDIS_SWITCH_PORT_PARAMETERS Port
 )
 {
+	DbgPrint("SxExtDeletePort\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Port);
@@ -210,6 +217,7 @@ SxExtSaveNic(
 	_Out_ PULONG BytesNeeded
 )
 {
+	DbgPrint("SxExtSaveNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SaveState);
@@ -226,6 +234,7 @@ SxExtSaveNicComplete(
 	_In_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState
 )
 {
+	DbgPrint("SxExtSaveNicComplete\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SaveState);
@@ -239,6 +248,7 @@ SxExtNicRestore(
 	_Out_ PULONG BytesRestored
 )
 {
+	DbgPrint("SxExtNicRestore\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SaveState);
@@ -254,6 +264,7 @@ SxExtNicRestoreComplete(
 	_In_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState
 )
 {
+	DbgPrint("SxExtNicRestoreComplete\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SaveState);
@@ -266,6 +277,7 @@ SxExtAddSwitchProperty(
 	_In_ PNDIS_SWITCH_PROPERTY_PARAMETERS SwitchProperty
 )
 {
+	DbgPrint("SxExtAddSwitchProperty\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SwitchProperty);
@@ -280,6 +292,7 @@ SxExtUpdateSwitchProperty(
 	_In_ PNDIS_SWITCH_PROPERTY_PARAMETERS SwitchProperty
 )
 {
+	DbgPrint("SxExtUpdateSwitchProperty\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SwitchProperty);
@@ -294,6 +307,7 @@ SxExtDeleteSwitchProperty(
 	_In_ PNDIS_SWITCH_PROPERTY_DELETE_PARAMETERS SwitchProperty
 )
 {
+	DbgPrint("SxExtDeleteSwitchProperty\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SwitchProperty);
@@ -308,6 +322,7 @@ SxExtAddPortProperty(
 	_In_ PNDIS_SWITCH_PORT_PROPERTY_PARAMETERS PortProperty
 )
 {
+	DbgPrint("SxExtAddPortProperty\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(PortProperty);
@@ -322,6 +337,7 @@ SxExtUpdatePortProperty(
 	_In_ PNDIS_SWITCH_PORT_PROPERTY_PARAMETERS PortProperty
 )
 {
+	DbgPrint("SxExtUpdatePortProperty\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(PortProperty);
@@ -336,6 +352,7 @@ SxExtDeletePortProperty(
 	_In_ PNDIS_SWITCH_PORT_PROPERTY_DELETE_PARAMETERS PortProperty
 )
 {
+	DbgPrint("SxExtDeletePortProperty\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(PortProperty);
@@ -351,6 +368,7 @@ SxExtQuerySwitchFeatureStatus(
 	_Inout_ PULONG BytesNeeded
 )
 {
+	DbgPrint("SxExtQuerySwitchFeatureStatus\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SwitchFeatureStatus);
@@ -367,6 +385,7 @@ SxExtQueryPortFeatureStatus(
 	_Inout_ PULONG BytesNeeded
 )
 {
+	DbgPrint("SxExtQueryPortFeatureStatus\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(PortFeatureStatus);
@@ -386,6 +405,7 @@ SxExtProcessNicRequest(
 	_Inout_ PNDIS_SWITCH_NIC_INDEX DestinationNicIndex
 )
 {
+	DbgPrint("SxExtProcessNicRequest\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(OidRequest);
@@ -409,6 +429,7 @@ SxExtProcessNicRequestComplete(
 	_In_ NDIS_STATUS Status
 )
 {
+	DbgPrint("SxExtProcessNicRequestComplete\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(OidRequest);
@@ -430,6 +451,7 @@ SxExtProcessNicStatus(
 	_In_ NDIS_SWITCH_NIC_INDEX SourceNicIndex
 )
 {
+	DbgPrint("SxExtProcessNicStatus\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(StatusIndication);
@@ -447,6 +469,7 @@ SxExtStartNetBufferListsIngress(
 	_In_ ULONG SendFlags
 )
 {
+	DbgPrint("SxExtStartNetBufferListsIngress\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(NetBufferLists);
@@ -462,6 +485,7 @@ SxExtStartNetBufferListsEgress(
 	_In_ ULONG ReceiveFlags
 )
 {
+	DbgPrint("SxExtStartNetBufferListsEgress\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(NetBufferLists);
@@ -477,6 +501,7 @@ SxExtStartCompleteNetBufferListsEgress(
 	_In_ ULONG ReturnFlags
 )
 {
+	DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(NetBufferLists);
@@ -491,6 +516,7 @@ SxExtStartCompleteNetBufferListsIngress(
 	_In_ ULONG SendCompleteFlags
 )
 {
+	DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(NetBufferLists);
