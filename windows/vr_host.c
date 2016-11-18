@@ -1,7 +1,5 @@
 #include "precomp.h"
 
-ULONG  SxExtAllocationTag = 'RVCO';
-
 static void *
 win_malloc(unsigned int size, unsigned int object)
 {

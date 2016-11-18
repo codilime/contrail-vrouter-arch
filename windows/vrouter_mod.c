@@ -163,7 +163,6 @@ SxExtDisconnectNic(
 )
 {
 	DbgPrint("SxExtDisconnectNic\r\n");
-	Nic->
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
@@ -469,11 +468,28 @@ SxExtStartNetBufferListsIngress(
 	_In_ ULONG SendFlags
 )
 {
-	DbgPrint("SxExtStartNetBufferListsIngress\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(NetBufferLists);
-	UNREFERENCED_PARAMETER(SendFlags);
+	DbgPrint("SxExtStartNetBufferListsIngress\r\n");
+	BOOLEAN sameSource;
+	ULONG sendCompleteFlags = 0;
+	BOOLEAN dispatch;
+
+	dispatch = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+	sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
+
+	sendCompleteFlags |= (dispatch) ? NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0;
+	SendFlags |= NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP;
+
+	if (sameSource)
+	{
+		DbgPrint("--------Hehe, sejmsors!!!!!\r\n");
+	}
+	else
+	{
+		DbgPrint("--------Hehe, rozny sors!!!!!\r\n");
+	}
 }
 
 VOID
@@ -486,11 +502,12 @@ SxExtStartNetBufferListsEgress(
 )
 {
 	DbgPrint("SxExtStartNetBufferListsEgress\r\n");
-	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
-	UNREFERENCED_PARAMETER(NetBufferLists);
-	UNREFERENCED_PARAMETER(NumberOfNetBufferLists);
-	UNREFERENCED_PARAMETER(ReceiveFlags);
+
+	SxLibSendNetBufferListsEgress(Switch,
+		NetBufferLists,
+		NumberOfNetBufferLists,
+		ReceiveFlags);
 }
 
 VOID
@@ -502,10 +519,11 @@ SxExtStartCompleteNetBufferListsEgress(
 )
 {
 	DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
-	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
-	UNREFERENCED_PARAMETER(NetBufferLists);
-	UNREFERENCED_PARAMETER(ReturnFlags);
+
+	SxLibCompleteNetBufferListsEgress(Switch,
+		NetBufferLists,
+		ReturnFlags);
 }
 
 VOID
@@ -517,9 +535,10 @@ SxExtStartCompleteNetBufferListsIngress(
 )
 {
 	DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
-	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
-	UNREFERENCED_PARAMETER(NetBufferLists);
-	UNREFERENCED_PARAMETER(SendCompleteFlags);
+
+	SxLibCompleteNetBufferListsIngress(Switch,
+		NetBufferLists,
+		SendCompleteFlags);
 }
 

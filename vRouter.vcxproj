@@ -315,8 +315,6 @@
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
-    <ClCompile Include="windows\vr_host.c" />
-    <ClCompile Include="windows\vr_mem.c" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />
