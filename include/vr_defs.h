@@ -7,10 +7,14 @@
 #ifndef __VR_DEFS_H__
 #define __VR_DEFS_H__
 
+#include "vr_win.h"
+
 #define MAC_FORMAT     "%02x:%02x:%02x:%02x:%02x:%02x"
 #define MAC_VALUE(x)   (x)[0],(x)[1],(x)[2],(x)[3],(x)[4],(x)[5]
 
+#ifndef _MSC_VER
 #define ARRAYSIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
 
 #define VR_ETHER_HLEN           14
 #define VR_ETHER_ALEN            6
@@ -58,6 +62,7 @@ enum rt_type{
 #define AGENT_PKT_HEAD_SPACE (sizeof(struct vr_eth) + \
                 sizeof(struct agent_hdr))
 
+PACK(
 struct agent_hdr {
     unsigned short hdr_ifindex;
     unsigned short hdr_vrf;
@@ -69,7 +74,7 @@ struct agent_hdr {
     unsigned int hdr_cmd_param_4;
     uint8_t hdr_cmd_param_5;
     uint8_t hdr_cmd_param_5_pack[3];
-} __attribute__((packed));
+});
 
 #define CMD_PARAM_PACKET_CTRL       0x1
 #define CMD_PARAM_1_DIAG            0x1

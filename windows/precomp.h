@@ -10,4 +10,4 @@
 
 //#include "vrouter.h"
 
-ULONG  SxExtAllocationTag = 'RVCO';
+//ULONG SxExtAllocationTag = 'RVCO';

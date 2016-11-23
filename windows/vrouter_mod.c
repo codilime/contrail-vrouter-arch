@@ -1,5 +1,7 @@
 #include "precomp.h"
 
+ULONG SxExtAllocationTag = 'RVCO';
+
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 

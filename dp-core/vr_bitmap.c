@@ -6,10 +6,13 @@
  * Copyright (c) 2015 Juniper Networks, Inc. All rights reserved.
  */
 
+#include "precomp.h"
+
 #include <vr_os.h>
 #if defined(__linux__)
 #include <linux/version.h>
 #endif
+
 #include <vr_bitmap.h>
 
 
