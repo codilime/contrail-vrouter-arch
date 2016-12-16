@@ -18,7 +18,7 @@ Abstract:
 
 #include "precomp.h"
 
-ULONG SxDebugLevel = ~((ULONG)0);
+ULONG SxDebugLevel;// = ~((ULONG)0);
 NDIS_HANDLE SxDriverHandle = NULL;
 NDIS_HANDLE SxDriverObject;
 NDIS_SPIN_LOCK SxExtensionListLock;
@@ -147,8 +147,6 @@ SxNdisUnload(
     PDRIVER_OBJECT DriverObject
     )
 {
-    UNREFERENCED_PARAMETER(DriverObject);
-
     SxExtUninitialize(DriverObject);
     
     NdisFDeregisterFilterDriver(SxDriverHandle);

@@ -7,7 +7,3 @@
 #include "SxBase\SxBase.h"
 #include "SxBase\SxApi.h"
 #include "SxBase\SxLibrary.h"
-
-//#include "vrouter.h"
-
-ULONG  SxExtAllocationTag = 'RVCO';
