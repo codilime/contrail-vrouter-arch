@@ -1,4 +1,5 @@
 #include "precomp.h"
+#include "vr_windows.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -9,6 +10,7 @@ PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
 
 PWCHAR SxExtServiceName = L"vRouter";
 
+ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
 NDIS_STATUS
@@ -93,10 +95,14 @@ SxExtCreatePort(
 	_In_ PNDIS_SWITCH_PORT_PARAMETERS Port
 )
 {
-	DbgPrint("SxExtCreatePort\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
-	UNREFERENCED_PARAMETER(Port);
+
+	DbgPrint("SxExtCreatePort\r\n");
+	DbgPrint("PortFriendlyName: %S, PortName: %S, PortId: %u, PortState: %u, PortType: %u\r\n", Port->PortFriendlyName.String, Port->PortName.String, Port->PortId, Port->PortState, Port->PortType);
+	NDIS_IF_COUNTED_STRING name = vr_get_name_from_friendly_name(Port->PortFriendlyName);
+	DbgPrint("Resolved name: %S\r\n", name.String);;
+	vr_set_assoc_oid(name, Port->PortId);
 
 	return 0;
 }
@@ -220,10 +226,11 @@ SxExtSaveNic(
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(SaveState);
-	UNREFERENCED_PARAMETER(BytesWritten);
-	UNREFERENCED_PARAMETER(BytesNeeded);
 
-	return 0;
+	*BytesWritten = 0;
+	*BytesNeeded = 0;
+
+	return NDIS_STATUS_SUCCESS;
 }
 
 VOID
@@ -541,4 +548,3 @@ SxExtStartCompleteNetBufferListsIngress(
 		NetBufferLists,
 		SendCompleteFlags);
 }
-
