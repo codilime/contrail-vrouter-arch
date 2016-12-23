@@ -1,5 +1,12 @@
 #include "precomp.h"
 
+#include "vr_defs.h"
+#include "vr_qos.h"
+#include "vr_htable.h"
+#include "vr_flow.h"
+//#include "vrouter.h"
+//#include "vr_packet.h"
+
 ULONG SxExtAllocationTag = 'RVCO';
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;

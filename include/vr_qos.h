@@ -24,6 +24,7 @@
  * fields here should mean change in the location of the entry in
  * the flow structure
  */
+
 PACK(
 struct vr_forwarding_class_qos {
     uint8_t     vfcq_dscp;

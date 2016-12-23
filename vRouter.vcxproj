@@ -305,6 +305,9 @@
   <ItemGroup>
     <ClInclude Include="dp-core\precomp.h" />
     <ClInclude Include="include\vrouter.h" />
+    <ClInclude Include="include\vr_htable.h" />
+    <ClInclude Include="include\vr_packet.h" />
+    <ClInclude Include="include\vr_qos.h" />
     <ClInclude Include="include\vr_types.h" />
     <ClInclude Include="include\vr_win.h" />
     <ClInclude Include="windows\precomp.h" />
@@ -314,7 +317,6 @@
     <ClInclude Include="windows\SxBase\SxLibrary.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dp-core\vr_interface.c" />
     <ClCompile Include="windows\SxBase\precompsrc.c" />
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />

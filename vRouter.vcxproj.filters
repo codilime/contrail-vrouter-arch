@@ -46,6 +46,15 @@
     <ClInclude Include="include\vr_win.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\vr_packet.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_qos.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_htable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">
@@ -58,9 +67,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vrouter_mod.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dp-core\vr_interface.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
