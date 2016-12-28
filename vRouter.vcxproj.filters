@@ -40,9 +40,6 @@
     <ClInclude Include="dp-core\precomp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\vr_win.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -53,6 +50,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\vr_htable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_flow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_interface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="windows\sandesh-temp\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

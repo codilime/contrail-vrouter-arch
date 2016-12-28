@@ -62,7 +62,7 @@ enum rt_type{
 #define AGENT_PKT_HEAD_SPACE (sizeof(struct vr_eth) + \
                 sizeof(struct agent_hdr))
 
-PACK(
+__attribute__packed__open__
 struct agent_hdr {
     unsigned short hdr_ifindex;
     unsigned short hdr_vrf;
@@ -74,7 +74,8 @@ struct agent_hdr {
     unsigned int hdr_cmd_param_4;
     uint8_t hdr_cmd_param_5;
     uint8_t hdr_cmd_param_5_pack[3];
-});
+}
+__attribute__packed__close__;
 
 #define CMD_PARAM_PACKET_CTRL       0x1
 #define CMD_PARAM_1_DIAG            0x1

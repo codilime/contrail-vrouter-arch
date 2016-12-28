@@ -25,7 +25,7 @@
  * the flow structure
  */
 
-PACK(
+__attribute__packed__open__
 struct vr_forwarding_class_qos {
     uint8_t     vfcq_dscp;
     uint8_t     vfcq_mpls_qos:3,
@@ -33,13 +33,15 @@ struct vr_forwarding_class_qos {
                 vfcq_untrusted:1,
                 vfcq_valid:1;
     uint8_t     vfcq_queue_id;
-});
+}
+__attribute__packed__close__;
 
-PACK(
+__attribute__packed__open__
 struct vr_forwarding_class {
     uint8_t vfc_id;
     struct vr_forwarding_class_qos vfc_qos;
-});
+}
+__attribute__packed__close__;
 
 /* for easy access */
 #define vfc_dscp        vfc_qos.vfcq_dscp

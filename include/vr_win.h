@@ -2,22 +2,34 @@
 
 #ifdef _MSC_VER
 
-#define int8_t INT8
-#define uint8_t UINT8
-#define int16_t INT16
-#define uint16_t UINT16
-#define int32_t INT32
-#define uint32_t UINT32
-#define uint64_t UINT64
+#include <wdm.h>
+#include <basetsd.h>
 
-#define PACK( ... ) __pragma( pack(push, 1) ) __VA_ARGS__ __pragma( pack(pop) )
+typedef INT8 int8_t;
+typedef UINT8 uint8_t;
+typedef INT16 int16_t;
+typedef UINT16 uint16_t;
+typedef INT32 int32_t;
+typedef UINT32 uint32_t;
+typedef INT64 int64_t;
+typedef UINT64 uint64_t;
 
-#define bool UINT8
-#define true 1
-#define false 0
+typedef BOOLEAN bool;
+
+#define true TRUE
+#define false FALSE
+
+#define __attribute__packed__open__ __pragma( pack(push, 1) )
+#define __attribute__packed__close__ __pragma( pack(pop) )
+#define __attribute__format__open__(...) /* do nothing */
+#define __attribute__format__close__(...) /* do nothing */
 
 #define htons(a) RtlUshortByteSwap(a)
+#define ntohs(a) RtlUshortByteSwap(a)
 
 #else
-#define PACK( ... ) __VA_ARGS__ __attribute__((__packed__))
+#define __attribute__packed__open__ /* do nothing */
+#define __attribute__packed__close__ __attribute__((__packed__))
+#define __attribute__format__open__(...) /* do nothing */
+#define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
 #endif
