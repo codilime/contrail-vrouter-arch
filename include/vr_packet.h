@@ -283,8 +283,7 @@ struct vr_eth {
     unsigned char eth_dmac[VR_ETHER_ALEN];
     unsigned char eth_smac[VR_ETHER_ALEN];
     unsigned short eth_proto;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define VLAN_ID_INVALID         0xFFFF
 #define VLAN_ID_MAX             0xFFFF
@@ -294,8 +293,7 @@ __attribute__packed__open__
 struct vr_vlan_hdr {
     unsigned short vlan_tag;
     unsigned short vlan_proto;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 
 #define VR_ARP_HW_LEN           6
@@ -341,8 +339,7 @@ struct vr_arp {
     unsigned int arp_spa;
     unsigned char arp_dha[VR_ARP_HW_LEN];
     unsigned int arp_dpa;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 static inline bool
 vr_grat_arp(struct vr_arp *sarp)
@@ -400,8 +397,7 @@ struct vr_ip {
     unsigned short ip_csum;
     unsigned int ip_saddr;
     unsigned int ip_daddr;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 static inline void
 vr_incremental_diff(unsigned int oldval, unsigned int newval,
@@ -471,8 +467,7 @@ struct vr_neighbor_option {
     uint8_t vno_type;
     uint8_t vno_length;
     uint8_t vno_value[0];
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 __attribute__packed__open__
 struct vr_ip6_pseudo {
@@ -481,8 +476,8 @@ struct vr_ip6_pseudo {
     unsigned short ip6_l4_length;
     unsigned short ip6_zero;
     unsigned int ip6_zero_nh;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
+
 
 __attribute__packed__open__
 struct vr_ip6 {
@@ -517,8 +512,7 @@ struct vr_ip6 {
     uint8_t         ip6_hlim;
     uint8_t         ip6_src[VR_IP6_ADDRESS_LEN];
     uint8_t         ip6_dst[VR_IP6_ADDRESS_LEN];
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define VR_IP4_MAPPED_IP6_ZERO_BYTES    10
 #define VR_IP4_MAPPED_IP6_ONE_BYTES     2
@@ -752,8 +746,7 @@ struct vr_tcp {
     unsigned short tcp_win;
     unsigned short tcp_csum;
     unsigned short tcp_urg;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 __attribute__packed__open__
 struct vr_udp {
@@ -761,8 +754,7 @@ struct vr_udp {
     unsigned short udp_dport;
     unsigned short udp_length;
     unsigned short udp_csum;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 __attribute__packed__open__
 struct vr_sctp {
@@ -770,8 +762,7 @@ struct vr_sctp {
     unsigned short sctp_dport;
     unsigned int sctp_vtag;
     unsigned int sctp_csum;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define VR_ICMP_TYPE_ECHO_REPLY     0
 #define VR_ICMP_TYPE_DEST_UNREACH   3
@@ -796,8 +787,7 @@ struct vr_icmp {
     uint16_t icmp_eid;
     uint16_t icmp_eseq;
     uint8_t  icmp_data[0]; /* compatibility with ICMPv6 */
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 static inline bool
 vr_icmp_echo(struct vr_icmp *icmph)
@@ -838,8 +828,7 @@ __attribute__packed__open__
 struct vr_gre {
     unsigned short gre_flags;
     unsigned short gre_proto;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 struct vr_pcap {
     /* timestamp seconds */
@@ -856,8 +845,7 @@ __attribute__packed__open__
 struct vr_vxlan {
     unsigned int vxlan_flags;
     unsigned int vxlan_vnid;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define VR_VXLAN_IBIT               0x08000000
 #define VR_VXLAN_RABIT              0x01000000

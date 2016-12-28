@@ -104,8 +104,8 @@ struct vr_common_flow{
     unsigned short ip_dport;
     unsigned int   ip_nh_id;
     unsigned char  ip_addr[2 * VR_IP6_ADDRESS_LEN];
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
+
 
 __attribute__packed__open__
 struct vr_inet_flow {
@@ -117,8 +117,7 @@ struct vr_inet_flow {
     unsigned int   ip4_nh_id;
     unsigned int   ip4_sip;
     unsigned int   ip4_dip;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 __attribute__packed__open__
 struct vr_inet6_flow {
@@ -130,8 +129,7 @@ struct vr_inet6_flow {
     unsigned int   ip6_nh_id;
     unsigned char  ip6_sip[VR_IP6_ADDRESS_LEN];
     unsigned char  ip6_dip[VR_IP6_ADDRESS_LEN];
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 
 __attribute__packed__open__
@@ -142,8 +140,7 @@ struct vr_flow {
         struct vr_inet6_flow ip6_key;
     } key_u;
     uint8_t   vr_flow_keylen;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define flow_key_len   vr_flow_keylen
 #define flow_family    key_u.ip_key.ip_family
@@ -227,8 +224,7 @@ struct vr_flow_stats {
     uint32_t flow_packets;
     uint16_t flow_bytes_oflow;
     uint8_t  flow_packets_oflow;
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define VR_MAX_FLOW_QUEUE_ENTRIES   3U
 
@@ -332,9 +328,8 @@ struct vr_dummy_flow_entry {
     uint8_t fe_drop_reason;
     uint8_t fe_type;
     unsigned short fe_udp_src_port;
-	struct vr_mirror_meta_entry *fe_mme;
-}
-__attribute__packed__close__;
+    struct vr_mirror_meta_entry *fe_mme;
+} __attribute__packed__close__;
 
 #define VR_FLOW_ENTRY_PACK (128 - sizeof(struct vr_dummy_flow_entry))
 
@@ -364,8 +359,7 @@ struct vr_flow_entry {
     unsigned short fe_udp_src_port;
     struct vr_mirror_meta_entry *fe_mme;
     unsigned char fe_pack[VR_FLOW_ENTRY_PACK];
-}
-__attribute__packed__close__;
+} __attribute__packed__close__;
 
 #define VR_FLOW_PROTO_SHIFT             16
 

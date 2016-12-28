@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef _MSC_VER
+#ifdef _WINDOWS
 
 #include <wdm.h>
 #include <basetsd.h>

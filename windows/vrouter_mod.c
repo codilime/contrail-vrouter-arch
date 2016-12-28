@@ -1,13 +1,5 @@
 #include "precomp.h"
 
-#include "vr_defs.h"
-#include "vr_qos.h"
-#include "vr_htable.h"
-#include "vr_flow.h"
-#include "vr_types.h"
-#include "vr_interface.h"
-#include "sandesh.h"
-#include "vrouter.h"
 #include "vr_packet.h"
 
 ULONG SxExtAllocationTag = 'RVCO';

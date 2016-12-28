@@ -303,7 +303,6 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dp-core\precomp.h" />
     <ClInclude Include="include\vrouter.h" />
     <ClInclude Include="include\vr_defs.h" />
     <ClInclude Include="include\vr_flow.h" />
@@ -311,7 +310,7 @@
     <ClInclude Include="include\vr_interface.h" />
     <ClInclude Include="include\vr_packet.h" />
     <ClInclude Include="include\vr_qos.h" />
-    <ClInclude Include="include\vr_win.h" />
+    <ClInclude Include="include\vr_platform.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
     <ClInclude Include="windows\SxBase\precomp.h" />

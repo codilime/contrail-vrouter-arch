@@ -3,9 +3,6 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
-
-#include "precomp.h"
-
 #include <vr_os.h>
 #include <vr_types.h>
 #include <vr_packet.h>

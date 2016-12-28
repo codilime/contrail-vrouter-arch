@@ -16,8 +16,7 @@ typedef struct vr_hentry {
     unsigned int hentry_bucket_index;
     unsigned int hentry_next_index;
     uint8_t hentry_flags;
-}
-__attribute__packed__close__ vr_hentry_t;
+} __attribute__packed__close__ vr_hentry_t;
 
 typedef void *vr_hentry_key;
 typedef struct vr_htable_opaque *vr_htable_t;
