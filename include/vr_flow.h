@@ -131,7 +131,6 @@ struct vr_inet6_flow {
     unsigned char  ip6_dip[VR_IP6_ADDRESS_LEN];
 } __attribute__packed__close__;
 
-
 __attribute__packed__open__
 struct vr_flow {
     union {

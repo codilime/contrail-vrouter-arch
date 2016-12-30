@@ -385,7 +385,7 @@ struct vr_ip {
                  ip_version:4;
 #elif (__BYTE_ORDER == __BIG_ENDIAN)
    unsigned char ip_version:4,
-	   ip_hl:4;
+                 ip_hl:4;
 #endif
 #endif
     unsigned char ip_tos;
@@ -468,6 +468,7 @@ struct vr_neighbor_option {
     uint8_t vno_length;
     uint8_t vno_value[0];
 } __attribute__packed__close__;
+
 
 __attribute__packed__open__
 struct vr_ip6_pseudo {
