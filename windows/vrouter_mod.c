@@ -52,6 +52,28 @@ char *base64_encode(const unsigned char *data, size_t input_length) {
 }
 
 NDIS_STATUS
+AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
+{
+	if (nic.nic_type != NdisSwitchNicTypeExternal)
+	{
+		DbgPrint("Internal NIC, Index: %u, Type: %u, PortId: %u\r\n", nic.nic_index, nic.nic_type, nic.port_id);
+	}
+	else
+	{
+		DbgPrint("External NIC, Index: %u, Type: %u, PortId: %u\r\n", nic.nic_index, nic.nic_type, nic.port_id);
+	}
+
+	if (ctx->num_nics == MAX_NIC_NUMBER - 1)
+	{
+		DbgPrint("All slots filled\r\n");
+		return NDIS_STATUS_RESOURCES;
+	}
+	ctx->nics[ctx->num_nics++] = nic;
+
+	return NDIS_STATUS_SUCCESS;
+}
+
+NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
 	DbgPrint("SxExtInitialize\r\n");
@@ -74,12 +96,14 @@ SxExtCreateSwitch(
 )
 {
 	DbgPrint("SxExtCreateSwitch\r\n");
-	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
 
-	PNDIS_RW_LOCK_EX lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+	struct vr_switch_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
+	RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
+	ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
 
-	*ExtensionContext = (NDIS_HANDLE)lock;
+	ctx->restart = TRUE;
+
+	*ExtensionContext = (NDIS_HANDLE)ctx;
 
 	return 0;
 }
@@ -92,9 +116,11 @@ SxExtDeleteSwitch(
 {
 	DbgPrint("SxExtDeleteSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
 
-	NdisFreeRWLock(ExtensionContext);
+
+
+	NdisFreeRWLock(((struct vr_switch_context*)ExtensionContext)->lock);
+	ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);
 }
 
 VOID
@@ -116,7 +142,29 @@ SxExtRestartSwitch(
 {
 	DbgPrint("SxExtRestartSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
+
+	struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+
+	PNDIS_SWITCH_NIC_ARRAY nics;
+	if (SxLibGetNicArrayUnsafe(Switch, &nics) != NDIS_STATUS_SUCCESS)
+	{
+		DbgPrint("Failed to fetch port array!\r\n");
+		return NDIS_STATUS_FAILURE;
+	}
+
+	for (unsigned int i = 0; i < nics->NumElements; i++)
+	{
+		struct vr_nic nic = { 0 };
+		PNDIS_SWITCH_NIC_PARAMETERS entry = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(nics, i);
+		RtlCopyMemory(nic.mac, entry->PermanentMacAddress, sizeof(nic.mac));
+		nic.nic_index = entry->NicIndex;
+		nic.nic_type = entry->NicType;
+		nic.port_id = entry->PortId;
+
+		AddNicToArray(ctx, nic);
+	}
+
+	ctx->restart = FALSE;
 
 	return 0;
 }
@@ -161,6 +209,7 @@ SxExtUpdatePort(
 	DbgPrint("SxExtUpdatePort\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
+	UNREFERENCED_PARAMETER(Port);
 }
 
 NDIS_STATUS
@@ -172,7 +221,13 @@ SxExtCreateNic(
 {
 	DbgPrint("SxExtCreateNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
+
+	struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+
+	while (ctx->restart)
+	{
+		NdisMSleep(100);
+	}
 
 	DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S",
 		Nic->NicFriendlyName.String, Nic->NicName.String, Nic->NicIndex, Nic->NicState, Nic->NicType, Nic->PortId, Nic->PermanentMacAddress, Nic->CurrentMacAddress, Nic->VMMacAddress, Nic->VmName.String);
@@ -189,8 +244,22 @@ SxExtConnectNic(
 {
 	DbgPrint("SxExtConnectNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
+
+	struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
+
+	while (ctx->restart)
+	{
+		NdisMSleep(100);
+	}
+
+	struct vr_nic nic = { 0 };
+	RtlCopyMemory(nic.mac, Nic->PermanentMacAddress, sizeof(nic.mac));
+	nic.nic_index = Nic->NicIndex;
+	nic.nic_type = Nic->NicType;
+	nic.port_id = Nic->PortId;
+
+	AddNicToArray(ctx, nic);
 }
 
 VOID
@@ -202,8 +271,14 @@ SxExtUpdateNic(
 {
 	DbgPrint("SxExtUpdateNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
+
+	struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+
+	while (ctx->restart)
+	{
+		NdisMSleep(100);
+	}
 }
 
 VOID
@@ -215,8 +290,26 @@ SxExtDisconnectNic(
 {
 	DbgPrint("SxExtDisconnectNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
+
+	struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+
+	while (ctx->restart)
+	{
+		NdisMSleep(100);
+	}
+
+	for (unsigned int i = 0; i < ctx->num_nics; i++)
+	{
+		if (ctx->nics[i].port_id == Nic->PortId && ctx->nics[i].nic_index == Nic->NicIndex)
+		{
+			if (i != ctx->num_nics - 1)
+			{
+				ctx->nics[i] = ctx->nics[ctx->num_nics - 1];
+			}
+			ctx->num_nics--;
+		}
+	}
 }
 
 VOID
@@ -228,8 +321,14 @@ SxExtDeleteNic(
 {
 	DbgPrint("SxExtDeleteNic\r\n");
 	UNREFERENCED_PARAMETER(Switch);
-	UNREFERENCED_PARAMETER(ExtensionContext);
 	UNREFERENCED_PARAMETER(Nic);
+
+	struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+
+	while (ctx->restart)
+	{
+		NdisMSleep(100);
+	}
 }
 
 VOID
@@ -522,10 +621,10 @@ SxExtStartNetBufferListsIngress(
 {
 	UNREFERENCED_PARAMETER(Switch);
 	UNREFERENCED_PARAMETER(ExtensionContext);
-	UNREFERENCED_PARAMETER(NetBufferLists);
 	DbgPrint("SxExtStartNetBufferListsIngress\r\n");
 
-	PNDIS_RW_LOCK_EX lock = (PNDIS_RW_LOCK_EX)ExtensionContext;
+	struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
+	PNDIS_RW_LOCK_EX lock = ctx->lock;
 	LOCK_STATE_EX lockState;
 
 	BOOLEAN sameSource;
@@ -541,9 +640,6 @@ SxExtStartNetBufferListsIngress(
 	PNET_BUFFER_LIST *nextNativeForwardedNbl = &nativeForwardedNbls;
 
 	PNET_BUFFER_LIST curNbl = NULL, nextNbl = NULL;
-
-	PMDL curMdl;
-	PUINT8 curBuffer;
 
 	dispatch = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
 	sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
@@ -565,21 +661,29 @@ SxExtStartNetBufferListsIngress(
 		DbgPrint("Not same-source NBL\r\n");
 	}
 
+	// Divide the NBL into two: part which requires native forwarding and the rest
 	for (curNbl = NetBufferLists; curNbl != NULL; curNbl = nextNbl)
 	{
+		// Rememeber the next NBL
 		nextNbl = curNbl->Next;
+		// Break the list
+		curNbl->Next = NULL;
 
 		fwdDetail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
 
 		if (fwdDetail->NativeForwardingRequired)
 		{
 			DbgPrint("Native forwarded NBL\r\n");
+			// Set the next NBL to current NBL. This pointer points to either first pointer to
+			// native forwarded NBL or the "Next" field of the last one.
 			*nextNativeForwardedNbl = curNbl;
 			nextNativeForwardedNbl = &(curNbl->Next);
 		}
 		else
 		{
 			DbgPrint("Non-native forewarded NBL\r\n");
+			// Set the next NBL to current NBL. This pointer points to either first pointer to
+			// non-native forwarded NBL or the "Next" field of the last one.
 			*nextExtForwardNbl = curNbl;
 			nextExtForwardNbl = &(curNbl->Next);
 		}
@@ -590,20 +694,21 @@ SxExtStartNetBufferListsIngress(
 		nextNbl = curNbl->Next;
 		curNbl->Next = NULL;
 
-		//For now, assume everything important is in a single MDL
-		curMdl = (NET_BUFFER_LIST_FIRST_NB(curNbl))->CurrentMdl;
-		curBuffer = MmGetSystemAddressForMdlSafe(
-			curMdl,
-			LowPagePriority | MdlMappingNoExecute);
+		NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
+		MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
+		void* ptr = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
+		PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO  fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
+		DbgPrint("Source port ID: %u\r\n", fwd->SourcePortId);
 			
-		char* str = base64_encode(curBuffer + NET_BUFFER_LIST_FIRST_NB(curNbl)->CurrentMdlOffset, NET_BUFFER_LIST_FIRST_NB(curNbl)->DataLength);
-		DbgPrint("Packet data: %s\r\n", str);
+		char* str = base64_encode((const unsigned char*) ptr + NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
+		DbgPrint("Packet data : %s\r\n", str);
 
 		ExFreePoolWithTag(str, SxExtAllocationTag);
 	}
 
 	if (nativeForwardedNbls != NULL)
 	{
+		DbgPrint("Sending native forwarded NBLs\r\n");
 		SxLibSendNetBufferListsIngress(Switch,
 			nativeForwardedNbls,
 			SendFlags,
@@ -612,6 +717,38 @@ SxExtStartNetBufferListsIngress(
 
 	if (extForwardedNbls != NULL)
 	{
+		PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY broadcastArray;
+		Switch->NdisSwitchHandlers.GetNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, &broadcastArray);
+		if (broadcastArray)
+		{
+			DbgPrint("NumDestinations: %u, NumElements: %u\r\n", broadcastArray->NumDestinations, broadcastArray->NumElements);
+			DbgPrint("%u Nics...\r\n", ctx->num_nics);
+		}
+		else
+		{
+			DbgPrint("Broadcast Array is NULL\r\n");
+		}
+
+		unsigned int numTargets = ctx->num_nics;
+
+		if (broadcastArray->NumDestinations < numTargets)
+		{
+			Switch->NdisSwitchHandlers.GrowNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, numTargets - broadcastArray->NumDestinations, &broadcastArray);
+		}
+
+		NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
+
+		for (unsigned int i = 0; i < ctx->num_nics; i++)
+		{
+			newDestination.PortId = ctx->nics[i].port_id;
+			newDestination.NicIndex = ctx->nics[i].nic_index;
+
+			DbgPrint("Adding target, PID: %u, NID: %u\r\n", newDestination.PortId, newDestination.NicIndex);
+
+			Switch->NdisSwitchHandlers.AddNetBufferListDestination(Switch->NdisSwitchContext, extForwardedNbls, &newDestination);
+		}
+
+		DbgPrint("Sending extension forwarded NBLs\r\n");
 		SxLibSendNetBufferListsIngress(Switch,
 			extForwardedNbls,
 			SendFlags,
@@ -620,6 +757,7 @@ SxExtStartNetBufferListsIngress(
 
 	if (dropNbl != NULL)
 	{
+		DbgPrint("Dropping dropped NBLs\r\n");
 		SxLibCompleteNetBufferListsIngress(Switch,
 			dropNbl,
 			sendCompleteFlags);
