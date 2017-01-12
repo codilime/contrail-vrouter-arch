@@ -304,6 +304,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\vrouter.h" />
+    <ClInclude Include="include\vr_windows.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\SxBase\precomp.h" />
     <ClInclude Include="windows\SxBase\SxApi.h" />
@@ -315,6 +316,7 @@
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
+    <ClCompile Include="windows\vr_assoc.c" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />
