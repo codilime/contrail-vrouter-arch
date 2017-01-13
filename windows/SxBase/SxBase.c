@@ -27,6 +27,11 @@ LIST_ENTRY SxExtensionList;
 NDIS_STRING SxExtensionFriendlyName;
 NDIS_STRING SxExtensionGuid;
 
+/* Read/write lock which must be acquired by deferred callbacks. Used in functions from
+ * `host_os` struct.
+ */
+PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
+
 NDIS_STATUS
 SxpNdisProcessSetOid(
     _In_ PSX_SWITCH_OBJECT Switch,
@@ -117,6 +122,8 @@ DriverEntry(
                                        (NDIS_HANDLE)SxDriverObject,
                                        &fChars,
                                        &SxDriverHandle);
+	
+	AsyncWorkRWLock = NdisAllocateRWLock(SxDriverHandle);
 
 Cleanup:
 
@@ -149,6 +156,8 @@ SxNdisUnload(
 {
     SxExtUninitialize(DriverObject);
     
+	NdisFreeRWLock(AsyncWorkRWLock);
+
     NdisFDeregisterFilterDriver(SxDriverHandle);
     NdisFreeSpinLock(&SxExtensionListLock);
 }

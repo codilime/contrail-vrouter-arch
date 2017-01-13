@@ -308,6 +308,7 @@
     <ClInclude Include="include\vr_flow.h" />
     <ClInclude Include="include\vr_htable.h" />
     <ClInclude Include="include\vr_interface.h" />
+    <ClInclude Include="include\vr_os.h" />
     <ClInclude Include="include\vr_packet.h" />
     <ClInclude Include="include\vr_qos.h" />
     <ClInclude Include="include\vr_platform.h" />
@@ -326,6 +327,7 @@
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_assoc.c" />
+    <ClCompile Include="windows\vr_host.c" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />
