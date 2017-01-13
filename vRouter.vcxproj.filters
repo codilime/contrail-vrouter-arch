@@ -58,7 +58,7 @@
     <ClInclude Include="windows\sandesh-temp\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_platform.h">
+    <ClInclude Include="include\vr_os.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -73,6 +73,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vrouter_mod.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_packet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\temp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -308,9 +308,9 @@
     <ClInclude Include="include\vr_flow.h" />
     <ClInclude Include="include\vr_htable.h" />
     <ClInclude Include="include\vr_interface.h" />
+    <ClInclude Include="include\vr_os.h" />
     <ClInclude Include="include\vr_packet.h" />
     <ClInclude Include="include\vr_qos.h" />
-    <ClInclude Include="include\vr_platform.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
     <ClInclude Include="windows\SxBase\precomp.h" />
@@ -319,6 +319,12 @@
     <ClInclude Include="windows\SxBase\SxLibrary.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="dp-core\temp.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_packet.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="windows\SxBase\precompsrc.c" />
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />

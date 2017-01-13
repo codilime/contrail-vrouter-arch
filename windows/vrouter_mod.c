@@ -1,5 +1,6 @@
 #include "precomp.h"
 
+//#include "vrouter.h"
 #include "vr_packet.h"
 
 ULONG SxExtAllocationTag = 'RVCO';
@@ -18,7 +19,9 @@ ULONG  SxExtOidRequestId = 'RVCO';
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
+	struct vr_ip a;
 	DbgPrint("SxExtInitialize\r\n");
+	DbgPrint("SxExtInitialize %d\r\n", sizeof(a));
 	UNREFERENCED_PARAMETER(DriverObject);
 
 	return NDIS_STATUS_SUCCESS;
