@@ -312,6 +312,7 @@
     <ClInclude Include="windows\SxBase\SxLibrary.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="windows\precompsrc2.c" />
     <ClCompile Include="windows\SxBase\precompsrc.c" />
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />

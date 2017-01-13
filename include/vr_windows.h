@@ -1,11 +1,31 @@
 #pragma once
 
+#include <ndis.h>
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define MAX_NIC_NUMBER 1024
+
 #define VR_OID_SOURCE	0x00000001
 #define VR_AGENT_SOURCE	0x00000020
+
+struct vr_nic {
+	UCHAR                       mac[NDIS_MAX_PHYS_ADDRESS_LENGTH];
+	NDIS_SWITCH_PORT_ID			port_id;
+	NDIS_SWITCH_NIC_INDEX		nic_index;
+	NDIS_SWITCH_NIC_TYPE		nic_type;
+};
+
+struct vr_switch_context {
+	struct vr_nic			nics[MAX_NIC_NUMBER];
+	UINT32                  num_nics;
+
+	PNDIS_RW_LOCK_EX        lock;
+	BOOLEAN					restart;
+};
 
 struct vr_assoc {
 	int sources;
