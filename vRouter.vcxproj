@@ -201,8 +201,8 @@
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS640=1</PreProcessorDefinitions>
+      <AdditionalIncludeDirectories>..;.;..\Tools;..\Tools\sandesh\library\c;windows\sandesh-temp;windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS640=1;_WINDOWS</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
       <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
       <PreCompiledHeader>Create</PreCompiledHeader>
@@ -304,8 +304,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\vrouter.h" />
+    <ClInclude Include="include\vr_defs.h" />
+    <ClInclude Include="include\vr_flow.h" />
+    <ClInclude Include="include\vr_htable.h" />
+    <ClInclude Include="include\vr_interface.h" />
+    <ClInclude Include="include\vr_packet.h" />
+    <ClInclude Include="include\vr_qos.h" />
+    <ClInclude Include="include\vr_platform.h" />
     <ClInclude Include="include\vr_windows.h" />
     <ClInclude Include="windows\precomp.h" />
+    <ClInclude Include="windows\sandesh-temp\vr_types.h" />
     <ClInclude Include="windows\SxBase\precomp.h" />
     <ClInclude Include="windows\SxBase\SxApi.h" />
     <ClInclude Include="windows\SxBase\SxBase.h" />

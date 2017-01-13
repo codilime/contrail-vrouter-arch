@@ -37,6 +37,30 @@
     <ClInclude Include="include\vrouter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\vr_packet.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_qos.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_htable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_flow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_interface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="windows\sandesh-temp\vr_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_platform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="include\vr_windows.h">
       <Filter>Header Files</Filter>
     </ClInclude>

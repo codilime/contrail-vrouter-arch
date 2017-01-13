@@ -1,5 +1,6 @@
 #include "precomp.h"
 #include "vr_windows.h"
+#include "vr_packet.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
