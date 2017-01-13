@@ -1,9 +1,6 @@
 #include "precomp.h"
 #include "vr_windows.h"
-
 #include "vr_packet.h"
-
-ULONG SxExtAllocationTag = 'RVCO';
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -14,6 +11,7 @@ PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
 
 PWCHAR SxExtServiceName = L"vRouter";
 
+ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
 static char encoding_table[] = {
