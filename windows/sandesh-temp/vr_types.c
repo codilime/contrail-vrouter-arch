@@ -7,7 +7,6 @@
  */
 
 #include "precomp.h"
-
 #include "vr_types.h"
 
 /* reads a sandesh_hdr struct */
@@ -9357,6 +9356,15 @@ vr_drop_stats_req_write (void* wsandesh, ThriftProtocol *protocol, int *error)
     return -1;
   xfer += ret;
   if ((ret = thrift_protocol_write_i64 (protocol, wvr_drop_stats_req->vds_flow_evict, error)) < 0)
+    return -1;
+  xfer += ret;
+  if ((ret = thrift_protocol_write_field_end (protocol, error)) < 0)
+    return -1;
+  xfer += ret;
+  if ((ret = thrift_protocol_write_field_begin (protocol, "vds_trap_original", T_I64, 54, error)) < 0)
+    return -1;
+  xfer += ret;
+  if ((ret = thrift_protocol_write_i64 (protocol, wvr_drop_stats_req->vds_trap_original, error)) < 0)
     return -1;
   xfer += ret;
   if ((ret = thrift_protocol_write_field_end (protocol, error)) < 0)

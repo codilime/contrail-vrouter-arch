@@ -18,8 +18,11 @@ vrouter.o
 
 Module.symvers
 modules.order
-/x64/Debug
+/x64/
+/utils/x64
 /.vs/vRouter/v14
 /vRouter.VC.db
 /vRouter.VC.VC.opendb
 /ipch/
+/sandesh/gen-c/*
+/utils/*obj
