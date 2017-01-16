@@ -37,6 +37,7 @@
 #include "vr_nexthop.h"
 #include "vr_os.h"
 #include "nl_util.h"
+#include "vr_platform.h"
 
 
 static int8_t src_mac[6], dst_mac[6];
@@ -205,6 +206,7 @@ nh_print_newline_header(void)
 void
 vr_nexthop_req_process(void *s_req)
 {
+
     unsigned int i, printed = 0;
     struct in_addr a;
     char flags_mem[500];
@@ -550,7 +552,7 @@ parse_long_opts(int ind, char *opt_arg)
             usage();
         break;
 
-	// TODO: Implement ether_aton for windows platform
+	// TODO: JW-74 Implement ether_aton for windows platform
 	/*
     case SMAC_OPT_IND:
         mac = ether_aton(opt_arg);
@@ -579,13 +581,13 @@ parse_long_opts(int ind, char *opt_arg)
         if (errno)
             usage();
         break;
-	// TODO: Fix me missing inet_aton - Mariusz
+	// TODO: JW-74 Implement missing inet_aton for windows platform
 	/*
     case SIP_OPT_IND:
         inet_aton(opt_arg, &sip);
         break;
 
-    case DIP_OPT_IND:g
+    case DIP_OPT_IND:
         inet_aton(opt_arg, &dip);
         break; */
     case SPORT_OPT_IND:
@@ -773,7 +775,7 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
-	// Fix me - getopt_long - Mariusz
+	// TODO: JW-74 Replace getopt with getoptlong
     while ((opt = getopt(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {
