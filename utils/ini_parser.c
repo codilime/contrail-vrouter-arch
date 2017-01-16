@@ -3,18 +3,21 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <malloc.h>
 #include <stdbool.h>
-#include <arpa/inet.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <asm/types.h>
-#include <linux/netlink.h>
 #include <ctype.h>
 #include <stdlib.h>
 
 #include "ini_parser.h"
+
+#ifdef __GNUC__
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <asm/types.h>
+#include <linux/netlink.h>
+#endif
 
 #define BUF_LENGTH 256
 
@@ -121,7 +124,7 @@ read_value(const char *section, const char *key)
         return false;
     }
 
-    bzero(value, sizeof(value));
+	memset(value, 0, sizeof(value));
     buffer[sizeof(buffer) - 1] = '\0';
     strncpy(buffer, key_start, sizeof(buffer) - 1);
     value_start = strtok(buffer, "=");
@@ -156,7 +159,8 @@ read_string(const char *section, const char *key)
 uint32_t
 read_ip(const char *section, const char *key)
 {
-    struct in_addr ip;
+// TODO: Implement read_ip for windows platform
+/*    struct in_addr ip;
 
     if (read_value(section, key) == false) {
         return 0;
@@ -164,32 +168,36 @@ read_ip(const char *section, const char *key)
 
     if (inet_pton(AF_INET, value, &ip) == 1) {
         return ntohl(ip.s_addr);
-    }
+    } */
     return 0;
 }
 
 int
 get_domain()
 {
+	// TODO: Implement get_domain for windows platform
+	/**
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
        (strcmp(platform, PLATFORM_DPDK) == 0 ||
         strcmp(platform, PLATFORM_NIC) == 0)) {
         return AF_INET;
-    }
-    return AF_NETLINK;
+    } */
+	return -1337;//AF_NETLINK;
 }
 
 int
 get_type()
 {
+	// TODO: Implement get_typ for windows platform
+	/*
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
         (strcmp(platform, PLATFORM_DPDK) == 0 ||
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return SOCK_STREAM;
-    }
-    return SOCK_DGRAM;
+    }*/
+	return -1337; // SOCK_DGRAM;
 }
 
 uint16_t
@@ -213,13 +221,15 @@ get_ip()
 int
 get_protocol()
 {
+	// TODO: Implement get_protocol for windows platform
+	/*
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
         (strcmp(platform, PLATFORM_DPDK) == 0 ||
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return 0;
-    }
-    return NETLINK_GENERIC;
+    } */
+	return -1337; // NETLINK_GENERIC;
 }
 
 int
