@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 /* base includes */
-#include "sandesh/library/c/sandesh.h"
+#include "sandesh.h"
 
 /* custom thrift includes */
 
@@ -871,6 +871,8 @@ struct _vr_drop_stats_req
   u_int8_t __isset_vds_drop_new_flow;
   int64_t vds_flow_evict;
   u_int8_t __isset_vds_flow_evict;
+  int64_t vds_trap_original;
+  u_int8_t __isset_vds_trap_original;
 };
 typedef struct _vr_drop_stats_req vr_drop_stats_req;
 

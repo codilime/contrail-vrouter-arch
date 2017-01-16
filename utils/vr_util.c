@@ -6,12 +6,16 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef __GNUC__
 #include <unistd.h>
+#include <sys/socket.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#endif
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <sys/socket.h>
 #if defined(__linux__)
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
@@ -20,8 +24,6 @@
 #include <net/ethernet.h>
 #endif
 
-#include <net/if.h>
-#include <netinet/in.h>
 
 #include "vr_types.h"
 #include "nl_util.h"
