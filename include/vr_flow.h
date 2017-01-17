@@ -95,6 +95,7 @@ struct vr_flow_defer_data {
     bool vfdd_delete;
 };
 
+__attribute__packed__open__
 struct vr_common_flow{
     unsigned char  ip_family;
     unsigned char  ip_proto;
@@ -103,9 +104,10 @@ struct vr_common_flow{
     unsigned short ip_dport;
     unsigned int   ip_nh_id;
     unsigned char  ip_addr[2 * VR_IP6_ADDRESS_LEN];
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 
+__attribute__packed__open__
 struct vr_inet_flow {
     unsigned char  ip4_family;
     unsigned char  ip4_proto;
@@ -115,8 +117,9 @@ struct vr_inet_flow {
     unsigned int   ip4_nh_id;
     unsigned int   ip4_sip;
     unsigned int   ip4_dip;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
+__attribute__packed__open__
 struct vr_inet6_flow {
     unsigned char  ip6_family;
     unsigned char  ip6_proto;
@@ -126,8 +129,9 @@ struct vr_inet6_flow {
     unsigned int   ip6_nh_id;
     unsigned char  ip6_sip[VR_IP6_ADDRESS_LEN];
     unsigned char  ip6_dip[VR_IP6_ADDRESS_LEN];
-} __attribute__((packed));
+} __attribute__packed__close__;
 
+__attribute__packed__open__
 struct vr_flow {
     union {
         struct vr_common_flow ip_key;
@@ -135,7 +139,7 @@ struct vr_flow {
         struct vr_inet6_flow ip6_key;
     } key_u;
     uint8_t   vr_flow_keylen;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 #define flow_key_len   vr_flow_keylen
 #define flow_family    key_u.ip_key.ip_family
@@ -213,12 +217,13 @@ struct vr_flow_table_info {
  * is also better probably because processor does not have to
  * do bit operations
  */
+__attribute__packed__open__
 struct vr_flow_stats {
     uint32_t flow_bytes;
     uint32_t flow_packets;
     uint16_t flow_bytes_oflow;
     uint8_t  flow_packets_oflow;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 #define VR_MAX_FLOW_QUEUE_ENTRIES   3U
 
@@ -299,6 +304,7 @@ struct vr_flow_queue {
 /* align to 8 byte boundary */
 #define VR_FLOW_KEY_PAD ((8 - (sizeof(struct vr_flow) % 8)) % 8)
 
+__attribute__packed__open__
 struct vr_dummy_flow_entry {
     vr_hentry_t fe_hentry;
     uint8_t fe_ttl;
@@ -321,12 +327,13 @@ struct vr_dummy_flow_entry {
     uint8_t fe_drop_reason;
     uint8_t fe_type;
     unsigned short fe_udp_src_port;
-    struct vr_mirror_meta_entry *fe_mme;;
-} __attribute__((packed));
+    struct vr_mirror_meta_entry *fe_mme;
+} __attribute__packed__close__;
 
 #define VR_FLOW_ENTRY_PACK (128 - sizeof(struct vr_dummy_flow_entry))
 
 /* do not change. any field positions as it might lead to incompatibility */
+__attribute__packed__open__
 struct vr_flow_entry {
     vr_hentry_t fe_hentry;
     uint8_t fe_ttl;
@@ -351,7 +358,7 @@ struct vr_flow_entry {
     unsigned short fe_udp_src_port;
     struct vr_mirror_meta_entry *fe_mme;
     unsigned char fe_pack[VR_FLOW_ENTRY_PACK];
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 #define VR_FLOW_PROTO_SHIFT             16
 

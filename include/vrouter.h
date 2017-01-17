@@ -140,8 +140,10 @@ struct vr_timer {
 };
 
 struct host_os {
+    __attribute__format__open__(printf, 1, 2)
     int (*hos_printf)(const char *, ...)
-            __attribute__((format(printf, 1, 2)));
+    __attribute__format__close__(printf, 1, 2);
+
     void *(*hos_malloc)(unsigned int, unsigned int);
     void *(*hos_zalloc)(unsigned int, unsigned int);
     void (*hos_free)(void *, unsigned int);
