@@ -6,17 +6,26 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/types.h>
+
+#ifdef __GNUC__
 #include <stdbool.h>
 #include <getopt.h>
-
-#include <sys/types.h>
 #include <sys/socket.h>
-
+#include <unistd.h>
 #include <net/if.h>
+#include <unistd.h>
+#endif
+
+#ifndef __GNUC__
+#include <wingetopt.h>
+#include <winsock2.h>
+#include <windows.h>
+#include "stdbool.h"
+#endif
 
 #if defined(__linux__)
 #include <netinet/ether.h>
@@ -28,6 +37,7 @@
 #include "vr_nexthop.h"
 #include "vr_os.h"
 #include "nl_util.h"
+
 
 static int8_t src_mac[6], dst_mac[6];
 static uint16_t sport, dport;
@@ -248,10 +258,10 @@ vr_nexthop_req_process(void *s_req)
             a.s_addr = req->nhr_tun_dip;
             printf("  Dip:%s", inet_ntoa(a));
         } else if (req->nhr_family == AF_INET6) {
-            printf("  Sip: %s",
+            printf("  Sip: %d",
                     inet_ntop(AF_INET6, (struct in6_addr *)req->nhr_tun_sip6,
                     in6_dst, sizeof(in6_dst)));
-            printf("  Dip: %s",
+            printf("  Dip: %d",
                     inet_ntop(AF_INET6, (struct in6_addr *)req->nhr_tun_dip6,
                     in6_dst, sizeof(in6_dst)));
         }
@@ -508,6 +518,7 @@ static struct option long_options[] = {
     [MAX_OPT_IND]       = { NULL,   0,                  0,                      0}
 };
 
+
 static void
 parse_long_opts(int ind, char *opt_arg)
 {
@@ -539,6 +550,8 @@ parse_long_opts(int ind, char *opt_arg)
             usage();
         break;
 
+	// TODO: Implement ether_aton for windows platform
+	/*
     case SMAC_OPT_IND:
         mac = ether_aton(opt_arg);
         if (mac)
@@ -549,12 +562,12 @@ parse_long_opts(int ind, char *opt_arg)
 
     case DMAC_OPT_IND:
         mac = ether_aton(opt_arg);
-        if (mac)
+        if (mac)t
             memcpy(dst_mac, mac, sizeof(dst_mac));
         else
             cmd_usage();
         break;
-
+		*/
     case VRF_OPT_IND:
         vrf_id = strtoul(opt_arg, NULL, 0);
         if (errno)
@@ -566,15 +579,15 @@ parse_long_opts(int ind, char *opt_arg)
         if (errno)
             usage();
         break;
-
+	// TODO: Fix me missing inet_aton - Mariusz
+	/*
     case SIP_OPT_IND:
         inet_aton(opt_arg, &sip);
         break;
 
-    case DIP_OPT_IND:
+    case DIP_OPT_IND:g
         inet_aton(opt_arg, &dip);
-        break;
-
+        break; */
     case SPORT_OPT_IND:
         sport = strtoul(opt_arg, NULL, 0);
         if (errno)
@@ -760,8 +773,8 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
-
-    while ((opt = getopt_long(argc, argv, "",
+	// Fix me - getopt_long - Mariusz
+    while ((opt = getopt(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {
         case 0:
