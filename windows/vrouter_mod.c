@@ -14,6 +14,13 @@ PWCHAR SxExtServiceName = L"vRouter";
 ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
+PSX_SWITCH_OBJECT SxSwitchObject = NULL;
+
+/* Read/write lock which must be acquired by deferred callbacks. Used in functions from
+* `host_os` struct.
+*/
+PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
+
 static char encoding_table[] = {
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 	'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -106,6 +113,9 @@ SxExtCreateSwitch(
 
 	*ExtensionContext = (NDIS_HANDLE)ctx;
 
+	SxSwitchObject = Switch;
+	AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+
 	return 0;
 }
 
@@ -118,7 +128,8 @@ SxExtDeleteSwitch(
 	DbgPrint("SxExtDeleteSwitch\r\n");
 	UNREFERENCED_PARAMETER(Switch);
 
-
+	NdisFreeRWLock(AsyncWorkRWLock);
+	SxSwitchObject = NULL;
 
 	NdisFreeRWLock(((struct vr_switch_context*)ExtensionContext)->lock);
 	ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);

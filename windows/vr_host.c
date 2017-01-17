@@ -3,8 +3,8 @@
 #include "vr_os.h"
 #include "vrouter.h"
 
-/* Defined in SxBase.c */
-extern NDIS_HANDLE SxDriverHandle;
+/* Defined in windows/vrouter_mod.c */
+extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
 typedef void(*scheduled_work_cb)(void *arg);
@@ -212,7 +212,7 @@ win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
         return 1;
     }
 
-    work_item = NdisAllocateIoWorkItem(SxDriverHandle);
+    work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
     if (!work_item) {
         DbgPrint("%s: NdisAllocateIoWorkItem failed", __func__);
         scheduled_work_routine((PVOID)(cb_data), NULL);
@@ -269,7 +269,7 @@ win_defer(struct vrouter *router, vr_defer_cb user_cb, void *data)
     cb_data->user_cb = user_cb;
     cb_data->router = router;
 
-    work_item = NdisAllocateIoWorkItem(SxDriverHandle);
+    work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
     if (!work_item) {
         deferred_work_routine((PVOID)(cb_data), NULL);
     } else {
