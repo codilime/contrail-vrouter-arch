@@ -17,7 +17,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <net/if.h>
-#include <unistd.h>
 #endif
 
 #ifndef __GNUC__
@@ -260,10 +259,10 @@ vr_nexthop_req_process(void *s_req)
             a.s_addr = req->nhr_tun_dip;
             printf("  Dip:%s", inet_ntoa(a));
         } else if (req->nhr_family == AF_INET6) {
-            printf("  Sip: %d",
+            printf("  Sip: %s",
                     inet_ntop(AF_INET6, (struct in6_addr *)req->nhr_tun_sip6,
                     in6_dst, sizeof(in6_dst)));
-            printf("  Dip: %d",
+            printf("  Dip: %s",
                     inet_ntop(AF_INET6, (struct in6_addr *)req->nhr_tun_dip6,
                     in6_dst, sizeof(in6_dst)));
         }
@@ -564,7 +563,7 @@ parse_long_opts(int ind, char *opt_arg)
 
     case DMAC_OPT_IND:
         mac = ether_aton(opt_arg);
-        if (mac)t
+        if (mac)
             memcpy(dst_mac, mac, sizeof(dst_mac));
         else
             cmd_usage();

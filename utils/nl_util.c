@@ -482,7 +482,7 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
     cl->cl_socket_type = type;
 
     if (type == SOCK_STREAM) {
-        cl->cl_recvmsg = nl_client_stream_recvmnlsg;
+        cl->cl_recvmsg = nl_client_stream_recvmsg;
     } else {
         cl->cl_recvmsg = nl_client_datagram_recvmsg;
     }
@@ -908,7 +908,7 @@ int
 nl_build_if_create_msg(struct nl_client *cl, struct vn_if *ifp, uint8_t ack)
 {
     int ret;
-    uint32_t flags;n
+    uint32_t flags;
 
     if (!cl->cl_buf || cl->cl_buf_offset || !ifp)
         return -EINVAL;
