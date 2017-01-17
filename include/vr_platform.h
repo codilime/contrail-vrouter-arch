@@ -1,13 +1,20 @@
 #pragma once
 
-#ifndef __GNUC__
+#ifndef _WINDOWS
 
 #ifndef _UTILS
+
 #include <wdm.h>
-typedef bool int;
-#define true 1
-#define false 0
+
+typedef BOOLEAN bool;
+
+#define true TRUE
+#define false FALSE
+#define htons(a) RtlUshortByteSwap(a)
+#define ntohs(a) RtlUshortByteSwap(a)
+
 #endif
+
 #include <basetsd.h>
 
 typedef INT8 int8_t;
@@ -19,9 +26,6 @@ typedef UINT32 uint32_t;
 typedef INT64 int64_t;
 typedef UINT64 uint64_t;
 
-
-
-
 #define IFNAMSIZ 16
 #define INET6_ADDRSTRLEN 46
 #define AF_BRIDGE 7
@@ -30,6 +34,8 @@ typedef UINT64 uint64_t;
 #define __attribute__packed__close__ __pragma( pack( pop ) )
 #define __attribute__format__open__(...) /* do nothing */
 #define __attribute__format__close__(...) /* do nothing */
+
+// TODO: Remove unused defines and structures
 #define __attribute__(A) /* do nothing */
 
 #define NLM_F_REQUEST           1       /* It is request message.       */
@@ -39,13 +45,10 @@ typedef UINT64 uint64_t;
 #define NLM_F_DUMP_INTR         16      /* Dump was inconsistent due to sequence change */
 #define NLM_F_DUMP_FILTERED     32      /* Dump was filtered as requested */
 
-
 struct nlattr {
 	UINT16 nla_len;
 	UINT16 nla_type;
 };
-
-
 
 struct nlmsghdr {
 	UINT32           nlmsg_len;      /* Length of message including header */
@@ -54,7 +57,6 @@ struct nlmsghdr {
 	UINT32           nlmsg_seq;      /* Sequence number */
 	UINT32           nlmsg_pid;      /* Sending process port ID */
 };
-
 
 #define NLA_ALIGNTO 4
 #define NLA_ALIGN(len) (((len)+NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
@@ -71,9 +73,6 @@ enum {
 	CTRL_ATTR_MCAST_GROUPS,
 	__CTRL_ATTR_MAX,
 };
-
-//#define htons(a) RtlUshortByteSwap(a)
-//#define ntohs(a) RtlUshortByteSwap(a)
 
 #else
 #define __attribute__packed__open__ /* do nothing */

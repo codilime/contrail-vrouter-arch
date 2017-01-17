@@ -3,6 +3,13 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <malloc.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+#include "ini_parser.h"
 
 #ifdef __GNUC__
 #include <unistd.h>
@@ -11,17 +18,6 @@
 #include <asm/types.h>
 #include <linux/netlink.h>
 #endif
-
-#include <malloc.h>
-#include <stdbool.h>
-
-#include <sys/types.h>
-
-
-#include <ctype.h>
-#include <stdlib.h>
-
-#include "ini_parser.h"
 
 #define BUF_LENGTH 256
 
