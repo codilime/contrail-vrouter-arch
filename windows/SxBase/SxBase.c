@@ -148,7 +148,7 @@ SxNdisUnload(
     )
 {
     SxExtUninitialize(DriverObject);
-    
+
     NdisFDeregisterFilterDriver(SxDriverHandle);
     NdisFreeSpinLock(&SxExtensionListLock);
 }
