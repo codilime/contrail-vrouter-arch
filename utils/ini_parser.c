@@ -159,7 +159,7 @@ read_string(const char *section, const char *key)
 uint32_t
 read_ip(const char *section, const char *key)
 {
-// TODO: Implement read_ip for windows platform
+// TODO: JW-73 Implement read_ip for windows platform
 /*    struct in_addr ip;
 
     if (read_value(section, key) == false) {
@@ -175,7 +175,7 @@ read_ip(const char *section, const char *key)
 int
 get_domain()
 {
-	// TODO: Implement get_domain for windows platform
+	// TODO: JW-73 Implement get_domain for windows platform
 	/**
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
@@ -189,7 +189,7 @@ get_domain()
 int
 get_type()
 {
-	// TODO: Implement get_typ for windows platform
+	// TODO: JW-73 Implement get_typ for windows platform
 	/*
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
@@ -221,7 +221,7 @@ get_ip()
 int
 get_protocol()
 {
-	// TODO: Implement get_protocol for windows platform
+	// TODO: JW-73 Implement get_protocol for windows platform
 	/*
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&

@@ -149,7 +149,7 @@ vr_fc_map_req_process(void *s_req)
     return;
 }
 
-// TODO: Impelemnt nl_response for windows platform
+// TODO: JW-75 Impelemnt nl_response for windows platform
 struct nl_response *
 nl_parse_gen_ctrl(struct nl_client *cl)
 {
@@ -336,7 +336,7 @@ nl_build_get_family_id(struct nl_client *cl, char *family)
 int
 nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
 {
-	// TODO: Implement nl_build_genlh for windows platform
+	// TODO: JW-75 Implement nl_build_genlh for windows platform
 	/*
     struct genlmsghdr *genlh = (struct genlmsghdr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset);
@@ -408,7 +408,7 @@ nl_build_attr(struct nl_client *cl, int len, int attr)
 int
 nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
 {
-	// TODO: Implement nl_build_nlh for windows platform
+	// TODO: JW-75 Implement nl_build_nlh for windows platform
 	/*
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf);
 
@@ -458,7 +458,7 @@ nl_free(struct nl_client *cl)
 int
 nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 {
-	// TODO: Implement nl_socket for windows platform
+	// TODO: JW-75 Implement nl_socket for windows platform
 	return -1;
 		/*
     if (cl->cl_sock >= 0)
@@ -493,7 +493,7 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 int
 nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 {
-	// TODO: Implement nl_connect for windows platform
+	// TODO: JW-75 Implement nl_connect for windows platform
 	/*
     if (cl->cl_socket_domain == AF_NETLINK) {
         struct sockaddr_nl *sa = malloc(sizeof(struct sockaddr_nl));
@@ -631,7 +631,7 @@ nl_sendmsg(struct nl_client *cl)
 
     return sendmsg(cl->cl_sock, &msg, 0);
 	*/
-	// TODO: Implement nl_sendmsg for windows platform
+	// TODO: JW-75 Implement nl_sendmsg for windows platform
 	return 1;
 }
 /*
@@ -727,7 +727,7 @@ exit_register:
 struct nl_response *
 nl_parse_reply(struct nl_client *cl)
 {
-	// TODO: Implement nl_parse_replay for windows platform
+	// TODO: JW-75 Implement nl_parse_replay for windows platform
 	return 0;
 	/*
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf +
@@ -765,7 +765,7 @@ nl_parse_reply(struct nl_client *cl)
 int
 vrouter_get_family_id(struct nl_client *cl)
 {
-	// TODO: Implement vrouter_get_family_id for windows platform
+	// TODO:JW-75 Implement vrouter_get_family_id for windows platform
 	return -1;
 	/*
     int ret;

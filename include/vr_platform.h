@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef _WINDOWS
+#ifdef _WINDOWS
 
 #ifndef _UTILS
 
