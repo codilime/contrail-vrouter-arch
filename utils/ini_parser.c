@@ -124,7 +124,7 @@ read_value(const char *section, const char *key)
         return false;
     }
 
-	memset(value, 0, sizeof(value));
+    memset(value, 0, sizeof(value));
     buffer[sizeof(buffer) - 1] = '\0';
     strncpy(buffer, key_start, sizeof(buffer) - 1);
     value_start = strtok(buffer, "=");

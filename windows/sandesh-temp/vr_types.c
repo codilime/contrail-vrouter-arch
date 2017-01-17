@@ -6,8 +6,9 @@
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
-//#include "precomp.h"
-
+#ifndef _UTILS
+#include "precomp.h"
+#endif
 #include "vr_types.h"
 
 /* reads a sandesh_hdr struct */

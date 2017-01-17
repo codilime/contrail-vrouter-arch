@@ -7,10 +7,9 @@
 #ifndef __VR_UTILS_H__
 #define __VR_UTILS_H__
 
-#include<vr_platform.h>
+#include <vr_platform.h>
 
 #ifdef __cplusplus
-
 extern "C" {
 #endif
 struct vn_if {

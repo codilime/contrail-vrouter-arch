@@ -47,7 +47,7 @@
     <ClInclude Include="..\include\vr_response.h" />
     <ClInclude Include="..\include\vr_sandesh.h" />
     <ClInclude Include="..\include\vr_utils.h" />
-    <ClInclude Include="..\include\wingetopt.h" />
+    <ClInclude Include="..\windows\include\wingetopt.h" />
     <ClInclude Include="..\windows\sandesh-temp\vr_types.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -134,7 +134,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_WINDOWS;_UTILS</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\tools\sandesh\library\c\;..\windows\sandesh-temp\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\tools\sandesh\library\c\;..\windows\sandesh-temp\;..\windows\include\;..\windows\;..\..\tools\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

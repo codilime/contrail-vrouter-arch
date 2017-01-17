@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 /* base includes */
-#include "sandesh.h"
+#include "sandesh/library/c/sandesh.h"
 
 /* custom thrift includes */
 

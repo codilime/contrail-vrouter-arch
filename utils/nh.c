@@ -17,13 +17,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <net/if.h>
-#include <unistd.h>
-#endif
-
-#ifndef __GNUC__
-#include <wingetopt.h>
+#else
 #include <winsock2.h>
 #include <windows.h>
+#include "wingetopt.h"
 #include "stdbool.h"
 #endif
 
@@ -38,7 +35,6 @@
 #include "vr_os.h"
 #include "nl_util.h"
 #include "vr_platform.h"
-
 
 static int8_t src_mac[6], dst_mac[6];
 static uint16_t sport, dport;
@@ -206,7 +202,6 @@ nh_print_newline_header(void)
 void
 vr_nexthop_req_process(void *s_req)
 {
-
     unsigned int i, printed = 0;
     struct in_addr a;
     char flags_mem[500];
@@ -260,10 +255,10 @@ vr_nexthop_req_process(void *s_req)
             a.s_addr = req->nhr_tun_dip;
             printf("  Dip:%s", inet_ntoa(a));
         } else if (req->nhr_family == AF_INET6) {
-            printf("  Sip: %d",
+            printf("  Sip: %s",
                     inet_ntop(AF_INET6, (struct in6_addr *)req->nhr_tun_sip6,
                     in6_dst, sizeof(in6_dst)));
-            printf("  Dip: %d",
+            printf("  Dip: %s",
                     inet_ntop(AF_INET6, (struct in6_addr *)req->nhr_tun_dip6,
                     in6_dst, sizeof(in6_dst)));
         }
@@ -520,7 +515,6 @@ static struct option long_options[] = {
     [MAX_OPT_IND]       = { NULL,   0,                  0,                      0}
 };
 
-
 static void
 parse_long_opts(int ind, char *opt_arg)
 {
@@ -564,7 +558,7 @@ parse_long_opts(int ind, char *opt_arg)
 
     case DMAC_OPT_IND:
         mac = ether_aton(opt_arg);
-        if (mac)t
+        if (mac)
             memcpy(dst_mac, mac, sizeof(dst_mac));
         else
             cmd_usage();
