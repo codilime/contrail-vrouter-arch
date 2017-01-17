@@ -2,6 +2,10 @@
 #include "vr_windows.h"
 #include "vr_packet.h"
 
+#include "vr_packet.h"
+
+ULONG SxExtAllocationTag = 'RVCO';
+
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 
