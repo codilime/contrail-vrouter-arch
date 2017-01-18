@@ -10,6 +10,7 @@
 #include <stdlib.h>
 
 #include "ini_parser.h"
+#include "vr_platform.h"
 
 #ifdef __GNUC__
 #include <unistd.h>
@@ -159,8 +160,7 @@ read_string(const char *section, const char *key)
 uint32_t
 read_ip(const char *section, const char *key)
 {
-// TODO: JW-73 Implement read_ip for windows platform
-/*    struct in_addr ip;
+    struct in_addr ip;
 
     if (read_value(section, key) == false) {
         return 0;
@@ -168,36 +168,32 @@ read_ip(const char *section, const char *key)
 
     if (inet_pton(AF_INET, value, &ip) == 1) {
         return ntohl(ip.s_addr);
-    } */
+    }
     return 0;
 }
 
 int
 get_domain()
 {
-	// TODO: JW-73 Implement get_domain for windows platform
-	/**
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
        (strcmp(platform, PLATFORM_DPDK) == 0 ||
         strcmp(platform, PLATFORM_NIC) == 0)) {
         return AF_INET;
-    } */
-	return -1337;//AF_NETLINK;
+    }
+	return AF_NETLINK;
 }
 
 int
 get_type()
 {
-	// TODO: JW-73 Implement get_typ for windows platform
-	/*
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
         (strcmp(platform, PLATFORM_DPDK) == 0 ||
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return SOCK_STREAM;
-    }*/
-	return -1337; // SOCK_DGRAM;
+    }
+	return SOCK_DGRAM;
 }
 
 uint16_t
@@ -221,15 +217,13 @@ get_ip()
 int
 get_protocol()
 {
-	// TODO: JW-73 Implement get_protocol for windows platform
-	/*
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform &&
         (strcmp(platform, PLATFORM_DPDK) == 0 ||
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return 0;
-    } */
-	return -1337; // NETLINK_GENERIC;
+    }
+	return NETLINK_GENERIC;
 }
 
 int

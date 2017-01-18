@@ -13,6 +13,8 @@ typedef BOOLEAN bool;
 #define htons(a) RtlUshortByteSwap(a)
 #define ntohs(a) RtlUshortByteSwap(a)
 
+#else
+#include <Ws2tcpip.h>
 #endif
 
 #include <basetsd.h>
@@ -29,6 +31,10 @@ typedef UINT64 uint64_t;
 #define IFNAMSIZ 16
 #define INET6_ADDRSTRLEN 46
 #define AF_BRIDGE 7
+
+// netlink doesn't exist on windows platform
+#define AF_NETLINK 0
+#define NETLINK_GENERIC 0
 
 #define __attribute__packed__open__ __pragma( pack( push, 1 ) )
 #define __attribute__packed__close__ __pragma( pack( pop ) )
