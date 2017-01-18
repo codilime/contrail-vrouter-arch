@@ -2,11 +2,30 @@
 
 #include "vr_os.h"
 
-// TODO: Remove unused defines and structures
-#define INET6_ADDRSTRLEN 46
+#include <Ws2tcpip.h>
+#include <basetsd.h>
+
+typedef INT8 int8_t;
+typedef UINT8 uint8_t;
+typedef INT16 int16_t;
+typedef UINT16 uint16_t;
+typedef INT32 int32_t;
+typedef UINT32 uint32_t;
+typedef INT64 int64_t;
+typedef UINT64 uint64_t;
+
 #define IFNAMSIZ 16
 #define AF_BRIDGE 7
+// netlink doesn't exist on windows platform
+#define AF_NETLINK 0
+#define NETLINK_GENERIC 0
 
+#define __attribute__packed__open__ __pragma( pack( push, 1 ) )
+#define __attribute__packed__close__ __pragma( pack( pop ) )
+#define __attribute__format__open__(...) /* do nothing */
+#define __attribute__format__close__(...) /* do nothing */
+
+// TODO: Remove unused defines and structures
 #define __attribute__(A) /* do nothing */
 
 #define NLM_F_REQUEST           1       /* It is request message.       */
