@@ -18,9 +18,6 @@
     <ClCompile Include="nh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wingetopt.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="nl_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -49,6 +46,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\windows\sandesh-temp\vr_types.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vr_win_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

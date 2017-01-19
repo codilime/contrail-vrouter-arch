@@ -148,7 +148,6 @@ vr_fc_map_req_process(void *s_req)
     return;
 }
 
-// TODO: JW-75 Impelemnt nl_response for windows platform
 struct nl_response *
 nl_parse_gen_ctrl(struct nl_client *cl)
 {
@@ -190,8 +189,8 @@ nl_parse_gen_ctrl(struct nl_client *cl)
 
     return resp;
 }
+// TODO: JW-75 Impelemnt nl_response for windows platform
 /*
-
 struct nl_response *
 nl_parse_gen(struct nl_client *cl)
 {
@@ -332,11 +331,10 @@ nl_build_get_family_id(struct nl_client *cl, char *family)
     return 0;
 }
 */
+
 int
 nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
 {
-	// TODO: JW-75 Implement nl_build_genlh for windows platform
-	/*
     struct genlmsghdr *genlh = (struct genlmsghdr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset);
 
@@ -348,7 +346,6 @@ nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
     genlh->reserved = 0;
 
     cl->cl_buf_offset += GENL_HDRLEN;
-	*/
     return 0;
 }
 
@@ -407,8 +404,6 @@ nl_build_attr(struct nl_client *cl, int len, int attr)
 int
 nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
 {
-	// TODO: JW-75 Implement nl_build_nlh for windows platform
-	/*
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf);
 
     if (cl->cl_buf_offset + NLMSG_HDRLEN > cl->cl_buf_len)
@@ -421,7 +416,7 @@ nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
     nlh->nlmsg_pid = cl->cl_id;
 
     cl->cl_buf_offset = NLMSG_HDRLEN;
-	*/
+
     return 0;
 }
 
@@ -458,20 +453,19 @@ int
 nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 {
 	// TODO: JW-75 Implement nl_socket for windows platform
-	return -1;
-		/*
+	/*
     if (cl->cl_sock >= 0)
         return -EEXIST;
-
+		*/
 #if defined(__FreeBSD__)
     /*
      * Fake Contrail socket has only one protocol for handling
      * sandesh protocol, so zero must be passed as a parameter
-     */ /*
+     */
     domain = AF_VENDOR00;
     type = SOCK_DGRAM;
     protocol = 0;
-#endif
+#endif /*
     cl->cl_sock = socket(domain, type, protocol);
     if (cl->cl_sock < 0)
         return cl->cl_sock;
@@ -487,14 +481,18 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
     }
 
     return cl->cl_sock; */
+
+	return 1;
 }
 
 int
 nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 {
 	// TODO: JW-75 Implement nl_connect for windows platform
-	/*
+
     if (cl->cl_socket_domain == AF_NETLINK) {
+#ifdef _WINDOWS
+#else
         struct sockaddr_nl *sa = malloc(sizeof(struct sockaddr_nl));
 
         if (!sa)
@@ -507,6 +505,7 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
         cl->cl_sa_len = sizeof(*sa);
 
         return bind(cl->cl_sock, cl->cl_sa, cl->cl_sa_len);
+#endif
     }
 
     if (cl->cl_socket_domain == AF_INET) {
@@ -524,7 +523,7 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
         cl->cl_sa_len = sizeof(*sa);
 
         return connect(cl->cl_sock, cl->cl_sa, cl->cl_sa_len);
-    } */
+    }
     return 0;
 }
 /*
@@ -607,19 +606,17 @@ nl_recvmsg(struct nl_client *cl)
     return cl->cl_recvmsg(cl);
 }
 
+#ifndef _WINDOWS
 int
 nl_sendmsg(struct nl_client *cl)
 {
-	/*
     struct msghdr msg;
     struct iovec iov;
-
     memset(&msg, 0, sizeof(msg));
 #if defined (__linux__)
     msg.msg_name = cl->cl_sa;
     msg.msg_namelen = cl->cl_sa_len;
 #endif
-
     iov.iov_base = (void *)(cl->cl_buf);
     iov.iov_len = cl->cl_buf_offset;
 
@@ -629,10 +626,8 @@ nl_sendmsg(struct nl_client *cl)
     msg.msg_iovlen = 1;
 
     return sendmsg(cl->cl_sock, &msg, 0);
-	*/
-	// TODO: JW-75 Implement nl_sendmsg for windows platform
-	return 1;
 }
+#endif
 /*
 void
 nl_set_buf(struct nl_client *cl, char *buf, unsigned int len)

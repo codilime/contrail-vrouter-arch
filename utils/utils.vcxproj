@@ -30,7 +30,7 @@
     <ClCompile Include="nh.c" />
     <ClCompile Include="nl_util.c" />
     <ClCompile Include="vr_util.c" />
-    <ClCompile Include="wingetopt.c" />
+    <ClCompile Include="vr_win_util.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.h" />
