@@ -7,6 +7,20 @@
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
+/* TODO: Change to extern linkage when dp-core/vr_stats.c is ported. */
+void
+vr_malloc_stats(unsigned int size, unsigned int object)
+{
+    UNREFERENCED_PARAMETER(size);
+    UNREFERENCED_PARAMETER(object);
+}
+
+void 
+vr_free_stats(unsigned int object)
+{
+    UNREFERENCED_PARAMETER(object);
+}
+
 typedef void(*scheduled_work_cb)(void *arg);
 
 struct deferred_work_cb_data {
@@ -21,6 +35,19 @@ struct scheduled_work_cb_data {
 };
 
 NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
+
+static int
+win_printf(const char *format, ...)
+{
+    int printed;
+    va_list args;
+
+    _crt_va_start(args, format);
+    printed = DbgPrint(format, args);
+    _crt_va_end(args);
+
+    return printed;
+}
 
 static void *
 win_malloc(unsigned int size, unsigned int object)
@@ -52,10 +79,12 @@ win_page_alloc(unsigned int size)
 }
 
 static void
-win_free(void *mem)
+win_free(void *mem, unsigned int object)
 {
-    if (mem)
+    if (mem) {
+        vr_free_stats(object);
         ExFreePoolWithTag(mem, SxExtAllocationTag);
+    }
 
     return;
 }
@@ -68,8 +97,10 @@ win_vtop(void *address)
 }
 
 static void
-win_page_free(void *mem)
+win_page_free(void *mem, unsigned int size)
 {
+    UNREFERENCED_PARAMETER(size);
+
     if (mem)
         ExFreePoolWithTag(mem, SxExtAllocationTag);
 
@@ -79,6 +110,8 @@ win_page_free(void *mem)
 static struct vr_packet *
 win_palloc(unsigned int size)
 {
+    UNREFERENCED_PARAMETER(size);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -86,12 +119,19 @@ win_palloc(unsigned int size)
 static void
 win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(reason);
+
+    /* Dummy implementation */
     return;
 }
 
 static struct vr_packet *
 win_palloc_head(struct vr_packet *pkt, unsigned int size)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(size);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -99,6 +139,9 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
 static struct vr_packet *
 win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(hspace);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -106,6 +149,8 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 static void
 win_preset(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return;
 }
@@ -113,6 +158,8 @@ win_preset(struct vr_packet *pkt)
 static struct vr_packet *
 win_pclone(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -121,6 +168,11 @@ static int
 win_pcopy(unsigned char *dst, struct vr_packet *p_src,
         unsigned int offset, unsigned int len)
 {
+    UNREFERENCED_PARAMETER(dst);
+    UNREFERENCED_PARAMETER(p_src);
+    UNREFERENCED_PARAMETER(offset);
+    UNREFERENCED_PARAMETER(len);
+
     /* Dummy implementation */
     return len;
 }
@@ -128,6 +180,8 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
 static unsigned short
 win_pfrag_len(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return 0;
 }
@@ -135,6 +189,8 @@ win_pfrag_len(struct vr_packet *pkt)
 static unsigned short
 win_phead_len(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return 0;
 }
@@ -142,6 +198,9 @@ win_phead_len(struct vr_packet *pkt)
 static void
 win_pset_data(struct vr_packet *pkt, unsigned short offset)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(offset);
+
     /* Dummy implementation */
     return;
 }
@@ -149,6 +208,8 @@ win_pset_data(struct vr_packet *pkt, unsigned short offset)
 static unsigned int
 win_pgso_size(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return 0;
 }
@@ -168,6 +229,8 @@ win_delete_timer(struct vr_timer *vtimer)
 void
 win_timer_callback(PEX_TIMER Timer, void *Context)
 {
+    UNREFERENCED_PARAMETER(Timer);
+
     struct vr_timer *ctx = (struct vr_timer*)Context;
     ctx->vt_timer(ctx->vt_vr_arg);
 }
@@ -185,7 +248,7 @@ win_create_timer(struct vr_timer *vtimer)
 static void
 scheduled_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
 {
-    struct scheduled_work_cb_data * cb_data = (struct deferred_work_cb_data *)(work_item_context);
+    struct scheduled_work_cb_data * cb_data = (struct scheduled_work_cb_data *)(work_item_context);
     LOCK_STATE_EX lock_state;
 
     NdisAcquireRWLockRead(AsyncWorkRWLock, &lock_state, 0);
@@ -203,6 +266,8 @@ scheduled_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
 static int
 win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
 {
+    UNREFERENCED_PARAMETER(cpu);
+
     struct scheduled_work_cb_data * cb_data;
     NDIS_HANDLE work_item;
 
@@ -211,6 +276,9 @@ win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
         /* TODO: in Linux it returns -ENOMEM */
         return 1;
     }
+
+    cb_data->user_cb = fn;
+    cb_data->data = arg;
 
     work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
     if (!work_item) {
@@ -241,7 +309,7 @@ win_delay_op(void)
     return;
 }
 
-static VOID
+VOID
 deferred_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
 {
     struct deferred_work_cb_data * cb_data = (struct deferred_work_cb_data *)(work_item_context);
@@ -254,7 +322,7 @@ deferred_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
     if (work_item_handle) {
         NdisFreeIoWorkItem(work_item_handle);
     }
-    win_free(cb_data);
+    win_free(cb_data, VR_DEFER_OBJECT);
 
     return;
 }
@@ -323,8 +391,8 @@ win_get_time(unsigned long *sec, unsigned long *usec)
         1 s  = 10^9 ns = 10^7 * 100 ns
         1 us = 10^3 ns = 10 * 100 ns
     */
-    *sec = current_local_time.QuadPart / (LONGLONG)(1000 * 1000 * 100);
-    *usec = (current_local_time.QuadPart % (LONGLONG)(1000 * 1000 * 100)) / 10;
+    *sec = (unsigned long)(current_local_time.QuadPart / (LONGLONG)(1000 * 1000 * 100));
+    *usec = (unsigned long)((current_local_time.QuadPart % (LONGLONG)(1000 * 1000 * 100)) / 10);
 
     return;
 }
@@ -350,6 +418,8 @@ win_get_cpu(void)
 static void *
 win_network_header(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -357,6 +427,8 @@ win_network_header(struct vr_packet *pkt)
 static void *
 win_inner_network_header(struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -364,6 +436,9 @@ win_inner_network_header(struct vr_packet *pkt)
 static void *
 win_data_at_offset(struct vr_packet *pkt, unsigned short off)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(off);
+
     /* Dummy implementation */
     return NULL;
 }
@@ -371,6 +446,10 @@ win_data_at_offset(struct vr_packet *pkt, unsigned short off)
 static void *
 win_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(hdr_len);
+    UNREFERENCED_PARAMETER(buf);
+
     return NULL;
 }
 
@@ -379,6 +458,11 @@ win_pull_inner_headers(struct vr_packet *pkt,
     unsigned short ip_proto, unsigned short *reason,
     int (*tunnel_type_cb)(unsigned int, unsigned int, unsigned short *))
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(ip_proto);
+    UNREFERENCED_PARAMETER(reason);
+    UNREFERENCED_PARAMETER(tunnel_type_cb);
+
     /* Dummy implementation */
     return 0;
 }
@@ -386,6 +470,9 @@ win_pull_inner_headers(struct vr_packet *pkt,
 static int
 win_pcow(struct vr_packet *pkt, unsigned short head_room)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(head_room);
+
     /* Dummy implementation */
     return 0;
 }
@@ -395,13 +482,24 @@ win_pull_inner_headers_fast(struct vr_packet *pkt, unsigned char proto,
     int(*tunnel_type_cb)(unsigned int, unsigned int, unsigned short *),
     int *ret, int *encap_type)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(proto);
+    UNREFERENCED_PARAMETER(tunnel_type_cb);
+    UNREFERENCED_PARAMETER(ret);
+    UNREFERENCED_PARAMETER(encap_type);
+
     /* Dummy implementation */
     return 0;
 }
 
 static __u16
-win_get_udp_src_port()
+win_get_udp_src_port(struct vr_packet *pkt, struct vr_forwarding_md *md,
+    unsigned short vrf)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(md);
+    UNREFERENCED_PARAMETER(vrf);
+
     /* Dummy implementation */
     return 0;
 }
@@ -409,6 +507,9 @@ win_get_udp_src_port()
 static int
 win_pkt_from_vm_tcp_mss_adj(struct vr_packet *pkt, unsigned short overlay_len)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(overlay_len);
+
     /* Dummy implementation */
     return 0;
 }
@@ -416,6 +517,9 @@ win_pkt_from_vm_tcp_mss_adj(struct vr_packet *pkt, unsigned short overlay_len)
 static int
 win_pkt_may_pull(struct vr_packet *pkt, unsigned int len)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(len);
+
     /* Dummy implementation */
     return 0;
 }
@@ -423,6 +527,10 @@ win_pkt_may_pull(struct vr_packet *pkt, unsigned int len)
 static int
 win_gro_process(struct vr_packet *pkt, struct vr_interface *vif, bool l2_pkt)
 {
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(vif);
+    UNREFERENCED_PARAMETER(l2_pkt);
+
     /* Dummy implementation */
     return 0;
 }
@@ -431,6 +539,10 @@ static int
 win_enqueue_to_assembler(struct vrouter *router, struct vr_packet *pkt,
     struct vr_forwarding_md *fmd)
 {
+    UNREFERENCED_PARAMETER(router);
+    UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(fmd);
+
     /* Dummy implementation */
     return 0;
 }
@@ -438,17 +550,22 @@ win_enqueue_to_assembler(struct vrouter *router, struct vr_packet *pkt,
 static void
 win_set_log_level(unsigned int log_level)
 {
+    UNREFERENCED_PARAMETER(log_level);
+
     return;
 }
 
 static void
 win_set_log_type(unsigned int log_type, int enable)
 {
+    UNREFERENCED_PARAMETER(log_type);
+    UNREFERENCED_PARAMETER(enable);
+
     return;
 }
 
 static unsigned int
-win_get_log_level()
+win_get_log_level(void)
 {
     return 0;
 }
@@ -456,6 +573,8 @@ win_get_log_level()
 static unsigned int *
 win_get_enabled_log_types(int *size)
 {
+    UNREFERENCED_PARAMETER(size);
+
     size = 0;
     return NULL;
 }
@@ -471,11 +590,13 @@ win_soft_reset(struct vrouter *router)
             flush_scheduled_work();
             rcu_barrier();
     */
+    UNREFERENCED_PARAMETER(router);
+
     return;
 }
 
 struct host_os windows_host = {
-    .hos_printf = DbgPrint,
+    .hos_printf = win_printf,
     .hos_malloc = win_malloc,
     .hos_zalloc = win_zalloc,
     .hos_free = win_free,
