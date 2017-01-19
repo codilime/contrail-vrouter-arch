@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#include <vr_platform.h>
+#include <vr_utils_temp.h>
 
 struct vn_if {
     char if_name[IFNAMSIZ];

@@ -6,7 +6,7 @@
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
-#ifndef _UTILS
+#ifdef _NTKERNEL
 #include "precomp.h"
 #endif
 #include "vr_types.h"
