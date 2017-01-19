@@ -7,7 +7,7 @@
 #ifndef __VR_QOS_H__
 #define __VR_QOS_H__
 
-#include "vr_os.h"
+#include "vr_platform.h"
 
 #define VR_DEF_QOS_MAP_ENTRIES      4096
 #define VR_DEF_FC_MAP_ENTRIES       256

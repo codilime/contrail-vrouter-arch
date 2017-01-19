@@ -7,7 +7,7 @@
 #ifndef __VR_DEFS_H__
 #define __VR_DEFS_H__
 
-#include "vr_os.h"
+#include "vr_platform.h"
 
 #define MAC_FORMAT     "%02x:%02x:%02x:%02x:%02x:%02x"
 #define MAC_VALUE(x)   (x)[0],(x)[1],(x)[2],(x)[3],(x)[4],(x)[5]

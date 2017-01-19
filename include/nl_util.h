@@ -12,6 +12,7 @@ extern "C" {
 
 #include "vr_utils.h"
 #include "vr_response.h"
+#include "vr_platform.h"
 
 #define NL_RESP_DEFAULT_SIZE        512
 #define NL_MSG_DEFAULT_SIZE         4096

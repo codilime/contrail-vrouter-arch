@@ -136,6 +136,19 @@ typedef BOOLEAN bool;
 #define UNREFERENCED_PARAMETER(a) (a)
 #endif /* _WINDOWS */
 
+#if defined(_WINDOWS)
+
+typedef char __s8;
+typedef unsigned char __u8;
+
+typedef short __s16;
+typedef unsigned short __u16;
+
+typedef int __s32;
+typedef unsigned int __u32;
+
+#endif /* _WINDOWS */
+
 extern int vrouter_dbg;
 
 #endif /* __VR_OS_H__ */
