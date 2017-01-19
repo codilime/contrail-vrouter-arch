@@ -14,11 +14,14 @@ ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
+NDIS_HANDLE SxNBLPool = NULL;
 
 /* Read/write lock which must be acquired by deferred callbacks. Used in functions from
 * `host_os` struct.
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
+
+extern struct host_os windows_host;
 
 static char encoding_table[] = {
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
@@ -114,6 +117,8 @@ SxExtCreateSwitch(
 
 	SxSwitchObject = Switch;
 	AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+
+	SxNBLPool = vrouter_generate_pool();
 
 	return 0;
 }
@@ -728,8 +733,11 @@ SxExtStartNetBufferListsIngress(
 
 	if (extForwardedNbls != NULL)
 	{
-		PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY broadcastArray;
+		PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY broadcastArray = NULL;
+
+
 		Switch->NdisSwitchHandlers.GetNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, &broadcastArray);
+
 		if (broadcastArray)
 		{
 			DbgPrint("NumDestinations: %u, NumElements: %u\r\n", broadcastArray->NumDestinations, broadcastArray->NumElements);
@@ -745,6 +753,7 @@ SxExtStartNetBufferListsIngress(
 		if (broadcastArray->NumDestinations < numTargets)
 		{
 			Switch->NdisSwitchHandlers.GrowNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, numTargets - broadcastArray->NumDestinations, &broadcastArray);
+			DbgPrint("Adding %u targets to broacastArray\r\n", numTargets - broadcastArray->NumDestinations);
 		}
 
 		NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
@@ -758,6 +767,8 @@ SxExtStartNetBufferListsIngress(
 
 			Switch->NdisSwitchHandlers.AddNetBufferListDestination(Switch->NdisSwitchContext, extForwardedNbls, &newDestination);
 		}
+
+
 
 		DbgPrint("Sending extension forwarded NBLs\r\n");
 		SxLibSendNetBufferListsIngress(Switch,
@@ -823,7 +834,19 @@ SxExtStartCompleteNetBufferListsIngress(
 	DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
 	UNREFERENCED_PARAMETER(ExtensionContext);
 
-	SxLibCompleteNetBufferListsIngress(Switch,
-		NetBufferLists,
-		SendCompleteFlags);
+	if (NetBufferLists->SourceHandle == Switch->NdisFilterHandle)
+	{
+		DbgPrint("Completing injected NBL...\r\n");
+		SxLibCompletedInjectedNetBufferLists(Switch, 1);
+	}
+	else
+	{
+		DbgPrint("Completing non-injected NBL...\r\n");
+		SxLibCompleteNetBufferListsIngress(Switch,
+			NetBufferLists,
+			SendCompleteFlags);
+	}
+	struct vr_packet* pkt = NetBufferLists->MiniportReserved[0];
+	if (pkt != NULL)
+		windows_host.hos_pfree(pkt, 0);
 }
