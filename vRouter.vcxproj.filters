@@ -144,6 +144,9 @@
     <ClCompile Include="dp-core\temp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="windows\vr_host.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">
