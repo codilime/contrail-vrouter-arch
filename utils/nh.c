@@ -6,17 +6,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/types.h>
+
+#ifdef __GNUC__
 #include <stdbool.h>
 #include <getopt.h>
-
-#include <sys/types.h>
 #include <sys/socket.h>
-
+#include <unistd.h>
 #include <net/if.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include "wingetopt.h"
+#include "stdbool.h"
+#endif
 
 #if defined(__linux__)
 #include <netinet/ether.h>
@@ -28,6 +34,7 @@
 #include "vr_nexthop.h"
 #include "vr_os.h"
 #include "nl_util.h"
+#include "vr_platform.h"
 
 static int8_t src_mac[6], dst_mac[6];
 static uint16_t sport, dport;
@@ -539,6 +546,8 @@ parse_long_opts(int ind, char *opt_arg)
             usage();
         break;
 
+	// TODO: JW-74 Implement ether_aton for windows platform
+	/*
     case SMAC_OPT_IND:
         mac = ether_aton(opt_arg);
         if (mac)
@@ -554,7 +563,7 @@ parse_long_opts(int ind, char *opt_arg)
         else
             cmd_usage();
         break;
-
+		*/
     case VRF_OPT_IND:
         vrf_id = strtoul(opt_arg, NULL, 0);
         if (errno)
@@ -566,15 +575,15 @@ parse_long_opts(int ind, char *opt_arg)
         if (errno)
             usage();
         break;
-
+	// TODO: JW-74 Implement missing inet_aton for windows platform
+	/*
     case SIP_OPT_IND:
         inet_aton(opt_arg, &sip);
         break;
 
     case DIP_OPT_IND:
         inet_aton(opt_arg, &dip);
-        break;
-
+        break; */
     case SPORT_OPT_IND:
         sport = strtoul(opt_arg, NULL, 0);
         if (errno)
@@ -760,8 +769,8 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
-
-    while ((opt = getopt_long(argc, argv, "",
+	// TODO: JW-74 Replace getopt with getoptlong
+    while ((opt = getopt(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {
         case 0:

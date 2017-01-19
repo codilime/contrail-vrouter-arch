@@ -5,7 +5,13 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef __GNUC__
 #include <unistd.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#endif
+
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -23,8 +29,7 @@
 #endif
 
 #include <stdint.h>
-#include <net/if.h>
-#include <netinet/in.h>
+
 #include "vr_types.h"
 #include "nl_util.h"
 #include "vr_genetlink.h"
@@ -56,13 +61,13 @@ vrouter_ops_process(void *s_req)
 {
     return;
 }
-
+/*
 void
 vr_nexthop_req_process(void *s_req)
 {
     return;
 }
-
+*/
 
 void
 vr_flow_req_process(void *s_req)
@@ -93,13 +98,13 @@ vr_mirror_req_process(void *s_req)
 {
     return;
 }
-
+/*
 void
 vr_response_process(void *s_req)
 {
     return;
 }
-
+*/
 
 void
 vr_vrf_assign_req_process(void *s_req)
@@ -143,6 +148,7 @@ vr_fc_map_req_process(void *s_req)
     return;
 }
 
+// TODO: JW-75 Impelemnt nl_response for windows platform
 struct nl_response *
 nl_parse_gen_ctrl(struct nl_client *cl)
 {
@@ -184,7 +190,7 @@ nl_parse_gen_ctrl(struct nl_client *cl)
 
     return resp;
 }
-
+/*
 
 struct nl_response *
 nl_parse_gen(struct nl_client *cl)
@@ -259,8 +265,8 @@ nl_build_header(struct nl_client *cl, unsigned char **buf, uint32_t *buf_len)
 
 void
 nl_update_header(struct nl_client *cl, int data_len)
-{
-    /* First update attribute header len for NLA_SANDESH_ATTR */
+{ */
+    /* First update attribute header len for NLA_SANDESH_ATTR */ /*
     struct nlattr *nla = (struct nlattr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset - NLA_HDRLEN);
 
@@ -325,10 +331,12 @@ nl_build_get_family_id(struct nl_client *cl, char *family)
 
     return 0;
 }
-
+*/
 int
 nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
 {
+	// TODO: JW-75 Implement nl_build_genlh for windows platform
+	/*
     struct genlmsghdr *genlh = (struct genlmsghdr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset);
 
@@ -340,10 +348,9 @@ nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
     genlh->reserved = 0;
 
     cl->cl_buf_offset += GENL_HDRLEN;
-
+	*/
     return 0;
 }
-
 
 struct nl_response *
 nl_set_resp_err(struct nl_client *cl, int error)
@@ -392,7 +399,6 @@ nl_build_attr(struct nl_client *cl, int len, int attr)
     nla = (struct nlattr *)(cl->cl_buf + cl->cl_buf_offset);
     nla->nla_len = NLA_HDRLEN + (len);
     nla->nla_type = attr;
-
     /* Adjust by attribute length */
     cl->cl_buf_offset += NLA_HDRLEN + (len);
 }
@@ -401,6 +407,8 @@ nl_build_attr(struct nl_client *cl, int len, int attr)
 int
 nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
 {
+	// TODO: JW-75 Implement nl_build_nlh for windows platform
+	/*
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf);
 
     if (cl->cl_buf_offset + NLMSG_HDRLEN > cl->cl_buf_len)
@@ -413,7 +421,7 @@ nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
     nlh->nlmsg_pid = cl->cl_id;
 
     cl->cl_buf_offset = NLMSG_HDRLEN;
-
+	*/
     return 0;
 }
 
@@ -449,6 +457,9 @@ nl_free(struct nl_client *cl)
 int
 nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 {
+	// TODO: JW-75 Implement nl_socket for windows platform
+	return -1;
+		/*
     if (cl->cl_sock >= 0)
         return -EEXIST;
 
@@ -456,7 +467,7 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
     /*
      * Fake Contrail socket has only one protocol for handling
      * sandesh protocol, so zero must be passed as a parameter
-     */
+     */ /*
     domain = AF_VENDOR00;
     type = SOCK_DGRAM;
     protocol = 0;
@@ -475,12 +486,14 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
         cl->cl_recvmsg = nl_client_datagram_recvmsg;
     }
 
-    return cl->cl_sock;
+    return cl->cl_sock; */
 }
 
 int
 nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 {
+	// TODO: JW-75 Implement nl_connect for windows platform
+	/*
     if (cl->cl_socket_domain == AF_NETLINK) {
         struct sockaddr_nl *sa = malloc(sizeof(struct sockaddr_nl));
 
@@ -511,10 +524,10 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
         cl->cl_sa_len = sizeof(*sa);
 
         return connect(cl->cl_sock, cl->cl_sa, cl->cl_sa_len);
-    }
+    } */
     return 0;
 }
-
+/*
 int
 nl_client_datagram_recvmsg(struct nl_client *cl)
 {
@@ -562,16 +575,16 @@ nl_client_stream_recvmsg(struct nl_client *cl) {
     msg.msg_iovlen = 1;
 
     cl->cl_buf_offset = 0;
-
-    /* read netlink header and get the lenght of sandesh message */
+	*/
+    /* read netlink header and get the lenght of sandesh message */ /*
     ret = recvmsg(cl->cl_sock, &msg, 0);
     if (ret < 0) {
         return ret;
     }
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf + cl->cl_buf_offset);
     uint32_t pending_length = nlh->nlmsg_len - NLMSG_HDRLEN;
-
-    /* read sandesh message */
+	*/
+    /* read sandesh message */ /*
     iov.iov_base = (void *)(cl->cl_buf + NLMSG_HDRLEN);
     iov.iov_len = pending_length;
     msg.msg_iov = &iov;
@@ -587,7 +600,7 @@ nl_client_stream_recvmsg(struct nl_client *cl) {
 
     return ret;
 }
-
+*/
 int
 nl_recvmsg(struct nl_client *cl)
 {
@@ -597,6 +610,7 @@ nl_recvmsg(struct nl_client *cl)
 int
 nl_sendmsg(struct nl_client *cl)
 {
+	/*
     struct msghdr msg;
     struct iovec iov;
 
@@ -615,8 +629,11 @@ nl_sendmsg(struct nl_client *cl)
     msg.msg_iovlen = 1;
 
     return sendmsg(cl->cl_sock, &msg, 0);
+	*/
+	// TODO: JW-75 Implement nl_sendmsg for windows platform
+	return 1;
 }
-
+/*
 void
 nl_set_buf(struct nl_client *cl, char *buf, unsigned int len)
 {
@@ -648,7 +665,7 @@ nl_set_genl_family_id(struct nl_client *cl, unsigned int family_id)
 
     return;
 }
-
+*/
 struct nl_client *
 nl_register_client(void)
 {
@@ -687,7 +704,7 @@ nl_free_client(struct nl_client *cl)
 
     return;
 }
-
+/**
 int
 nl_init_generic_client_req(struct nl_client *cl, int family)
 {
@@ -705,10 +722,13 @@ exit_register:
     return 0;
 }
 
-
+*/
 struct nl_response *
 nl_parse_reply(struct nl_client *cl)
 {
+	// TODO: JW-75 Implement nl_parse_replay for windows platform
+	return 0;
+	/*
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf +
             cl->cl_buf_offset);
     struct nl_response *resp =  &cl->resp;
@@ -738,11 +758,15 @@ nl_parse_reply(struct nl_client *cl)
         return nl_set_resp_err(cl, NL_MSG_TYPE_ERROR);
     }
     return resp;
+	*/
 }
 
 int
 vrouter_get_family_id(struct nl_client *cl)
 {
+	// TODO:JW-75 Implement vrouter_get_family_id for windows platform
+	return -1;
+	/*
     int ret;
     struct nl_response *resp;
     struct genl_ctrl_message *msg;
@@ -775,15 +799,16 @@ vrouter_get_family_id(struct nl_client *cl)
         return -EINVAL;
 
     msg = (struct genl_ctrl_message *)resp->nl_data;
-    nl_set_genl_family_id(cl, msg->family_id);
-#elif defined(__FreeBSD__)
+    nl_set_genl_family_id(cl, msg->family_id); */
+//#elif defined(__FreeBSD__)
     /* BSD doesn't check the value of family id, so set it to one */
-    nl_set_genl_family_id(cl, 1);
-#endif
-
+  //  nl_set_genl_family_id(cl, 1);
+//#endif
+	/*
     return cl->cl_genl_family_id;
+	*/
 }
-
+/*
 #if defined(__linux__)
 int
 nl_build_attr_linkinfo(struct nl_client *cl, struct vn_if *ifp)
@@ -915,5 +940,5 @@ nl_build_if_create_msg(struct nl_client *cl, struct vn_if *ifp, uint8_t ack)
     nl_update_nlh(cl);
 
     return 0;
-}
-#endif  /* __linux__ */
+}*/
+//#endif  /* __linux__ */
