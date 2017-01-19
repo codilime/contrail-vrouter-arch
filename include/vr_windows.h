@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+#define VR_MINIPORT_VPKT_INDEX 0
 #define MAX_NIC_NUMBER 1024
 
 #define VR_OID_SOURCE	0x00000001
@@ -40,6 +41,11 @@ struct vr_assoc* vr_get_assoc(NDIS_IF_COUNTED_STRING string);
 void vr_set_assoc_oid(NDIS_IF_COUNTED_STRING name, NDIS_SWITCH_PORT_ID port_id);
 
 void get_random_bytes(void *buf, int nbytes);
+
+NDIS_HANDLE vrouter_generate_pool(void);
+void vrouter_free_pool(NDIS_HANDLE pool);
+struct vr_packet* win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
+
 
 #ifdef __cplusplus
 }
