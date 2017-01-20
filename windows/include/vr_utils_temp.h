@@ -1,41 +1,12 @@
 #pragma once
 
-#ifdef _WINDOWS
-
-#ifndef _UTILS
-
-#include <wdm.h>
-
-typedef BOOLEAN bool;
-
-#define true TRUE
-#define false FALSE
-#define htons(a) RtlUshortByteSwap(a)
-#define ntohs(a) RtlUshortByteSwap(a)
-
-#endif
-
-#include <basetsd.h>
-
-typedef INT8 int8_t;
-typedef UINT8 uint8_t;
-typedef INT16 int16_t;
-typedef UINT16 uint16_t;
-typedef INT32 int32_t;
-typedef UINT32 uint32_t;
-typedef INT64 int64_t;
-typedef UINT64 uint64_t;
-
-#define IFNAMSIZ 16
-#define INET6_ADDRSTRLEN 46
-#define AF_BRIDGE 7
-
-#define __attribute__packed__open__ __pragma( pack( push, 1 ) )
-#define __attribute__packed__close__ __pragma( pack( pop ) )
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) /* do nothing */
+#include "vr_os.h"
 
 // TODO: Remove unused defines and structures
+#define INET6_ADDRSTRLEN 46
+#define IFNAMSIZ 16
+#define AF_BRIDGE 7
+
 #define __attribute__(A) /* do nothing */
 
 #define NLM_F_REQUEST           1       /* It is request message.       */
@@ -73,10 +44,3 @@ enum {
 	CTRL_ATTR_MCAST_GROUPS,
 	__CTRL_ATTR_MAX,
 };
-
-#else
-#define __attribute__packed__open__ /* do nothing */
-#define __attribute__packed__close__ __attribute__((__packed__))
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
-#endif

@@ -202,7 +202,7 @@
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
       <AdditionalIncludeDirectories>..;.;..\Tools;..\Tools\sandesh\library\c;windows\sandesh-temp;windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS640=1;_WINDOWS</PreProcessorDefinitions>
+      <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS640=1;_WINDOWS;_NTKERNEL</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
       <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
       <PreCompiledHeader>Create</PreCompiledHeader>
@@ -311,7 +311,6 @@
     <ClInclude Include="include\vr_os.h" />
     <ClInclude Include="include\vr_packet.h" />
     <ClInclude Include="include\vr_qos.h" />
-    <ClInclude Include="include\vr_platform.h" />
     <ClInclude Include="include\vr_windows.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
@@ -333,7 +332,6 @@
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_assoc.c" />
-    <ClCompile Include="windows\vr_host.c" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />

@@ -138,14 +138,48 @@ typedef BOOLEAN bool;
 
 #if defined(_WINDOWS)
 
-typedef char __s8;
-typedef unsigned char __u8;
+#include <basetsd.h>
 
-typedef short __s16;
-typedef unsigned short __u16;
+#ifdef _NTKERNEL
 
-typedef int __s32;
-typedef unsigned int __u32;
+#include <wdm.h>
+
+typedef BOOLEAN bool;
+
+#define true TRUE
+#define false FALSE
+#define htons(a) RtlUshortByteSwap(a)
+#define ntohs(a) RtlUshortByteSwap(a)
+
+#endif /* _NTKERNEL */
+
+typedef INT8 __s8;
+typedef UINT8 __u8;
+typedef INT16 __s16;
+typedef UINT16 __u16;
+typedef INT32 __s32;
+typedef UINT32 __u32;
+
+typedef INT8 int8_t;
+typedef UINT8 uint8_t;
+typedef INT16 int16_t;
+typedef UINT16 uint16_t;
+typedef INT32 int32_t;
+typedef UINT32 uint32_t;
+typedef INT64 int64_t;
+typedef UINT64 uint64_t;
+
+#define __attribute__packed__open__ __pragma( pack( push, 1 ) )
+#define __attribute__packed__close__ __pragma( pack( pop ) )
+#define __attribute__format__open__(...) /* do nothing */
+#define __attribute__format__close__(...) /* do nothing */
+
+#else
+
+#define __attribute__packed__open__ /* do nothing */
+#define __attribute__packed__close__ __attribute__((__packed__))
+#define __attribute__format__open__(...) /* do nothing */
+#define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
 
 #endif /* _WINDOWS */
 

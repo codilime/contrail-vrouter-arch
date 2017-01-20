@@ -58,9 +58,6 @@
     <ClInclude Include="windows\sandesh-temp\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_platform.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\vr_windows.h">
       <Filter>Header Files</Filter>
     </ClInclude>
