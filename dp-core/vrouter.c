@@ -251,8 +251,8 @@ vr_module_debug_dump(void)
 struct vrouter *
 vrouter_get(unsigned int vr_id)
 {
-	UNREFERENCED_PARAMETER(vr_id);
-	return &router;
+    UNREFERENCED_PARAMETER(vr_id);
+    return &router;
 }
 
 unsigned int
@@ -309,7 +309,7 @@ vrouter_ops_get_process(void *s_req)
         goto generate_response;
     }
 
-	localRouter = vrouter_get(req->vo_rid);
+    localRouter = vrouter_get(req->vo_rid);
     if (!localRouter) {
         ret = -EINVAL;
         goto generate_response;
@@ -355,7 +355,7 @@ vrouter_ops_get_process(void *s_req)
     /* Logging entries */
     resp->vo_log_level = vr_get_log_level();
     resp->vo_log_type_enable =
-		(int32_t*)vr_get_enabled_log_types((int32_t*)&resp->vo_log_type_enable_size);
+        (int32_t*)vr_get_enabled_log_types((int32_t*)&resp->vo_log_type_enable_size);
 
 
     /* Used entries */
@@ -473,10 +473,10 @@ vrouter_init(void)
     int ret;
 
     vrouter_host = vrouter_get_host();
-	if (!vrouter_host) {
-		ret = -ENOMEM;
-		goto init_fail;
-	}
+    if (!vrouter_host) {
+        ret = -ENOMEM;
+        goto init_fail;
+    }
 
     for (i = 0; i < VR_NUM_MODULES; i++) {
         module_under_init = &modules[i];
@@ -536,3 +536,4 @@ vrouter_ops_process(void *s_req)
 
     return;
 }
+

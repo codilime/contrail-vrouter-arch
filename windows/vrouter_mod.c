@@ -1,11 +1,7 @@
 #include "precomp.h"
 #include "vr_windows.h"
-#include "vr_packet.h"
 
-//#include "vrouter.h"
 #include "vr_packet.h"
-
-ULONG SxExtAllocationTag = 'RVCO';
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -89,9 +85,7 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-	struct vr_ip a;
 	DbgPrint("SxExtInitialize\r\n");
-	DbgPrint("SxExtInitialize %d\r\n", sizeof(a));
 	UNREFERENCED_PARAMETER(DriverObject);
 
 	return NDIS_STATUS_SUCCESS;

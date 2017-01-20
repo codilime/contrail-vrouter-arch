@@ -84,9 +84,6 @@
     <ClCompile Include="windows\precompsrc2.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="windows\vr_host.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="dp-core\vr_packet.c">
       <Filter>Source Files</Filter>
     </ClCompile>

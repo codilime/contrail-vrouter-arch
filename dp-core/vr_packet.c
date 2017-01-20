@@ -79,7 +79,7 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
     unsigned short ip_proto;
     bool thdr_valid = false;
     unsigned int tcph_pull_len = 0;
-	unsigned char hlen = 0; // switched from int to char, requires caution!
+    unsigned char hlen = 0; // TODO: switched from int to char, requires additional testing!
     unsigned int pull_len = *pull_lenp;
     struct vr_tcp *tcph = NULL;
     unsigned short th_csum = 0;
@@ -386,3 +386,4 @@ vr_inner_pkt_parse(unsigned char *va, int (*tunnel_type_cb)(unsigned int,
 
     return 0;
 }
+
