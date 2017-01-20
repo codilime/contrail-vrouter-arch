@@ -101,5 +101,8 @@
     <ClInclude Include="..\windows\include\wingetopt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\windows\include\vr_utils_temp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

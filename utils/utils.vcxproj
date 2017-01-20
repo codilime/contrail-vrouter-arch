@@ -47,6 +47,7 @@
     <ClInclude Include="..\include\vr_response.h" />
     <ClInclude Include="..\include\vr_sandesh.h" />
     <ClInclude Include="..\include\vr_utils.h" />
+    <ClInclude Include="..\windows\include\vr_utils_temp.h" />
     <ClInclude Include="..\windows\include\wingetopt.h" />
     <ClInclude Include="..\windows\sandesh-temp\vr_types.h" />
   </ItemGroup>
@@ -106,7 +107,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\gits\vnc\vrouter\include</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -133,8 +134,8 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_WINDOWS;_UTILS</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\tools\sandesh\library\c\;..\windows\sandesh-temp\;..\windows\include\;..\windows\;..\..\tools\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_WINDOWS</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\tools\sandesh\library\c\;..\windows\sandesh-temp\;..\windows\include\;..\windows\;..\include;..\..\tools\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
