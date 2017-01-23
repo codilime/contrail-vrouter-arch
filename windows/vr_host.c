@@ -1,5 +1,6 @@
 #include "precomp.h"
 
+#include <errno.h>
 #include "vr_os.h"
 #include "vr_packet.h"
 #include "vrouter.h"
@@ -285,9 +286,21 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 static void
 win_preset(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    if (!nbl)
+        return;
 
-    /* Dummy implementation */
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb)
+        return;
+
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    pkt->vp_head =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    pkt->vp_data = 0;
+    pkt->vp_tail = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
+    pkt->vp_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
+
     return;
 }
 
@@ -307,22 +320,87 @@ static int
 win_pcopy(unsigned char *dst, struct vr_packet *p_src,
         unsigned int offset, unsigned int len)
 {
-    UNREFERENCED_PARAMETER(dst);
-    UNREFERENCED_PARAMETER(p_src);
-    UNREFERENCED_PARAMETER(offset);
-    UNREFERENCED_PARAMETER(len);
+    PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
+    if (!nbl) {
+        return -EFAULT;
+    }
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb) {
+        return -EFAULT;
+    }
 
-    /* Dummy implementation */
+    ULONG data_offset = NET_BUFFER_DATA_OFFSET(nb);
+    ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG data_size = data_offset + data_length;
+    if (data_offset + (ULONG)offset + (ULONG)len >= data_size) {
+        /* Attempted to copy more bytes than present in packet */
+        return -EFAULT;
+    }
+
+    // Walk through MDL list, until `offset` is reached.
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG mdl_data_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    ULONG current_offset = offset;
+    while (mdl_data_offset + current_offset >= MmGetMdlByteCount(current_mdl)) {
+        current_offset -= MmGetMdlByteCount(current_mdl) - mdl_data_offset;
+        mdl_data_offset = 0;
+        current_mdl = current_mdl->Next;
+    }
+    mdl_data_offset = current_offset;
+
+    unsigned int copied_bytes = 0;
+    ULONG bytes_to_copy = MmGetMdlByteCount(current_mdl) - mdl_data_offset;
+    unsigned char *mdl_data =
+        (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    if (!mdl_data) {
+        return -EFAULT;
+    }
+
+    NdisMoveMemory(dst, mdl_data + mdl_data_offset, bytes_to_copy);
+    copied_bytes += bytes_to_copy;
+
+    current_mdl = current_mdl->Next;
+    while (copied_bytes < len && current_mdl) {
+        mdl_data =
+            (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+        if (!current_mdl) {
+            return -EFAULT;
+        }
+
+        unsigned int left_to_copy = len - copied_bytes;
+        ULONG mdl_size = MmGetMdlByteCount(current_mdl);
+        if (left_to_copy >= mdl_size) {
+            NdisMoveMemory(dst + copied_bytes, mdl_data, mdl_size);
+            copied_bytes += mdl_size;
+        } else {
+            NdisMoveMemory(dst + copied_bytes, mdl_data, left_to_copy);
+            copied_bytes += left_to_copy;
+        }
+
+        current_mdl = current_mdl->Next;
+    }
+
+    if (copied_bytes < len) {
+        /* MDL list has ended before all of the packet data could be copied. */
+        return -EFAULT;
+    }
+
     return len;
 }
 
 static unsigned short
 win_pfrag_len(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    if (!nbl)
+        return 0;
 
-    /* Dummy implementation */
-    return 0;
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb)
+        return 0;
+
+    unsigned short frag_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
+    return frag_len;
 }
 
 static unsigned short
@@ -330,7 +408,6 @@ win_phead_len(struct vr_packet *pkt)
 {
     UNREFERENCED_PARAMETER(pkt);
 
-    /* Dummy implementation */
     return 0;
 }
 
@@ -339,8 +416,9 @@ win_pset_data(struct vr_packet *pkt, unsigned short offset)
 {
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(offset);
+    
+    /* On Windows it is a noop, because there is no `sk_buff->data` pointer equivalent in NET_BUFFER. */
 
-    /* Dummy implementation */
     return;
 }
 
@@ -349,7 +427,16 @@ win_pgso_size(struct vr_packet *pkt)
 {
     UNREFERENCED_PARAMETER(pkt);
 
-    /* Dummy implementation */
+    /* TODO: More research on Generic Segmentation Offload mechanism in Windows is needed.
+     *       As stated in https://msdn.microsoft.com/en-us/windows/hardware/drivers/network/offloading-the-segmentation-of-large-tcp-packets
+     *       NDIS supported offload for TCP/IP packets only. dp-core code which does GSO checks is also 
+     *       considering only TCP/IP packets.
+     *       However we do not know if there is further work needed in the NDIS driver to perform TCP offload.
+     *
+     * Returning 0 right now is a valid option, because dp-core code supports gso_size == 0 (i.e.
+     * when GSO is not supported by NIC driver).
+     */
+
     return 0;
 }
 
