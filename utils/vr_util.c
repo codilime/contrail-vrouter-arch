@@ -267,6 +267,12 @@ vr_get_nl_client(unsigned int proto)
     if (!cl)
         return NULL;
 
+    if (proto == VR_NAMED_PIPE_WINDOWS)
+    {
+        cl->cl_recvmsg = nl_client_stream_recvmsg;
+        return cl;
+    }
+
     parse_ini_file();
 
     if (proto == VR_NETLINK_PROTO_DEFAULT)

@@ -57,15 +57,6 @@ struct ether_addr *
 }
 
 /*
-int
-vr_sendmsg(struct nl_client *cl, void *request,
-	char *request_string)
-{
-	return nl_sendmsg();
-}
-*/
-
-/*
 * Convert Ethernet address in the standard hex-digits-and-colons to binary
 * representation.
 * Re-entrant version (GNU extensions)
@@ -77,17 +68,51 @@ struct ether_addr *
 	static struct ether_addr addr;
 	return ether_aton_r(asc, &addr);
 }
+HANDLE hPipe;
 
+// TODO: JW-120 - Refactoring of vr_win_utils.cl
+/* It is only temporary mock*/
+int
+nl_client_datagram_recvmsg(struct nl_client *cl)
+{
+    return nl_client_stream_recvmsg(cl);
+}
 
+// TODO: JW-120 - Refactoring of vr_win_utils.cl
+int
+nl_client_stream_recvmsg(struct nl_client *cl) 
+{
+    DWORD dwWritten;
+    DWORD dwRead;
+    void *rr;
+    struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
+    int d = cl->cl_buf_offset;
+    char buffer[4096];
+    int r = 0;
+    while (hPipe != INVALID_HANDLE_VALUE)
+    {
+            while (ReadFile(hPipe, buffer, 4096, &dwRead, NULL) != FALSE)
+            {
+                struct nlmsghdr *nlh = (struct nlmsghdr *)buffer;
+                /* do something with data in buffer */
+                printf("%d\n", nlh->nlmsg_len);
+                printf("%d\n", nlh->nlmsg_type);
+                printf("%d\n", nlh->nlmsg_flags);
+                printf("----\n");
+                break;
+            }
+            break;
+    }
+    cl->cl_recv_len = 4096;
+    return cl->cl_recv_len;
+}
 
-
+// TODO: JW-120 - Refactoring of vr_win_utils.c
 int
 nl_sendmsg(struct nl_client *cl)
 {
-	HANDLE hPipe;
 	DWORD dwWritten;
 	void *rr;
-	//struct msghdr msg;
 	struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
 	int d =  cl->cl_buf_offset;
 	hPipe = CreateFile(TEXT("\\\\.\\pipe\\Pipe"),
@@ -107,7 +132,6 @@ nl_sendmsg(struct nl_client *cl)
 			&dwWritten,
 			NULL);
 
-		CloseHandle(hPipe);
 	}
 
 	return r;
