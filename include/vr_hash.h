@@ -7,6 +7,8 @@
 #ifndef _VR_HASH_H
 #define _VR_HASH_H
 
+#include "vr_os.h"
+
 /* vr_hash.h: Jenkins hash support.
  *
  * Copyright (C) 2006. Bob Jenkins (bob_jenkins@burtleburtle.net)
@@ -63,7 +65,11 @@
 /* An arbitrary initial parameter */
 #define VR_HASH_INITVAL     0xdeadbeef
 
-struct __unaligned_u32 { uint32_t x; } __attribute__((packed));
+__attribute__packed__open__
+struct __unaligned_u32 {
+    uint32_t x;
+} __attribute__packed__close__;
+
 static inline uint32_t __get_unaligned_word(const void *p)
 {
     union {

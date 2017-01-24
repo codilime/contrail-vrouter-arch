@@ -6,6 +6,8 @@
 #ifndef __VR_BTABLE_H__
 #define __VR_BTABLE_H__
 
+#include "vr_os.h"
+
 #define VB_FLAG_MEMORY_ATTACHED 0x1
 
 #define VR_SINGLE_ALLOC_LIMIT   (4 * 1024 * 1024)

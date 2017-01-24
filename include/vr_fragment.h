@@ -7,18 +7,23 @@
 #ifndef __VR_FRAGMENT_H__
 #define __VR_FRAGMENT_H__
 
+#include "vr_os.h"
+#include "vr_flow.h"
+#include "vr_packet.h"
+
 #define VR_ASSEMBLER_TIMEOUT_TIME               5
 #define VR_LINUX_ASSEMBLER_BUCKETS              1024
 #define VR_MAX_FRAGMENTS_PER_ASSEMBLER_QUEUE    256
 #define VR_MAX_FRAGMENTS_PER_CPU_QUEUE          256
 #define VR_FRAG_ENQUEUE_ATTEMPTS                3
 
+__attribute__packed__open__
 struct vr_fragment_key {
     unsigned int fk_sip;
     unsigned int fk_dip;
     unsigned short fk_id;
     unsigned short fk_vrf;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 struct vr_fragment_queue_element {
     struct vrouter *fqe_router;
@@ -31,6 +36,7 @@ struct vr_fragment_queue {
     struct vr_fragment_queue_element *vfq_tail;
 };
 
+__attribute__packed__open__
 struct vr_fragment {
     struct vr_fragment_key f_key;
     unsigned short f_sport;
@@ -41,7 +47,7 @@ struct vr_fragment {
     uint16_t f_expected;
     uint16_t f_received;
     bool f_port_info_valid;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 #define f_sip f_key.fk_sip
 #define f_dip f_key.fk_dip
