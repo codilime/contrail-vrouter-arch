@@ -78,8 +78,7 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
 {
     unsigned short ip_proto;
     bool thdr_valid = false;
-    unsigned int tcph_pull_len = 0;
-    unsigned char hlen = 0; // TODO: switched from int to char, requires additional testing!
+    unsigned int hlen = 0, tcph_pull_len = 0;
     unsigned int pull_len = *pull_lenp;
     struct vr_tcp *tcph = NULL;
     unsigned short th_csum = 0;
@@ -147,7 +146,7 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
                     if (do_tcp_mss_adj) {
                         /* Kernel will never get here, it will return slow path */
                         do_tcp_mss_adj((struct tcphdr *)tcph,
-                                            VROUTER_L2_OVERLAY_LEN, hlen);
+                                            VROUTER_L2_OVERLAY_LEN, (unsigned char)hlen);
                     } else {
                         return PKT_RET_SLOW_PATH;
                     }
