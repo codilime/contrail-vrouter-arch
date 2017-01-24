@@ -320,6 +320,12 @@
     <ClInclude Include="windows\SxBase\SxLibrary.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="dp-core\temp.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_packet.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="windows\precompsrc2.c" />
     <ClCompile Include="windows\SxBase\precompsrc.c" />
     <ClCompile Include="windows\SxBase\SxBase.c" />
