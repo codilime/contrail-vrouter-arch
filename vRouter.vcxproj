@@ -328,6 +328,7 @@
     <ClInclude Include="include\vr_response.h" />
     <ClInclude Include="include\vr_route.h" />
     <ClInclude Include="include\vr_sandesh.h" />
+    <ClInclude Include="include\vr_vxlan.h" />
     <ClInclude Include="include\vr_windows.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
