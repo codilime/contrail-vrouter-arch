@@ -1489,7 +1489,11 @@ vrouter_del_interface(struct vr_interface *vif)
 {
     struct vrouter *router;
 
-    if (!vif || !(router = vrouter_get(vif->vif_rid)))
+    if (!vif)
+        return;
+
+    router = vrouter_get(vif->vif_rid);
+    if (!router)
         return;
 
     if (vif->vif_idx >= router->vr_max_interfaces)
@@ -1751,8 +1755,10 @@ vr_interface_delete(vr_interface_req *req, bool need_response)
     struct vrouter *router = vrouter_get(req->vifr_rid);
 
     vif = __vrouter_get_interface(router, req->vifr_idx);
-    if (!vif && (ret = -ENODEV))
+    if (!vif) {
+        ret = -ENODEV;
         goto del_fail;
+    }
 
     vif_delete(vif);
 
@@ -1845,8 +1851,10 @@ vr_interface_add(vr_interface_req *req, bool need_response)
         goto generate_resp;
     }
 
-    if (req->vifr_type >= VIF_TYPE_MAX && (ret = -EINVAL))
+    if (req->vifr_type >= VIF_TYPE_MAX) {
+        ret = -EINVAL;
         goto generate_resp;
+    }
 
     if (!vif_transport_valid(req))
         goto generate_resp;
@@ -2298,8 +2306,10 @@ vr_interface_dump(vr_interface_req *r)
     struct vrouter *router = vrouter_get(r->vifr_vrf);
     struct vr_message_dumper *dumper = NULL;
 
-    if (!router && (ret = -ENODEV))
+    if (!router) {
+        ret = -ENODEV;
         goto generate_response;
+    }
 
     if ((unsigned int)(r->vifr_marker + 1) >= router->vr_max_interfaces)
         goto generate_response;
@@ -2881,7 +2891,8 @@ vr_interface_shut(struct vrouter *router)
         return;
 
     for (i = 0; i < router->vr_max_interfaces; i++) {
-        if ((vif = router->vr_interfaces[i])) {
+        vif = router->vr_interfaces[i];
+        if (vif) {
             vif->vif_tx = vif_discard_tx;
             vif->vif_rx = vif_discard_rx;
             vif_drv_delete(vif);
@@ -2905,9 +2916,11 @@ vr_interface_exit(struct vrouter *router, bool soft_reset)
         return;
 
     if (router->vr_interfaces) {
-        for (i = 0; i < router->vr_max_interfaces; i++)
-            if ((vif = router->vr_interfaces[i]))
+        for (i = 0; i < router->vr_max_interfaces; i++) {
+            vif = router->vr_interfaces[i];
+            if (vif)
                 vrouter_del_interface(vif);
+        }
     }
 
 
@@ -2937,14 +2950,17 @@ vr_interface_init(struct vrouter *router)
             sizeof(struct vr_interface *);
         router->vr_interfaces = vr_zalloc(table_memory,
                 VR_INTERFACE_TABLE_OBJECT);
-        if (!router->vr_interfaces && (ret = -ENOMEM))
+        if (!router->vr_interfaces) {
+            ret = -ENOMEM;
             return vr_module_error(ret, __FUNCTION__,
                     __LINE__, table_memory);
+        }
     }
 
     if (!hif_ops) {
         hif_ops = vr_host_interface_init();
-        if (!hif_ops && (ret = -ENOMEM)) {
+        if (!hif_ops) {
+            ret = -ENOMEM;
             vr_module_error(ret, __FUNCTION__, __LINE__, 0);
             goto cleanup;
         }
