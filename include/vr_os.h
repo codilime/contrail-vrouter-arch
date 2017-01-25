@@ -142,6 +142,10 @@ struct iovec {
     SIZE_T iov_len;
 };
 
+inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
+    return InterlockedAdd((LONG*)a, -b);
+}
+
 #else
 
 #define __attribute__packed__open__ /* do nothing */
