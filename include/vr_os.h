@@ -139,7 +139,7 @@ typedef UINT64 uint64_t;
 
 struct iovec {
     void *iov_base;
-    unsigned int iov_len;
+    SIZE_T iov_len;
 };
 
 #else
