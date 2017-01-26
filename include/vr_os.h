@@ -137,6 +137,11 @@ typedef UINT64 uint64_t;
 
 #define EOPNOTSUPP      130
 
+struct iovec {
+    void *iov_base;
+    SIZE_T iov_len;
+};
+
 #else
 
 #define __attribute__packed__open__ /* do nothing */

@@ -5,6 +5,8 @@
 #ifndef __VR_HTABLE_H__
 #define __VR_HTABLE_H__
 
+#include "vr_os.h"
+
 #define VR_INVALID_HENTRY_INDEX ((unsigned int)-1)
 
 struct vrouter;
