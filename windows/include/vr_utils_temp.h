@@ -2,17 +2,10 @@
 
 #include "vr_os.h"
 
-#include <Ws2tcpip.h>
-#include <basetsd.h>
+typedef unsigned long   __kernel_size_t;
 
-typedef INT8 int8_t;
-typedef UINT8 uint8_t;
-typedef INT16 int16_t;
-typedef UINT16 uint16_t;
-typedef INT32 int32_t;
-typedef UINT32 uint32_t;
-typedef INT64 int64_t;
-typedef UINT64 uint64_t;
+#define IFNAMSIZ 16
+#define INET6_ADDRSTRLEN 46
 
 #define IFNAMSIZ 16
 #define AF_BRIDGE 7
@@ -20,10 +13,9 @@ typedef UINT64 uint64_t;
 #define AF_NETLINK 0
 #define NETLINK_GENERIC 0
 
-#define __attribute__packed__open__ __pragma( pack( push, 1 ) )
-#define __attribute__packed__close__ __pragma( pack( pop ) )
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) /* do nothing */
+#define AF_NETLINK 0
+#define NETLINK_GENERIC 0
+
 
 // TODO: Remove unused defines and structures
 #define __attribute__(A) /* do nothing */
@@ -34,6 +26,8 @@ typedef UINT64 uint64_t;
 #define NLM_F_ECHO              8       /* Echo this request            */
 #define NLM_F_DUMP_INTR         16      /* Dump was inconsistent due to sequence change */
 #define NLM_F_DUMP_FILTERED     32      /* Dump was filtered as requested */
+#define VR_NAMED_PIPE_WINDOWS 1337
+
 
 struct nlattr {
 	UINT16 nla_len;
@@ -48,9 +42,35 @@ struct nlmsghdr {
 	UINT32           nlmsg_pid;      /* Sending process port ID */
 };
 
+struct iov_iter {
+	int type;
+	size_t iov_offset;
+	size_t count;
+	union {
+		const struct iovec *iov;
+		const struct kvec *kvec;
+		const struct bio_vec *bvec;
+		struct pipe_inode_info *pipe;
+	};
+	union {
+		unsigned long nr_segs;
+		int idx;
+	};
+};
+
+struct genlmsghdr {
+	UINT8    cmd;
+	UINT8    version;
+	UINT16   reserved;
+};
+
 #define NLA_ALIGNTO 4
+#define NLMSG_ALIGNTO   4
 #define NLA_ALIGN(len) (((len)+NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
 #define NLA_HDRLEN ((int)NLA_ALIGN(sizeof(struct nlattr)))
+#define NLMSG_ALIGN(len) ( ((len)+NLMSG_ALIGNTO-1) & ~(NLMSG_ALIGNTO-1) )
+#define NLMSG_HDRLEN     ((int) NLMSG_ALIGN(sizeof(struct nlmsghdr)))
+#define GENL_HDRLEN     NLMSG_ALIGN(sizeof(struct genlmsghdr))
 
 enum {
 	CTRL_ATTR_UNSPEC,

@@ -546,8 +546,6 @@ parse_long_opts(int ind, char *opt_arg)
             usage();
         break;
 
-	// TODO: JW-74 Implement ether_aton for windows platform
-	/*
     case SMAC_OPT_IND:
         mac = ether_aton(opt_arg);
         if (mac)
@@ -563,7 +561,7 @@ parse_long_opts(int ind, char *opt_arg)
         else
             cmd_usage();
         break;
-		*/
+
     case VRF_OPT_IND:
         vrf_id = strtoul(opt_arg, NULL, 0);
         if (errno)
@@ -575,15 +573,15 @@ parse_long_opts(int ind, char *opt_arg)
         if (errno)
             usage();
         break;
-	// TODO: JW-74 Implement missing inet_aton for windows platform
-	/*
+
     case SIP_OPT_IND:
         inet_aton(opt_arg, &sip);
         break;
 
     case DIP_OPT_IND:
         inet_aton(opt_arg, &dip);
-        break; */
+        break;
+
     case SPORT_OPT_IND:
         sport = strtoul(opt_arg, NULL, 0);
         if (errno)
@@ -627,7 +625,6 @@ validate_options(void)
         usage();
         return;
     }
-
 
     switch (command) {
     case SANDESH_OP_ADD:
@@ -769,8 +766,7 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
-	// TODO: JW-74 Replace getopt with getoptlong
-    while ((opt = getopt(argc, argv, "",
+    while ((opt = getopt_long(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {
         case 0:
@@ -784,7 +780,12 @@ main(int argc, char *argv[])
 
     validate_options();
 
+#ifndef _WINDOWS
     cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
+#else
+    cl = vr_get_nl_client(VR_NAMED_PIPE_WINDOWS);
+#endif
+
     if (!cl) {
         exit(1);
     }
