@@ -1,8 +1,27 @@
 #pragma once
 
 #include "vr_os.h"
+#include <Ws2tcpip.h>
+#include <basetsd.h>
 
 typedef unsigned long   __kernel_size_t;
+
+#define GENL_ID_CTRL 0x10
+
+enum {
+    CTRL_CMD_UNSPEC,
+    CTRL_CMD_NEWFAMILY,
+    CTRL_CMD_DELFAMILY,
+    CTRL_CMD_GETFAMILY,
+    CTRL_CMD_NEWOPS,
+    CTRL_CMD_DELOPS,
+    CTRL_CMD_GETOPS,
+    CTRL_CMD_NEWMCAST_GRP,
+    CTRL_CMD_DELMCAST_GRP,
+    CTRL_CMD_GETMCAST_GRP, /* unused */
+    __CTRL_CMD_MAX,
+};
+
 
 #define IFNAMSIZ 16
 #define INET6_ADDRSTRLEN 46
@@ -12,9 +31,7 @@ typedef unsigned long   __kernel_size_t;
 // netlink doesn't exist on windows platform
 #define AF_NETLINK 0
 #define NETLINK_GENERIC 0
-
-#define AF_NETLINK 0
-#define NETLINK_GENERIC 0
+#define NLMSG_DONE  0x3
 
 
 // TODO: Remove unused defines and structures
@@ -26,7 +43,7 @@ typedef unsigned long   __kernel_size_t;
 #define NLM_F_ECHO              8       /* Echo this request            */
 #define NLM_F_DUMP_INTR         16      /* Dump was inconsistent due to sequence change */
 #define NLM_F_DUMP_FILTERED     32      /* Dump was filtered as requested */
-#define VR_NAMED_PIPE_WINDOWS 1337
+#define VR_NAMED_PIPE_WINDOWS  100
 
 
 struct nlattr {
