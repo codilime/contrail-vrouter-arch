@@ -84,6 +84,12 @@
     <ClCompile Include="windows\precompsrc2.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dp-core\vr_packet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\temp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">

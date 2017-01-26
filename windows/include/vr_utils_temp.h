@@ -6,11 +6,16 @@ typedef unsigned long   __kernel_size_t;
 
 #define IFNAMSIZ 16
 #define INET6_ADDRSTRLEN 46
+
 #define IFNAMSIZ 16
 #define AF_BRIDGE 7
+// netlink doesn't exist on windows platform
+#define AF_NETLINK 0
+#define NETLINK_GENERIC 0
 
 #define AF_NETLINK 0
 #define NETLINK_GENERIC 0
+
 
 // TODO: Remove unused defines and structures
 #define __attribute__(A) /* do nothing */

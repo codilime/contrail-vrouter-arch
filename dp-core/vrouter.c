@@ -5,6 +5,8 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
+#include <errno.h>
+
 #include <vr_os.h>
 #if defined(__linux__)
 #include <linux/version.h>
@@ -249,13 +251,14 @@ vr_module_debug_dump(void)
 struct vrouter *
 vrouter_get(unsigned int vr_id)
 {
+    UNREFERENCED_PARAMETER(vr_id);
     return &router;
 }
 
 unsigned int
-vrouter_generation_num_get(struct vrouter *router)
+vrouter_generation_num_get(struct vrouter *localRouter)
 {
-    return ++router->vr_generation_num;
+    return ++localRouter->vr_generation_num;
 }
 
 static void
@@ -283,7 +286,7 @@ vrouter_ops_get(void)
     if (!req)
         return NULL;
 
-    req->vo_build_info = vr_zalloc(strlen(ContrailBuildInfo),
+    req->vo_build_info = vr_zalloc((unsigned int)strlen(ContrailBuildInfo),
             VR_BUILD_INFO_OBJECT);
     if (!req->vo_build_info) {
         vr_free(req, VR_VROUTER_REQ_OBJECT);
@@ -297,7 +300,7 @@ void
 vrouter_ops_get_process(void *s_req)
 {
     int ret = 0;
-    struct vrouter *router;
+    struct vrouter *localRouter;
     vrouter_ops *req = (vrouter_ops *)s_req;
     vrouter_ops *resp = NULL;
 
@@ -306,8 +309,8 @@ vrouter_ops_get_process(void *s_req)
         goto generate_response;
     }
 
-    router = vrouter_get(req->vo_rid);
-    if (!router) {
+    localRouter = vrouter_get(req->vo_rid);
+    if (!localRouter) {
         ret = -EINVAL;
         goto generate_response;
     }
@@ -319,15 +322,15 @@ vrouter_ops_get_process(void *s_req)
     }
 
     /* Startup command line parameters */
-    resp->vo_interfaces = router->vr_max_interfaces;
-    resp->vo_vrfs = router->vr_max_vrfs;
-    resp->vo_mpls_labels = router->vr_max_labels;
-    resp->vo_nexthops = router->vr_max_nexthops;
+    resp->vo_interfaces = localRouter->vr_max_interfaces;
+    resp->vo_vrfs = localRouter->vr_max_vrfs;
+    resp->vo_mpls_labels = localRouter->vr_max_labels;
+    resp->vo_nexthops = localRouter->vr_max_nexthops;
     resp->vo_bridge_entries = vr_bridge_entries;
     resp->vo_oflow_bridge_entries = vr_bridge_oentries;
     resp->vo_flow_entries = vr_flow_entries;
     resp->vo_oflow_entries = vr_oflow_entries;
-    resp->vo_mirror_entries = router->vr_max_mirror_indices;
+    resp->vo_mirror_entries = localRouter->vr_max_mirror_indices;
 
     /* Runtime parameters adjustable via sysctl or the vrouter utility */
     resp->vo_perfr = vr_perfr;
@@ -352,19 +355,19 @@ vrouter_ops_get_process(void *s_req)
     /* Logging entries */
     resp->vo_log_level = vr_get_log_level();
     resp->vo_log_type_enable =
-        vr_get_enabled_log_types(&resp->vo_log_type_enable_size);
+        (int32_t*)vr_get_enabled_log_types((int32_t*)&resp->vo_log_type_enable_size);
 
 
     /* Used entries */
     resp->vo_flow_used_entries =
-        vr_flow_table_used_total_entries(router);
+        vr_flow_table_used_total_entries(localRouter);
     resp->vo_flow_used_oentries =
-       vr_flow_table_used_oflow_entries(router);
+       vr_flow_table_used_oflow_entries(localRouter);
 
     resp->vo_bridge_used_entries =
-        vr_bridge_table_used_total_entries(router);
+        vr_bridge_table_used_total_entries(localRouter);
     resp->vo_bridge_used_oentries =
-        vr_bridge_table_used_oflow_entries(router);
+        vr_bridge_table_used_oflow_entries(localRouter);
 
     req = resp;
 generate_response:
@@ -389,7 +392,7 @@ generate_response:
 void
 vrouter_ops_add_process(void *s_req)
 {
-    int i;
+    uint32_t i;
 
     vrouter_ops *req = (vrouter_ops *)s_req;
 
@@ -470,8 +473,10 @@ vrouter_init(void)
     int ret;
 
     vrouter_host = vrouter_get_host();
-    if (!vrouter_host && (ret = -ENOMEM))
+    if (!vrouter_host) {
+        ret = -ENOMEM;
         goto init_fail;
+    }
 
     for (i = 0; i < VR_NUM_MODULES; i++) {
         module_under_init = &modules[i];

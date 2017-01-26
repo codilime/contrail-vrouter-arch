@@ -91,7 +91,6 @@ typedef unsigned int __u32;
 #define ASSERT(x) assert((x));
 #endif
 #endif /* __FreeBSD__ */
-
 #if defined(_WINDOWS)
 
 #include <basetsd.h>
@@ -104,8 +103,11 @@ typedef BOOLEAN bool;
 
 #define true TRUE
 #define false FALSE
+
 #define htons(a) RtlUshortByteSwap(a)
 #define ntohs(a) RtlUshortByteSwap(a)
+#define htonl(a) RtlUlongByteSwap(a)
+#define ntohl(a) RtlUlongByteSwap(a)
 
 #endif /* _NTKERNEL */
 
@@ -125,10 +127,15 @@ typedef UINT32 uint32_t;
 typedef INT64 int64_t;
 typedef UINT64 uint64_t;
 
-#define __attribute__packed__open__ __pragma( pack( push, 1 ) )
-#define __attribute__packed__close__ __pragma( pack( pop ) )
+#define __attribute__packed__open__ __pragma(pack(push, 1))
+#define __attribute__packed__close__ __pragma(pack(pop))
 #define __attribute__format__open__(...) /* do nothing */
 #define __attribute__format__close__(...) /* do nothing */
+#define __attribute__zerosized__open__  __pragma(warning(push) ) \
+                                        __pragma(warning(disable : 4200))
+#define __attribute__zerosized__close__ __pragma(warning(pop))
+
+#define EOPNOTSUPP      130
 
 #else
 
@@ -136,6 +143,10 @@ typedef UINT64 uint64_t;
 #define __attribute__packed__close__ __attribute__((__packed__))
 #define __attribute__format__open__(...) /* do nothing */
 #define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
+#define __attribute__zerosized__open__ /* do nothing */
+#define __attribute__zerosized__close__ /* do nothing */
+
+#define UNREFERENCED_PARAMETER(a) (a)
 
 #endif /* _WINDOWS */
 
