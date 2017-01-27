@@ -120,6 +120,9 @@ int vr_perfs = 1;    /* segmentation in software */
 #elif defined(__FreeBSD__)
 int vr_perfr = 0;    /* GRO */
 int vr_perfs = 0;    /* segmentation in software */
+#elif defined(_WINDOWS)
+int vr_perfr = 0;    /* WARNING: NOT TESTED */
+int vr_perfs = 0;    /* WARNING: NOT TESTED */
 #endif
 
 /*
@@ -136,6 +139,9 @@ int vr_to_vm_mss_adj = 1;   /* adjust TCP MSS on packet sent to VM */
 #elif defined(__FreeBSD__)
 int vr_from_vm_mss_adj = 0; /* adjust TCP MSS on packets from VM */
 int vr_to_vm_mss_adj = 0;   /* adjust TCP MSS on packet sent to VM */
+#elif defined(_WINDOWS)
+int vr_from_vm_mss_adj = 0; /* WARNING: NOT TESTED */
+int vr_to_vm_mss_adj = 0;   /* WARNING: NOT TESTED */
 #endif
 /*
  * Following sysctls are to enable RPS. Based on empirical results,
@@ -188,9 +194,13 @@ int vr_use_linux_br = 1; /* Xen */
 
 #endif
 #endif
-#endif /* __linux__ */
-#if defined(__FreeBSD__)
+#elif defined(__FreeBSD__)
 int vr_perfp = 0;
+#elif defined(_WINDOWS)
+int vr_perfr1 = 0;       /* WARNING: NOT TESTED */
+int vr_perfr2 = 0;       /* WARNING: NOT TESTED */
+int vr_perfr3 = 0;       /* WARNING: NOT TESTED */
+int vr_perfp = 0;        /* WARNING: NOT TESTED */
 #endif
 /*
  * Following sysctls can be set if vrouter shouldn't pick a CPU for RPS

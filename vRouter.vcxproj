@@ -350,7 +350,16 @@
     <ClCompile Include="dp-core\vr_message.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="dp-core\vr_mirror.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_nexthop.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="dp-core\vr_packet.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_queue.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\precompsrc2.c" />
@@ -359,6 +368,9 @@
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_assoc.c" />
+    <ClCompile Include="windows\windows_random.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />

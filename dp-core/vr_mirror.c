@@ -24,6 +24,7 @@ vrouter_get_mirror(unsigned int rid, unsigned int index)
 static void
 vr_mirror_defer_delete(struct vrouter *router, void *arg)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *defer = (struct vr_defer_data *)arg;
 
     vr_free(defer->vdd_data, VR_MIRROR_OBJECT);
@@ -143,7 +144,7 @@ vr_mirror_make_req(vr_mirror_req *req, struct vr_mirror_entry *mirror,
         req->mirr_nhid = mirror->mir_nh->nh_id;
 
     req->mirr_flags = mirror->mir_flags;
-    req->mirr_rid = mirror->mir_rid;
+    req->mirr_rid = (int16_t)mirror->mir_rid;
     req->mirr_vni = mirror->mir_vni;
     return;
 }
@@ -352,7 +353,7 @@ vr_mirror(struct vrouter *router, uint8_t mirror_id, struct vr_packet *pkt,
     unsigned int captured_len, clone_len = 0;
     unsigned int mirror_md_len = 0, drop_reason;
 
-    void *mirror_md;
+    void *mirror_md = NULL;
     unsigned char *buf;
     struct vr_nexthop *nh, *pkt_nh;
     struct vr_mirror_entry *mirror;

@@ -153,6 +153,18 @@
     <ClCompile Include="dp-core\vrouter.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dp-core\vr_queue.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_mirror.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_nexthop.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\windows_random.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">

@@ -39,6 +39,8 @@ int vr_hash_nic(NDIS_IF_COUNTED_STRING string);
 struct vr_assoc* vr_get_assoc(NDIS_IF_COUNTED_STRING string);
 void vr_set_assoc_oid(NDIS_IF_COUNTED_STRING name, NDIS_SWITCH_PORT_ID port_id);
 
+void get_random_bytes(void *buf, int nbytes);
+
 #ifdef __cplusplus
 }
 #endif

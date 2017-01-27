@@ -98,7 +98,8 @@ typedef unsigned int __u32;
 
 #ifdef _NTKERNEL
 
-#include <wdm.h>
+#include <Ntifs.h>
+#include "vr_windows.h"
 
 typedef BOOLEAN bool;
 
@@ -148,7 +149,7 @@ inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
     return InterlockedAdd((LONG*)a, -b);
 }
 
-#pragma warning(disable : 4706)
+#pragma warning(disable : 4706 4267 4244 4242 4100)
 
 #else
 
