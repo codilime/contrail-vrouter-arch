@@ -8,10 +8,6 @@
 
 #include "vr_os.h"
 
-#define CONTAINER_OF(member, struct_type, pointer) \
-    ((struct_type *)((unsigned long)pointer - \
-        (size_t)&(((struct_type *)0)->member)))
-
 struct vr_qelem {
     struct vr_qelem *q_next;
 };

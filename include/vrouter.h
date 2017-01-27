@@ -124,7 +124,7 @@ extern int hashrnd_inited;
 extern uint32_t vr_hashrnd;
 
 #define CONTAINER_OF(member, struct_type, pointer) \
-    ((struct_type *)((unsigned long)pointer - \
+    ((struct_type *)((size_t)pointer - \
                 (size_t)&(((struct_type *)0)->member)))
 
 

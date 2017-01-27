@@ -5,8 +5,6 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
-#include <errno.h>
-
 #include <vr_os.h>
 #if defined(__linux__)
 #include <linux/version.h>
