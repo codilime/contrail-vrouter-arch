@@ -473,10 +473,8 @@ vrouter_init(void)
     int ret;
 
     vrouter_host = vrouter_get_host();
-    if (!vrouter_host) {
-        ret = -ENOMEM;
+    if (!vrouter_host && (ret = -ENOMEM))
         goto init_fail;
-    }
 
     for (i = 0; i < VR_NUM_MODULES; i++) {
         module_under_init = &modules[i];
