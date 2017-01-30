@@ -1,4 +1,5 @@
 #include "precomp.h"
+#include "vrouter.h"
 #include "vr_windows.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
@@ -848,5 +849,5 @@ SxExtStartCompleteNetBufferListsIngress(
 	}
 	struct vr_packet* pkt = NetBufferLists->MiniportReserved[0];
 	if (pkt != NULL)
-		windows_host.hos_pfree(pkt, 0);
+		vr_pfree(pkt, 0);
 }

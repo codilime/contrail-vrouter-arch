@@ -351,6 +351,7 @@
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_assoc.c" />
+    <ClCompile Include="windows\vr_host.c" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />
