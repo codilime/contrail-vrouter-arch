@@ -144,7 +144,7 @@ vr_mirror_make_req(vr_mirror_req *req, struct vr_mirror_entry *mirror,
         req->mirr_nhid = mirror->mir_nh->nh_id;
 
     req->mirr_flags = mirror->mir_flags;
-    req->mirr_rid = (int16_t)mirror->mir_rid;
+    req->mirr_rid = mirror->mir_rid;
     req->mirr_vni = mirror->mir_vni;
     return;
 }
