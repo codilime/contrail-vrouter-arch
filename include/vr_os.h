@@ -149,7 +149,7 @@ inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
     return InterlockedAdd((LONG*)a, -b);
 }
 
-#pragma warning(disable : 4706 4267 4244 4242 4100)
+#pragma warning(disable : 4706 4267 4244 4242)
 
 #else
 

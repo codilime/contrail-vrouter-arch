@@ -257,6 +257,7 @@ vr_mirror_meta_destroy(struct vr_mirror_meta_entry *me)
 static void
 vr_mirror_meta_destructor(struct vrouter *router, void *arg)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *defer = (struct vr_defer_data *)arg;
     struct vr_mirror_meta_entry *me;
 
@@ -273,6 +274,7 @@ static void
 vr_mirror_meta_entry_destroy(struct vrouter *router,
                             struct vr_mirror_meta_entry *me)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *defer;
 
     if (me) {
@@ -299,6 +301,7 @@ vr_mirror_meta_entry_set(struct vrouter *router, unsigned int index,
                          void *meta_data, unsigned int meta_data_len,
                          unsigned short mirror_vrf)
 {
+    UNREFERENCED_PARAMETER(index);
     char *buf;
     struct vr_mirror_meta_entry *me;
 
