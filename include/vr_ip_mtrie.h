@@ -9,6 +9,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "vr_os.h"
+
 struct ip_bucket;
 
 /*
@@ -27,7 +30,7 @@ struct ip_bucket_entry {
     union {
         struct vr_nexthop *nexthop_p;
         struct ip_bucket  *bucket_p;
-        unsigned long      long_i;
+        uint64_t      long_i;
     } entry_data;                  
 
     unsigned int entry_prefix_len:8;
