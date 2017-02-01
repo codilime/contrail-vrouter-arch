@@ -24,6 +24,7 @@ vrouter_get_mirror(unsigned int rid, unsigned int index)
 static void
 vr_mirror_defer_delete(struct vrouter *router, void *arg)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *defer = (struct vr_defer_data *)arg;
 
     vr_free(defer->vdd_data, VR_MIRROR_OBJECT);
@@ -256,6 +257,7 @@ vr_mirror_meta_destroy(struct vr_mirror_meta_entry *me)
 static void
 vr_mirror_meta_destructor(struct vrouter *router, void *arg)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *defer = (struct vr_defer_data *)arg;
     struct vr_mirror_meta_entry *me;
 
@@ -272,6 +274,7 @@ static void
 vr_mirror_meta_entry_destroy(struct vrouter *router,
                             struct vr_mirror_meta_entry *me)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *defer;
 
     if (me) {
@@ -298,6 +301,7 @@ vr_mirror_meta_entry_set(struct vrouter *router, unsigned int index,
                          void *meta_data, unsigned int meta_data_len,
                          unsigned short mirror_vrf)
 {
+    UNREFERENCED_PARAMETER(index);
     char *buf;
     struct vr_mirror_meta_entry *me;
 
@@ -352,7 +356,7 @@ vr_mirror(struct vrouter *router, uint8_t mirror_id, struct vr_packet *pkt,
     unsigned int captured_len, clone_len = 0;
     unsigned int mirror_md_len = 0, drop_reason;
 
-    void *mirror_md;
+    void *mirror_md = NULL;
     unsigned char *buf;
     struct vr_nexthop *nh, *pkt_nh;
     struct vr_mirror_entry *mirror;

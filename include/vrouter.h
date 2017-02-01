@@ -124,7 +124,7 @@ extern int hashrnd_inited;
 extern uint32_t vr_hashrnd;
 
 #define CONTAINER_OF(member, struct_type, pointer) \
-    ((struct_type *)((unsigned long)pointer - \
+    ((struct_type *)((size_t)pointer - \
                 (size_t)&(((struct_type *)0)->member)))
 
 
@@ -170,7 +170,7 @@ struct host_os {
     void (*hos_defer)(struct vrouter *, vr_defer_cb, void *);
     void *(*hos_get_defer_data)(unsigned int);
     void (*hos_put_defer_data)(void *);
-    void (*hos_get_time)(unsigned long *, unsigned long *);
+    void (*hos_get_time)(uint64_t *, uint64_t *);
     void (*hos_get_mono_time)(unsigned int*, unsigned int *);
     int (*hos_create_timer)(struct vr_timer *);
     void (*hos_delete_timer)(struct vr_timer *);

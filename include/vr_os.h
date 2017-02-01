@@ -94,10 +94,12 @@ typedef unsigned int __u32;
 #if defined(_WINDOWS)
 
 #include <basetsd.h>
+#include <errno.h>
 
 #ifdef _NTKERNEL
 
-#include <wdm.h>
+#include <Ntifs.h>
+#include "vr_windows.h"
 
 typedef BOOLEAN bool;
 
@@ -135,6 +137,7 @@ typedef UINT64 uint64_t;
                                         __pragma(warning(disable : 4200))
 #define __attribute__zerosized__close__ __pragma(warning(pop))
 
+#define ENETRESET       117
 #define EOPNOTSUPP      130
 
 struct iovec {
@@ -145,6 +148,8 @@ struct iovec {
 inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
     return InterlockedAdd((LONG*)a, -b);
 }
+
+#pragma warning(disable : 4706 4267 4244 4242)
 
 #else
 

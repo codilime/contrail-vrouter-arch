@@ -112,6 +112,7 @@ vrouter_free_nexthop(struct vr_nexthop *nh)
 static void
 vrouter_free_nexthop_cb(struct vrouter *router, void *data)
 {
+    UNREFERENCED_PARAMETER(router);
     struct vr_defer_data *vdd = (struct vr_defer_data *)data;
 
     if (!vdd)
@@ -233,6 +234,7 @@ static int
 nh_resolve(struct vr_packet *pkt, struct vr_nexthop *nh,
            struct vr_forwarding_md *fmd)
 {
+    UNREFERENCED_PARAMETER(nh);
     struct vr_vrf_stats *stats;
     struct vr_packet *pkt_clone;
 
@@ -281,6 +283,7 @@ static int
 nh_l2_rcv(struct vr_packet *pkt, struct vr_nexthop *nh,
           struct vr_forwarding_md *fmd)
 {
+    UNREFERENCED_PARAMETER(nh);
     unsigned char eth_dmac[VR_ETHER_ALEN], *data;
     int pull_len, handled = 0;
     struct vr_vrf_stats *stats;
@@ -567,6 +570,7 @@ static int
 nh_composite_ecmp_validate_src(struct vr_packet *pkt, struct vr_nexthop *nh,
                                struct vr_forwarding_md *fmd, void *ret_data)
 {
+    UNREFERENCED_PARAMETER(ret_data);
     int i;
     struct vr_nexthop *cnh;
 
@@ -1398,6 +1402,7 @@ static int
 nh_discard(struct vr_packet *pkt, struct vr_nexthop *nh,
            struct vr_forwarding_md *fmd)
 {
+    UNREFERENCED_PARAMETER(nh);
     struct vr_vrf_stats *stats;
 
     stats = vr_inet_vrf_stats(fmd->fmd_dvrf, pkt->vp_cpu);
@@ -1411,6 +1416,7 @@ nh_discard(struct vr_packet *pkt, struct vr_nexthop *nh,
 static int
 nh_generate_sip(struct vr_nexthop *nh, struct vr_packet *pkt)
 {
+    UNREFERENCED_PARAMETER(nh);
     struct vr_ip *iph;
 
     iph = (struct vr_ip *)pkt_network_header(pkt);
@@ -1644,6 +1650,8 @@ static int
 nh_mpls_udp_tunnel_validate_src(struct vr_packet *pkt, struct vr_nexthop *nh,
                                 struct vr_forwarding_md *fmd, void *ret_data)
 {
+    UNREFERENCED_PARAMETER(ret_data);
+    UNREFERENCED_PARAMETER(pkt);
     if (fmd->fmd_outer_src_ip == nh->nh_udp_tun_dip)
         return NH_SOURCE_VALID;
 
@@ -1789,6 +1797,8 @@ static int
 nh_gre_tunnel_validate_src(struct vr_packet *pkt, struct vr_nexthop *nh,
                            struct vr_forwarding_md *fmd, void *ret_data)
 {
+    UNREFERENCED_PARAMETER(ret_data);
+    UNREFERENCED_PARAMETER(pkt);
     if (fmd->fmd_outer_src_ip == nh->nh_gre_tun_dip)
         return NH_SOURCE_VALID;
 
@@ -2088,6 +2098,8 @@ static int
 nh_encap_l3_validate_src(struct vr_packet *pkt, struct vr_nexthop *nh,
                          struct vr_forwarding_md *fmd, void *ret_data)
 {
+    UNREFERENCED_PARAMETER(ret_data);
+    UNREFERENCED_PARAMETER(fmd);
     if (pkt->vp_if == nh->nh_dev)
         return NH_SOURCE_VALID;
 
@@ -2207,6 +2219,7 @@ vr_nexthop_delete(vr_nexthop_req *req)
 static int
 nh_resolve_add(struct vr_nexthop *nh, vr_nexthop_req *req)
 {
+    UNREFERENCED_PARAMETER(req);
     nh->nh_reach_nh = nh_resolve;
     return 0;
 }
@@ -2214,6 +2227,7 @@ nh_resolve_add(struct vr_nexthop *nh, vr_nexthop_req *req)
 static int
 nh_l2_rcv_add(struct vr_nexthop *nh, vr_nexthop_req *req)
 {
+    UNREFERENCED_PARAMETER(req);
     nh->nh_reach_nh = nh_l2_rcv;
     return 0;
 }
@@ -2242,6 +2256,7 @@ nh_rcv_add(struct vr_nexthop *nh, vr_nexthop_req *req)
 static int
 nh_vrf_translate_add(struct vr_nexthop *nh, vr_nexthop_req *req)
 {
+    UNREFERENCED_PARAMETER(req);
     nh->nh_reach_nh = nh_vrf_translate;
     return 0;
 }
