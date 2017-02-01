@@ -5,7 +5,7 @@ LARGE_INTEGER seed;
 bool isSeedInitialized;
 
 // Do not use it, use get_random_bytes instead
-ULONG get_random_ulong() {
+static ULONG get_random_ulong() {
     return RtlRandomEx(&seed.LowPart);
 }
 
