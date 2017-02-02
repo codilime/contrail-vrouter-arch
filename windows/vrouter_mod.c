@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include "vrouter.h"
 #include "vr_windows.h"
+#include "vr_packet.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -120,7 +121,17 @@ SxExtCreateSwitch(
 	*ExtensionContext = (NDIS_HANDLE)ctx;
 
 	SxSwitchObject = Switch;
+
 	AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+	if (AsyncWorkRWLock == NULL)
+		return NDIS_STATUS_RESOURCES;
+
+	SxNBLPool = vrouter_generate_pool();
+	if (SxNBLPool == NULL)
+	{
+		NdisFreeRWLock(AsyncWorkRWLock);
+		return NDIS_STATUS_RESOURCES;
+	}
 
 	SxNBLPool = vrouter_generate_pool();
 
@@ -141,6 +152,7 @@ SxExtDeleteSwitch(
 
 	NdisFreeRWLock(((struct vr_switch_context*)ExtensionContext)->lock);
 	ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);
+	vrouter_free_pool(SxNBLPool);
 }
 
 VOID
@@ -712,14 +724,13 @@ SxExtStartNetBufferListsIngress(
 	for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
 	{
 		nextNbl = curNbl->Next;
-		curNbl->Next = NULL;
 
 		NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
 		MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
 		void* ptr = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
 		PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO  fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
 		DbgPrint("Source port ID: %u\r\n", fwd->SourcePortId);
-			
+
 		char* str = base64_encode((const unsigned char*) ptr + NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
 		DbgPrint("Packet data : %s\r\n", str);
 
@@ -738,8 +749,6 @@ SxExtStartNetBufferListsIngress(
 	if (extForwardedNbls != NULL)
 	{
 		PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY broadcastArray = NULL;
-
-
 		Switch->NdisSwitchHandlers.GetNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, &broadcastArray);
 
 		if (broadcastArray)
@@ -841,7 +850,16 @@ SxExtStartCompleteNetBufferListsIngress(
 	if (NetBufferLists->SourceHandle == Switch->NdisFilterHandle)
 	{
 		DbgPrint("Completing injected NBL...\r\n");
-		SxLibCompletedInjectedNetBufferLists(Switch, 1);
+
+		PNET_BUFFER_LIST iterator = NetBufferLists;
+		int count = 0;
+
+		while (iterator)
+		{
+			iterator = iterator->Next;
+			++count;
+		} // This is probably almost always one
+		SxLibCompletedInjectedNetBufferLists(Switch, count);
 	}
 	else
 	{
@@ -850,7 +868,17 @@ SxExtStartCompleteNetBufferListsIngress(
 			NetBufferLists,
 			SendCompleteFlags);
 	}
-	struct vr_packet* pkt = NetBufferLists->MiniportReserved[0];
-	if (pkt != NULL)
-		win_pfree(pkt, 0);
+
+	PNET_BUFFER_LIST curNbl = NetBufferLists;
+	PNET_BUFFER_LIST nextNbl = NULL;
+
+	while (curNbl != NULL)
+	{
+		nextNbl = curNbl->Next;
+		struct vr_packet* pkt = win_get_packet_from_nbl(curNbl);
+		if (pkt != NULL)
+			win_pfree(pkt, VP_DROP_DISCARD);
+
+		curNbl = nextNbl;
+	}
 }
