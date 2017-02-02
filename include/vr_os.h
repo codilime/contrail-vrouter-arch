@@ -99,6 +99,7 @@ typedef unsigned int __u32;
 #ifdef _NTKERNEL
 
 #include <Ntifs.h>
+#include "windows_atomic.h"
 #include "vr_windows.h"
 
 typedef BOOLEAN bool;
@@ -110,6 +111,8 @@ typedef BOOLEAN bool;
 #define ntohs(a) RtlUshortByteSwap(a)
 #define htonl(a) RtlUlongByteSwap(a)
 #define ntohl(a) RtlUlongByteSwap(a)
+
+#pragma warning(disable : 4706 4389 4267 4244 4242 4200 4100 4057 4018)
 
 #endif /* _NTKERNEL */
 
@@ -133,9 +136,6 @@ typedef UINT64 uint64_t;
 #define __attribute__packed__close__ __pragma(pack(pop))
 #define __attribute__format__open__(...) /* do nothing */
 #define __attribute__format__close__(...) /* do nothing */
-#define __attribute__zerosized__open__  __pragma(warning(push) ) \
-                                        __pragma(warning(disable : 4200))
-#define __attribute__zerosized__close__ __pragma(warning(pop))
 
 #define ENETRESET       117
 #define EOPNOTSUPP      130
@@ -145,22 +145,19 @@ struct iovec {
     SIZE_T iov_len;
 };
 
-inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
-    return InterlockedAdd((LONG*)a, -b);
-}
-
-#pragma warning(disable : 4706 4267 4244 4242)
-
 #else
 
 #define __attribute__packed__open__ /* do nothing */
 #define __attribute__packed__close__ __attribute__((__packed__))
 #define __attribute__format__open__(...) /* do nothing */
 #define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
-#define __attribute__zerosized__open__ /* do nothing */
-#define __attribute__zerosized__close__ /* do nothing */
 
 #define UNREFERENCED_PARAMETER(a) (a)
+
+#define _sync_sub_and_fetch_32u(a, b) __sync_sub_and_fetch((uint32_t*)(a), (uint32_t)(b))
+#define _sync_sub_and_fetch_32s(a, b) __sync_sub_and_fetch((int32_t*)(a), (int32_t)(b))
+#define _sync_sub_and_fetch_64u(a, b) __sync_sub_and_fetch((uint64_t*)(a), (uint64_t)(b))
+#define _sync_sub_and_fetch_64s(a, b) __sync_sub_and_fetch((int64_t*)(a), (int64_t)(b))
 
 #endif /* _WINDOWS */
 

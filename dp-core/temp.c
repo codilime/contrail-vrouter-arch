@@ -2,8 +2,6 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 
-#pragma warning(disable : 4100)
-
 struct host_os *vrouter_host;
 
 unsigned int vr_flow_entries = 0;
