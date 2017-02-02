@@ -14,6 +14,8 @@ struct host_os * vrouter_get_host(void);
 
 #define vrouter_host (vrouter_get_host())
 
+void win_pfree(struct vr_packet *pkt, unsigned short reason);
+
 /* TODO: Change to extern linkage when dp-core/vr_stats.c is ported. */
 void
 vr_malloc_stats(unsigned int size, unsigned int object)
@@ -73,8 +75,9 @@ win_printf(const char *format, ...)
 	int printed;
 	va_list args;
 
+    /* Only following version of DbgPrint correctly accepts va_list as an argument */
 	_crt_va_start(args, format);
-	printed = DbgPrint(format, args);
+	printed = vDbgPrintEx(DPFLTR_IHVNETWORK_ID, DPFLTR_INFO_LEVEL, format, args);
 	_crt_va_end(args);
 
 	return printed;
@@ -205,7 +208,7 @@ win_palloc(unsigned int size)
 	return win_get_packet(nbl, NULL);
 }
 
-static void
+void
 win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
 	unsigned int cpu;
@@ -320,6 +323,9 @@ static int
 win_pcopy(unsigned char *dst, struct vr_packet *p_src,
         unsigned int offset, unsigned int len)
 {
+    if (!p_src) {
+        return -EFAULT;
+    }
     PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
     if (!nbl) {
         return -EFAULT;
@@ -329,50 +335,77 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
         return -EFAULT;
     }
 
+    /*  Check if requested data lies inside NET_BUFFER data buffer:
+            * data_offset - offset inside MDL list
+            * data_length - size of the data stored in MDL list
+        Relation between those is presented in https://msdn.microsoft.com/en-us/microsoft-r/ff568728.aspx
+     */
     ULONG data_offset = NET_BUFFER_DATA_OFFSET(nb);
     ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG data_size = data_offset + data_length;
-    if (data_offset + (ULONG)offset + (ULONG)len >= data_size) {
-        /* Attempted to copy more bytes than present in packet */
+    if (data_offset + (ULONG)offset + (ULONG)len > data_size) {
         return -EFAULT;
     }
 
-    // Walk through MDL list, until `offset` is reached.
+    /* Check if requested data offset lies in the NET_BUFFER's current MDL. */
     PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    ULONG mdl_data_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    ULONG current_offset = offset;
-    while (mdl_data_offset + current_offset >= MmGetMdlByteCount(current_mdl)) {
-        current_offset -= MmGetMdlByteCount(current_mdl) - mdl_data_offset;
-        mdl_data_offset = 0;
+    if (NET_BUFFER_CURRENT_MDL_OFFSET(nb) + offset >= MmGetMdlByteCount(current_mdl)) {
+        /* Requested offset lies outside of the first MDL => traverse MDL list until offset is reached */
+        offset -= MmGetMdlByteCount(current_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
         current_mdl = current_mdl->Next;
+        if (!current_mdl) {
+            return -EFAULT;
+        }
+        while (offset >= MmGetMdlByteCount(current_mdl)) {
+            offset -= MmGetMdlByteCount(current_mdl);
+            current_mdl = current_mdl->Next;
+            if (!current_mdl) {
+                return -EFAULT;
+            }
+        }
+    } else {
+        /* Requested offset lies in the first MDL => add MDL_OFFSET to offset */
+        offset += NET_BUFFER_CURRENT_MDL_OFFSET(nb);
     }
-    mdl_data_offset = current_offset;
 
-    unsigned int copied_bytes = 0;
-    ULONG bytes_to_copy = MmGetMdlByteCount(current_mdl) - mdl_data_offset;
+    /* Retrieve pointer to the beginning of MDL's data buffer */
     unsigned char *mdl_data =
         (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
     if (!mdl_data) {
         return -EFAULT;
     }
 
-    NdisMoveMemory(dst, mdl_data + mdl_data_offset, bytes_to_copy);
-    copied_bytes += bytes_to_copy;
+    /* Copy data from the first MDL where offset lies */
+    ULONG copied_bytes = 0;
+    ULONG bytes_left_in_first_mdl = MmGetMdlByteCount(current_mdl) - offset;
+    if (bytes_left_in_first_mdl <= len) {
+        NdisMoveMemory(dst, mdl_data + offset, bytes_left_in_first_mdl);
+        copied_bytes += bytes_left_in_first_mdl;
+    } else {
+        /* All of the requested data lies in `current_mdl` */
+        NdisMoveMemory(dst, mdl_data + offset, len);
+        copied_bytes += len;
+    }
 
+    /*  Iterate MDL list, starting from where `current_mdl` now points and copy the rest
+        of the requested data */
     current_mdl = current_mdl->Next;
-    while (copied_bytes < len && current_mdl) {
+    while (current_mdl && copied_bytes < len) {
+        /* Get the pointer to the beginning of data represented in current MDL. */
         mdl_data =
             (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
-        if (!current_mdl) {
+        if (!mdl_data) {
             return -EFAULT;
         }
 
         unsigned int left_to_copy = len - copied_bytes;
         ULONG mdl_size = MmGetMdlByteCount(current_mdl);
         if (left_to_copy >= mdl_size) {
+            /* If we need to copy more bytes than is stored in MDL, then copy whole MDL buffer. */
             NdisMoveMemory(dst + copied_bytes, mdl_data, mdl_size);
             copied_bytes += mdl_size;
         } else {
+            /* Otherwise copy only the necessary amount. */
             NdisMoveMemory(dst + copied_bytes, mdl_data, left_to_copy);
             copied_bytes += left_to_copy;
         }
@@ -381,7 +414,9 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
     }
 
     if (copied_bytes < len) {
-        /* MDL list has ended before all of the packet data could be copied. */
+        /*  This case appears when MDL list has ended before all of the requested
+            packet data could be copied.
+         */
         return -EFAULT;
     }
 
@@ -418,8 +453,6 @@ win_pset_data(struct vr_packet *pkt, unsigned short offset)
     UNREFERENCED_PARAMETER(offset);
     
     /* On Windows it is a noop, because there is no `sk_buff->data` pointer equivalent in NET_BUFFER. */
-
-    return;
 }
 
 static unsigned int

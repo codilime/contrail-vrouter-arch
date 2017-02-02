@@ -24,6 +24,9 @@ PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 
 extern struct host_os windows_host;
 
+/* Defined in windows/vr_host.c */
+extern void win_pfree(struct vr_packet *pkt, unsigned short reason);
+
 static char encoding_table[] = {
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 	'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -849,5 +852,5 @@ SxExtStartCompleteNetBufferListsIngress(
 	}
 	struct vr_packet* pkt = NetBufferLists->MiniportReserved[0];
 	if (pkt != NULL)
-		vr_pfree(pkt, 0);
+		win_pfree(pkt, 0);
 }
