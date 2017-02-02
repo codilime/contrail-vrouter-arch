@@ -97,16 +97,17 @@ delete_nbl(PNET_BUFFER_LIST nbl)
 static int
 win_printf(const char *format, ...)
 {
-	int printed;
-	va_list args;
+    int printed;
+    va_list args;
 
     /* Only following version of DbgPrint correctly accepts va_list as an argument */
 	_crt_va_start(args, format);
 	printed = vDbgPrintEx(DPFLTR_IHVNETWORK_ID, DPFLTR_INFO_LEVEL, format, args);
 	_crt_va_end(args);
 
-	return printed;
+    return printed;
 }
+
 static unsigned int win_get_cpu(void);
 
 static void *
@@ -784,7 +785,7 @@ win_pull_inner_headers_fast(struct vr_packet *pkt, unsigned char proto,
     int(*tunnel_type_cb)(unsigned int, unsigned int, unsigned short *),
     int *ret, int *encap_type)
 {
-	UNREFERENCED_PARAMETER(pkt);
+    UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(proto);
     UNREFERENCED_PARAMETER(tunnel_type_cb);
     UNREFERENCED_PARAMETER(ret);
