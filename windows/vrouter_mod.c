@@ -23,11 +23,6 @@ NDIS_HANDLE SxNBLPool = NULL;
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 
-extern struct host_os windows_host;
-
-/* Defined in windows/vr_host.c */
-extern void win_pfree(struct vr_packet *pkt, unsigned short reason);
-
 static char encoding_table[] = {
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 	'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -132,8 +127,6 @@ SxExtCreateSwitch(
 		NdisFreeRWLock(AsyncWorkRWLock);
 		return NDIS_STATUS_RESOURCES;
 	}
-
-	SxNBLPool = vrouter_generate_pool();
 
 	return 0;
 }

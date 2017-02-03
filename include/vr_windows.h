@@ -13,6 +13,8 @@ extern "C" {
 #define VR_OID_SOURCE	0x00000001
 #define VR_AGENT_SOURCE	0x00000020
 
+struct vr_packet;
+
 struct vr_nic {
 	UCHAR                       mac[NDIS_MAX_PHYS_ADDRESS_LENGTH];
 	NDIS_SWITCH_PORT_ID			port_id;
@@ -40,6 +42,7 @@ int vr_hash_nic(NDIS_IF_COUNTED_STRING string);
 struct vr_assoc* vr_get_assoc(NDIS_IF_COUNTED_STRING string);
 void vr_set_assoc_oid(NDIS_IF_COUNTED_STRING name, NDIS_SWITCH_PORT_ID port_id);
 
+void win_pfree(struct vr_packet *pkt, unsigned short reason);
 struct host_os * vrouter_get_host(void);
 
 NDIS_HANDLE vrouter_generate_pool(void);

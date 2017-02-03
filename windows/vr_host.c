@@ -3,18 +3,13 @@
 #include <errno.h>
 #include "vr_os.h"
 #include "vr_packet.h"
+#include "vr_windows.h"
 #include "vrouter.h"
 
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
-
-struct host_os * vrouter_get_host(void);
-
-#define vrouter_host (vrouter_get_host())
-
-void win_pfree(struct vr_packet *pkt, unsigned short reason);
 
 /* TODO: Change to extern linkage when dp-core/vr_stats.c is ported. */
 void
