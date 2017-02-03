@@ -237,7 +237,7 @@ win_palloc(unsigned int size)
     return win_get_packet(nbl, NULL);
 }
 
-void
+static void
 win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
     unsigned int cpu;

@@ -42,12 +42,13 @@ int vr_hash_nic(NDIS_IF_COUNTED_STRING string);
 struct vr_assoc* vr_get_assoc(NDIS_IF_COUNTED_STRING string);
 void vr_set_assoc_oid(NDIS_IF_COUNTED_STRING name, NDIS_SWITCH_PORT_ID port_id);
 
-void win_pfree(struct vr_packet *pkt, unsigned short reason);
 struct host_os * vrouter_get_host(void);
 
 NDIS_HANDLE vrouter_generate_pool(void);
 void vrouter_free_pool(NDIS_HANDLE pool);
 struct vr_packet* win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
+
+extern struct host_os windows_host;
 
 #ifdef __cplusplus
 }

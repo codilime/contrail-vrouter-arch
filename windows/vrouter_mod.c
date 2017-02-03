@@ -870,7 +870,7 @@ SxExtStartCompleteNetBufferListsIngress(
 		nextNbl = curNbl->Next;
 		struct vr_packet* pkt = win_get_packet_from_nbl(curNbl);
 		if (pkt != NULL)
-			win_pfree(pkt, VP_DROP_DISCARD);
+			windows_host.hos_pfree(pkt, VP_DROP_DISCARD);
 
 		curNbl = nextNbl;
 	}
