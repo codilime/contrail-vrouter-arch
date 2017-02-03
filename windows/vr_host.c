@@ -101,9 +101,9 @@ win_printf(const char *format, ...)
     va_list args;
 
     /* Only following version of DbgPrint correctly accepts va_list as an argument */
-	_crt_va_start(args, format);
-	printed = vDbgPrintEx(DPFLTR_IHVNETWORK_ID, DPFLTR_INFO_LEVEL, format, args);
-	_crt_va_end(args);
+    _crt_va_start(args, format);
+    printed = vDbgPrintEx(DPFLTR_IHVNETWORK_ID, DPFLTR_INFO_LEVEL, format, args);
+    _crt_va_end(args);
 
     return printed;
 }
@@ -146,7 +146,7 @@ win_page_alloc(unsigned int size)
 static void
 win_free(void *mem, unsigned int object)
 {
-	UNREFERENCED_PARAMETER(object);
+    UNREFERENCED_PARAMETER(object);
 
     if (mem) {
         //vr_free_stats(object);
