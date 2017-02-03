@@ -165,6 +165,9 @@
     <ClCompile Include="windows\windows_random.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="windows\vr_host_interface.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">

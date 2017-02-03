@@ -124,16 +124,6 @@ int vif_plug_mac_request(struct vr_interface *vif, struct vr_packet *pkt, struct
     return 0;
 }
 
-struct vr_host_interface_ops *vr_host_interface_init(void) {
-    return NULL;
-}
-
-void vr_host_interface_exit(void) {
-}
-
-void vr_host_vif_init(struct vrouter *router) {
-}
-
 struct vr_interface *vif_bridge_get_sub_interface(vr_htable_t htable, unsigned short vlan, unsigned char *mac) {
     return NULL;
 }
