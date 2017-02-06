@@ -1,5 +1,6 @@
 #include "precomp.h"
 #include "vr_windows.h"
+#include "vr_ksync.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -80,11 +81,21 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
 	return NDIS_STATUS_SUCCESS;
 }
 
+
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
 	DbgPrint("SxExtInitialize\r\n");
-	UNREFERENCED_PARAMETER(DriverObject);
+	NTSTATUS Status = CreateDevice(DriverObject);
+
+	if (NT_ERROR(Status))
+	{
+		return NDIS_STATUS_DEVICE_FAILED;
+	}
+	else if (!NT_SUCCESS(Status))
+	{
+		DbgPrint("CreateDevice informal/warning: %d\n", Status);
+	}
 
 	return NDIS_STATUS_SUCCESS;
 }
@@ -93,7 +104,7 @@ VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
 	DbgPrint("SxExtUninitialize\r\n");
-	UNREFERENCED_PARAMETER(DriverObject);
+    DestroyDevice(DriverObject);
 }
 
 NDIS_STATUS

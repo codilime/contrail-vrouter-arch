@@ -330,6 +330,7 @@
     <ClInclude Include="include\vr_sandesh.h" />
     <ClInclude Include="include\vr_vxlan.h" />
     <ClInclude Include="include\vr_windows.h" />
+    <ClInclude Include="include\vr_ksync.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
     <ClInclude Include="windows\SxBase\precomp.h" />
@@ -368,6 +369,7 @@
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_assoc.c" />
+    <ClCompile Include="windows\vr_ksync.c" />
     <ClCompile Include="windows\windows_random.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
