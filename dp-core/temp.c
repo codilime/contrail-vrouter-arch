@@ -81,10 +81,6 @@ unsigned int vr_bridge_table_used_total_entries(struct vrouter *router) {
     return 0;
 }
 
-struct host_os * vrouter_get_host(void) {
-    return vrouter_host;
-}
-
 unsigned int vr_virtual_input(unsigned short vrf, struct vr_interface *vif, struct vr_packet *pkt, unsigned short vlan_id) {
     return 0;
 }
