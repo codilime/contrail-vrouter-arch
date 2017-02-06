@@ -1,17 +1,15 @@
 #include "precomp.h"
 
+#include <errno.h>
 #include "vr_os.h"
 #include "vr_packet.h"
+#include "vr_windows.h"
 #include "vrouter.h"
 
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
-
-struct host_os * vrouter_get_host(void);
-
-#define vrouter_host (vrouter_get_host())
 
 /* TODO: Change to extern linkage when dp-core/vr_stats.c is ported. */
 void
@@ -97,18 +95,21 @@ win_printf(const char *format, ...)
     int printed;
     va_list args;
 
+    /* Only following version of DbgPrint correctly accepts va_list as an argument */
     _crt_va_start(args, format);
-    printed = DbgPrint(format, args);
+    printed = vDbgPrintEx(DPFLTR_IHVNETWORK_ID, DPFLTR_INFO_LEVEL, format, args);
     _crt_va_end(args);
 
     return printed;
 }
+
 static unsigned int win_get_cpu(void);
 
 static void *
 win_malloc(unsigned int size, unsigned int object)
 {
     UNREFERENCED_PARAMETER(object);
+
     void *mem = ExAllocatePoolWithTag(NonPagedPool, size, SxExtAllocationTag); // TODO: Check with paged pool
 
     //vr_malloc_stats(size, object);
@@ -120,6 +121,7 @@ static void *
 win_zalloc(unsigned int size, unsigned int object)
 {
     UNREFERENCED_PARAMETER(object);
+
     void *mem = ExAllocatePoolWithTag(NonPagedPool, size, SxExtAllocationTag); // TODO: Check with paged pool
     NdisZeroMemory(mem, size);
 
@@ -140,6 +142,7 @@ static void
 win_free(void *mem, unsigned int object)
 {
     UNREFERENCED_PARAMETER(object);
+
     if (mem) {
         //vr_free_stats(object);
         ExFreePoolWithTag(mem, SxExtAllocationTag);
@@ -325,9 +328,21 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 static void
 win_preset(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    if (!nbl)
+        return;
 
-    /* Dummy implementation */
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb)
+        return;
+
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    pkt->vp_head =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    pkt->vp_data = 0;
+    pkt->vp_tail = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
+    pkt->vp_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
+
     return;
 }
 
@@ -347,22 +362,119 @@ static int
 win_pcopy(unsigned char *dst, struct vr_packet *p_src,
         unsigned int offset, unsigned int len)
 {
-    UNREFERENCED_PARAMETER(dst);
-    UNREFERENCED_PARAMETER(p_src);
-    UNREFERENCED_PARAMETER(offset);
-    UNREFERENCED_PARAMETER(len);
+    if (!p_src) {
+        return -EFAULT;
+    }
+    PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
+    if (!nbl) {
+        return -EFAULT;
+    }
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb) {
+        return -EFAULT;
+    }
 
-    /* Dummy implementation */
+    /*  Check if requested data lies inside NET_BUFFER data buffer:
+            * data_offset - offset inside MDL list
+            * data_length - size of the data stored in MDL list
+        Relation between those is presented in https://msdn.microsoft.com/en-us/microsoft-r/ff568728.aspx
+     */
+    ULONG data_offset = NET_BUFFER_DATA_OFFSET(nb);
+    ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG data_size = data_offset + data_length;
+    if (data_offset + (ULONG)offset + (ULONG)len > data_size) {
+        return -EFAULT;
+    }
+
+    /* Check if requested data offset lies in the NET_BUFFER's current MDL. */
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    if (NET_BUFFER_CURRENT_MDL_OFFSET(nb) + offset >= MmGetMdlByteCount(current_mdl)) {
+        /* Requested offset lies outside of the first MDL => traverse MDL list until offset is reached */
+        offset -= MmGetMdlByteCount(current_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+        current_mdl = current_mdl->Next;
+        if (!current_mdl) {
+            return -EFAULT;
+        }
+        while (offset >= MmGetMdlByteCount(current_mdl)) {
+            offset -= MmGetMdlByteCount(current_mdl);
+            current_mdl = current_mdl->Next;
+            if (!current_mdl) {
+                return -EFAULT;
+            }
+        }
+    } else {
+        /* Requested offset lies in the first MDL => add MDL_OFFSET to offset */
+        offset += NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    }
+
+    /* Retrieve pointer to the beginning of MDL's data buffer */
+    unsigned char *mdl_data =
+        (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    if (!mdl_data) {
+        return -EFAULT;
+    }
+
+    /* Copy data from the first MDL where offset lies */
+    ULONG copied_bytes = 0;
+    ULONG bytes_left_in_first_mdl = MmGetMdlByteCount(current_mdl) - offset;
+    if (bytes_left_in_first_mdl <= len) {
+        NdisMoveMemory(dst, mdl_data + offset, bytes_left_in_first_mdl);
+        copied_bytes += bytes_left_in_first_mdl;
+    } else {
+        /* All of the requested data lies in `current_mdl` */
+        NdisMoveMemory(dst, mdl_data + offset, len);
+        copied_bytes += len;
+    }
+
+    /*  Iterate MDL list, starting from where `current_mdl` now points and copy the rest
+        of the requested data */
+    current_mdl = current_mdl->Next;
+    while (current_mdl && copied_bytes < len) {
+        /* Get the pointer to the beginning of data represented in current MDL. */
+        mdl_data =
+            (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+        if (!mdl_data) {
+            return -EFAULT;
+        }
+
+        unsigned int left_to_copy = len - copied_bytes;
+        ULONG mdl_size = MmGetMdlByteCount(current_mdl);
+        if (left_to_copy >= mdl_size) {
+            /* If we need to copy more bytes than is stored in MDL, then copy whole MDL buffer. */
+            NdisMoveMemory(dst + copied_bytes, mdl_data, mdl_size);
+            copied_bytes += mdl_size;
+        } else {
+            /* Otherwise copy only the necessary amount. */
+            NdisMoveMemory(dst + copied_bytes, mdl_data, left_to_copy);
+            copied_bytes += left_to_copy;
+        }
+
+        current_mdl = current_mdl->Next;
+    }
+
+    if (copied_bytes < len) {
+        /*  This case appears when MDL list has ended before all of the requested
+            packet data could be copied.
+         */
+        return -EFAULT;
+    }
+
     return len;
 }
 
 static unsigned short
 win_pfrag_len(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    if (!nbl)
+        return 0;
 
-    /* Dummy implementation */
-    return 0;
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb)
+        return 0;
+
+    unsigned short frag_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
+    return frag_len;
 }
 
 static unsigned short
@@ -370,7 +482,6 @@ win_phead_len(struct vr_packet *pkt)
 {
     UNREFERENCED_PARAMETER(pkt);
 
-    /* Dummy implementation */
     return 0;
 }
 
@@ -379,9 +490,8 @@ win_pset_data(struct vr_packet *pkt, unsigned short offset)
 {
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(offset);
-
-    /* Dummy implementation */
-    return;
+    
+    /* On Windows it is a noop, because there is no `sk_buff->data` pointer equivalent in NET_BUFFER. */
 }
 
 static unsigned int
@@ -389,7 +499,16 @@ win_pgso_size(struct vr_packet *pkt)
 {
     UNREFERENCED_PARAMETER(pkt);
 
-    /* Dummy implementation */
+    /* TODO: More research on Generic Segmentation Offload mechanism in Windows is needed.
+     *       As stated in https://msdn.microsoft.com/en-us/windows/hardware/drivers/network/offloading-the-segmentation-of-large-tcp-packets
+     *       NDIS supported offload for TCP/IP packets only. dp-core code which does GSO checks is also 
+     *       considering only TCP/IP packets.
+     *       However we do not know if there is further work needed in the NDIS driver to perform TCP offload.
+     *
+     * Returning 0 right now is a valid option, because dp-core code supports gso_size == 0 (i.e.
+     * when GSO is not supported by NIC driver).
+     */
+
     return 0;
 }
 
@@ -759,7 +878,6 @@ win_get_enabled_log_types(int *size)
 static void
 win_soft_reset(struct vrouter *router)
 {
-    UNREFERENCED_PARAMETER(router);
     /*
         NOTE: Used in dp-code/vrouter.c:vrouter_exit() to perform safe exit.
 
