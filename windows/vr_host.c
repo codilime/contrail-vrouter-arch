@@ -677,7 +677,7 @@ win_put_defer_data(void *data)
 }
 
 static void
-win_get_time(unsigned long *sec, unsigned long *usec)
+win_get_time(uint64_t *sec, uint64_t *usec)
 {
     LARGE_INTEGER current_gmt_time, current_local_time;
     
