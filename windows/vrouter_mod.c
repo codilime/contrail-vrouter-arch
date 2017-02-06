@@ -23,8 +23,6 @@ NDIS_HANDLE SxNBLPool = NULL;
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 
-extern struct host_os windows_host; // TODO: Delete after vr_pfree works
-
 static char encoding_table[] = {
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 	'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -775,6 +773,8 @@ SxExtStartNetBufferListsIngress(
 
 			Switch->NdisSwitchHandlers.AddNetBufferListDestination(Switch->NdisSwitchContext, extForwardedNbls, &newDestination);
 		}
+
+
 
 		DbgPrint("Sending extension forwarded NBLs\r\n");
 		SxLibSendNetBufferListsIngress(Switch,
