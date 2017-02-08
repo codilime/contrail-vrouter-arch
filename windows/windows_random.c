@@ -1,20 +1,28 @@
 #include "vr_os.h"
 #include "vr_windows.h"
 
-LARGE_INTEGER seed;
+const ULONG a = 1103515245;
+const ULONG c = 12345;
+
+ULONG seed;
 bool isSeedInitialized;
 
-// Do not use it, use get_random_bytes instead
+static void prepareSeed() {
+    if (!isSeedInitialized) {
+        seed = KeQueryPerformanceCounter(NULL).LowPart;
+        isSeedInitialized = TRUE;
+    }
+}
+
+// make sure prepareSeed has been run before using this function
 static ULONG get_random_ulong() {
-    return RtlRandomEx(&seed.LowPart);
+    seed = a * seed + c;
+    return seed;
 }
 
 void get_random_bytes(void *buf, int nbytes) {
     ULONG t;
-    if (!isSeedInitialized) {
-        seed = KeQueryPerformanceCounter(NULL);
-        isSeedInitialized = TRUE;
-    }
+    prepareSeed();
     while (nbytes > sizeof(ULONG)) {
         t = get_random_ulong();
         memcpy(buf, &t, sizeof(ULONG));

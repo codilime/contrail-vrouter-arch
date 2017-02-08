@@ -171,9 +171,6 @@
     <ClCompile Include="dp-core\vr_flow.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="windows\windows_atomic.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">

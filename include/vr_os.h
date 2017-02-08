@@ -98,7 +98,7 @@ typedef unsigned int __u32;
 
 #ifdef _NTKERNEL
 
-#include <Ntifs.h>
+#include <Wdm.h>
 #include "windows_atomic.h"
 #include "vr_windows.h"
 
