@@ -4,8 +4,9 @@
 #include <intsafe.h>
 #include <ntintsafe.h>
 
+#include "vr_windows.h"
+#include "vr_interface.h"
+
 #include "SxBase\SxBase.h"
 #include "SxBase\SxApi.h"
 #include "SxBase\SxLibrary.h"
-
-#include "vr_windows.h"
