@@ -1,4 +1,6 @@
 #include "precomp.h"
+#include "vr_windows.h"
+#include "vr_ksync.h"
 #include "vrouter.h"
 #include "vr_packet.h"
 
@@ -82,20 +84,30 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
     return NDIS_STATUS_SUCCESS;
 }
 
+
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-    DbgPrint("SxExtInitialize\r\n");
-    UNREFERENCED_PARAMETER(DriverObject);
+	DbgPrint("SxExtInitialize\r\n");
+	NTSTATUS Status = CreateDevice(DriverObject);
 
-    return NDIS_STATUS_SUCCESS;
+	if (NT_ERROR(Status))
+	{
+		return NDIS_STATUS_DEVICE_FAILED;
+	}
+	else if (!NT_SUCCESS(Status))
+	{
+		DbgPrint("CreateDevice informal/warning: %d\n", Status);
+	}
+
+  return NDIS_STATUS_SUCCESS;
 }
 
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
     DbgPrint("SxExtUninitialize\r\n");
-    UNREFERENCED_PARAMETER(DriverObject);
+    DestroyDevice(DriverObject);
 }
 
 NDIS_STATUS
