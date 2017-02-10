@@ -206,6 +206,7 @@
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
       <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
       <PreCompiledHeader>Create</PreCompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -368,11 +369,12 @@
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
-    <ClCompile Include="windows\vr_assoc.c" />
-    <ClCompile Include="windows\vr_ksync.c" />
+    <ClCompile Include="windows\vr_assoc.c" /
+    <ClCompile Include="windows\vr_host_interface.c" />
     <ClCompile Include="windows\windows_random.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="windows\vr_host.c" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf" />

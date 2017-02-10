@@ -169,6 +169,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vr_ksync.c">
+       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host.c">
+	    <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host_interface.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

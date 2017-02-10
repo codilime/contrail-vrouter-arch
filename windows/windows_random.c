@@ -6,7 +6,7 @@ bool isSeedInitialized;
 
 // Do not use it, use get_random_bytes instead
 static ULONG get_random_ulong() {
-    return RtlRandomEx(&seed.LowPart);
+    return 0;// RtlRandomEx(&seed.LowPart);
 }
 
 void get_random_bytes(void *buf, int nbytes) {

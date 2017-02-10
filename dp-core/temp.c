@@ -81,10 +81,6 @@ unsigned int vr_bridge_table_used_total_entries(struct vrouter *router) {
     return 0;
 }
 
-struct host_os * vrouter_get_host(void) {
-    return vrouter_host;
-}
-
 unsigned int vr_virtual_input(unsigned short vrf, struct vr_interface *vif, struct vr_packet *pkt, unsigned short vlan_id) {
     return 0;
 }
@@ -122,16 +118,6 @@ mac_response_t vm_neighbor_request(struct vr_interface *vif, struct vr_packet *p
 
 int vif_plug_mac_request(struct vr_interface *vif, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
     return 0;
-}
-
-struct vr_host_interface_ops *vr_host_interface_init(void) {
-    return NULL;
-}
-
-void vr_host_interface_exit(void) {
-}
-
-void vr_host_vif_init(struct vrouter *router) {
 }
 
 struct vr_interface *vif_bridge_get_sub_interface(vr_htable_t htable, unsigned short vlan, unsigned char *mac) {
