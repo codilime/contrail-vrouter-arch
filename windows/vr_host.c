@@ -358,27 +358,15 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 }
 
-static int
-win_pcopy(unsigned char *dst, struct vr_packet *p_src,
-        unsigned int offset, unsigned int len)
+int
+win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER nb,
+    unsigned int offset, unsigned int len)
 {
-    if (!p_src) {
-        return -EFAULT;
-    }
-    PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
-    if (!nbl) {
-        return -EFAULT;
-    }
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    if (!nb) {
-        return -EFAULT;
-    }
-
     /*  Check if requested data lies inside NET_BUFFER data buffer:
-            * data_offset - offset inside MDL list
-            * data_length - size of the data stored in MDL list
+        * data_offset - offset inside MDL list
+        * data_length - size of the data stored in MDL list
         Relation between those is presented in https://msdn.microsoft.com/en-us/microsoft-r/ff568728.aspx
-     */
+    */
     ULONG data_offset = NET_BUFFER_DATA_OFFSET(nb);
     ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG data_size = data_offset + data_length;
@@ -427,7 +415,8 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
     }
 
     /*  Iterate MDL list, starting from where `current_mdl` now points and copy the rest
-        of the requested data */
+        of the requested data
+    */
     current_mdl = current_mdl->Next;
     while (current_mdl && copied_bytes < len) {
         /* Get the pointer to the beginning of data represented in current MDL. */
@@ -455,11 +444,30 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
     if (copied_bytes < len) {
         /*  This case appears when MDL list has ended before all of the requested
             packet data could be copied.
-         */
+        */
         return -EFAULT;
     }
 
     return len;
+}
+
+static int
+win_pcopy(unsigned char *dst, struct vr_packet *p_src,
+        unsigned int offset, unsigned int len)
+{
+    if (!p_src) {
+        return -EFAULT;
+    }
+    PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
+    if (!nbl) {
+        return -EFAULT;
+    }
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb) {
+        return -EFAULT;
+    }
+
+    return win_pcopy_from_nb(dst, nb, offset, len);
 }
 
 static unsigned short

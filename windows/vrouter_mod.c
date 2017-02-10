@@ -33,6 +33,11 @@ static char encoding_table[] = {
     '4', '5', '6', '7', '8', '9', '+', '/' };
 static int mod_table[] = { 0, 2, 1 };
 
+static char hex_table[] = {
+    '0', '1', '2', '3', '4', '5', '6', '7',
+    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+};
+
 char *base64_encode(const unsigned char *data, size_t input_length) {
     size_t output_length = 4 * ((input_length + 2) / 3);
 
@@ -58,6 +63,78 @@ char *base64_encode(const unsigned char *data, size_t input_length) {
     encoded_data[output_length] = 0;
 
     return encoded_data;
+}
+
+/*  Dumps packet contents to the debug buffer. Packet contents will be formatted in
+    Wireshark friendly format.
+*/
+void
+debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
+{
+#ifdef _DEBUG
+    ULONG data_length;
+    ULONG str_length;
+    ULONG str_alloc_size;
+    unsigned char *buffer;
+    unsigned char *str;
+    int bytes_copied;
+    int i, j;
+
+    if (!nb) {
+        return;
+    }
+
+    data_length = NET_BUFFER_DATA_LENGTH(nb);
+    str_length = data_length * 3 + 1;  // '|' + 3 chars ("FF|") per byte
+    str_alloc_size = str_length + 1;  // additional '\0' at the end
+
+    buffer = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, data_length, SxExtAllocationTag);
+    if (!buffer) {
+        return;
+    }
+    str = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, str_alloc_size, SxExtAllocationTag);
+    if (!str) {
+        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        return;
+    }
+
+    bytes_copied = win_pcopy_from_nb(buffer, nb, 0, data_length);
+    if (bytes_copied < 0) {
+        DbgPrint("%s: win_pcopy_from_nbl failed; result = %d\n", bytes_copied);
+        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        return;
+    }
+
+    str[0] = '|';
+    for (i = 0, j = 1; i < bytes_copied; ++i, j += 3) {
+        str[j]     = hex_table[(buffer[i] & 0xF0) >> 4];
+        str[j + 1] = hex_table[(buffer[i] & 0x0F)];
+        str[j + 2] = '|';
+    }
+    str[j] = 0;
+    
+    // DbgPrint only transmits at most 512 bytes in single call, so multiple prints are needed
+    // to dump whole packet contents.
+    DbgPrint("%s data[length=%d,copied=%d]: ", prefix, data_length, bytes_copied);
+    unsigned char print_buffer[512];
+    ULONG printed = 0, max_print_length = 510;
+    while (printed < str_length) {
+        if (str_length - printed <= max_print_length) {
+            NdisMoveMemory(print_buffer, str + printed, str_length - printed);
+            print_buffer[str_length - printed] = 0;
+            printed += str_length - printed;
+        } else {
+            NdisMoveMemory(print_buffer, str + printed, max_print_length);
+            print_buffer[max_print_length] = 0;
+            printed += max_print_length;
+        }
+        DbgPrint("%s", print_buffer);
+    }
+    DbgPrint("\n");
+
+    ExFreePoolWithTag(str, SxExtAllocationTag);
+    ExFreePoolWithTag(buffer, SxExtAllocationTag);
+#endif
 }
 
 NDIS_STATUS
@@ -730,15 +807,16 @@ SxExtStartNetBufferListsIngress(
         nextNbl = curNbl->Next;
 
         NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-        MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
-        void* ptr = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
+        //MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
+        //void* ptr = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
         PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO  fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
         DbgPrint("Source port ID: %u\r\n", fwd->SourcePortId);
 
-        char* str = base64_encode((const unsigned char*) ptr + NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
-        DbgPrint("Packet data : %s\r\n", str);
+        debug_print_net_buffer(nb, "SxExtStartNetBufferListsIngress");
+        //char* str = base64_encode((const unsigned char*) ptr + NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
+        //DbgPrint("Packet data : %s\r\n", str);
 
-        ExFreePoolWithTag(str, SxExtAllocationTag);
+        //ExFreePoolWithTag(str, SxExtAllocationTag);
     }
 
     if (nativeForwardedNbls != NULL)
