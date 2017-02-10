@@ -83,6 +83,7 @@ struct vr_message_dumper *vr_message_dump_init(void *);
 void vr_message_dump_exit(void *, int);
 
 int vr_message_request(struct vr_message *);
+int vr_send_response(int);
 int vr_message_response(unsigned int, void *, int);
 int vr_message_make_request(unsigned int, void *);
 int vr_message_process_response(int (*)(void *, unsigned int, void *), void *);

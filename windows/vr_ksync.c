@@ -1,10 +1,10 @@
 #include "vr_os.h"
 #include "vr_windows.h"
-#include "precomp.h"
 #include "Ntstrsafe.h"
+#include "vr_message.h"
 
-const WCHAR DeviceName[] = L"\\Device\\vRouter\\ksync";
-const WCHAR DeviceSymLink[] = L"\\DosDevices\\vRouter\\ksync";
+const WCHAR DeviceName[] = L"\\Device\\ksync";
+const WCHAR DeviceSymLink[] = L"\\DosDevices\\ksync";
 
 NTSTATUS
 Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -26,21 +26,12 @@ Close(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-// TODO: JW-168
-// This structure is from linux kernel headers. It will be used to cast data from userspace.
-struct nlmsghdr {
-    UINT32           nlmsg_len;      /* Length of message including header */
-    UINT16           nlmsg_type;     /* Message content */
-    UINT16           nlmsg_flags;    /* Additional flags */
-    UINT32           nlmsg_seq;      /* Sequence number */
-    UINT32           nlmsg_pid;      /* Sending process port ID */
-};
-
 NTSTATUS
 Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DriverObject);
-
+    int ret;
+    struct vr_message request, *response;
+   
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PCHAR WriteDataBuffer;
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
@@ -62,6 +53,27 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
+    struct nlmsghdr* p_nlmsghdr = (struct nlmsghdr*)WriteDataBuffer;
+    struct genlmsghdr* p_genlmsghdr = (struct genlmsghdr*)(WriteDataBuffer + sizeof(struct nlmsghdr));
+    struct nlattr *aap = (struct nlattr*)(WriteDataBuffer + sizeof(struct nlmsghdr) + sizeof(struct genlmsghdr));
+
+    request.vr_message_buf = NLA_DATA(aap);
+    request.vr_message_len = NLA_LEN(aap);
+
+    UNREFERENCED_PARAMETER(p_nlmsghdr);
+    UNREFERENCED_PARAMETER(p_genlmsghdr);
+
+    ret = vr_message_request(&request);
+    if (ret < 0) {
+        if (vr_send_response(ret))
+            return ret;
+    }
+
+    while ((response = vr_message_dequeue_response())) {
+        DriverObject->DeviceExtension = response;
+        vr_message_free(response);
+    }
+    
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = IoStackIrp->Parameters.Write.Length;
 
@@ -88,14 +100,13 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
     }
 
     ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority);
-    // TODO JW-167 Create connection between userspace and kernel space on windows
-    /*
-    if (ReadDataBuffer && IoStackIrp->Parameters.Read.Length >= BufferSize)
+
+    if (ReadDataBuffer && DriverObject->DeviceExtension != NULL 
+        && IoStackIrp->Parameters.Read.Length >= (((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len))
     {
-        // RtlCopyMemory(ReadDataBuffer, ReadData, BufferSize);
+        RtlCopyMemory(ReadDataBuffer, DriverObject->DeviceExtension, ((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len);
     }
-    */
-  
+    
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = IoStackIrp->Parameters.Write.Length;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
@@ -130,7 +141,7 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
     NTSTATUS Status;
 
     Status = RtlUnicodeStringInit(&_DeviceName, DeviceName);
-
+    
     if (NT_ERROR(Status))
     {
         DbgPrint("DeviceName RtlUnicodeStringInit Error: %d\n", Status);
@@ -145,7 +156,7 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, 0, &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+    Status = IoCreateDevice(DriverObject, sizeof(struct vr_message), &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
 
     if (NT_SUCCESS(Status))
     {

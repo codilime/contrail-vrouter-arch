@@ -10,9 +10,14 @@
 #include "vr_message.h"
 #include "vr_sandesh.h"
 
+//TODO JW-203 Remove/Clean up pragma warnings
+#pragma warning(disable: 4100)
+#pragma warning(disable: 4018)
+#pragma warning(disable: 4057)
+#pragma warning(disable: 4101)
 unsigned int vr_vrfs = VR_DEF_VRFS;
 
-static struct rtable_fspec rtable_families[];
+static struct rtable_fspec rtable_families[3];
 extern int mtrie_algo_init(struct vr_rtable *, struct rtable_fspec *);
 extern void mtrie_algo_deinit(struct vr_rtable *, struct rtable_fspec *, bool);
 extern int bridge_table_init(struct vr_rtable *, struct rtable_fspec *);
@@ -43,8 +48,6 @@ vr_get_family(unsigned int family)
     default:
         return NULL;
     }
-
-    return NULL;
 }
 
 int
@@ -123,7 +126,7 @@ vr_route_get(vr_route_req *req)
     uint32_t rt_prefix[4];
     bool mac_mem_free = false;
 
-    struct vr_route_req vr_req;
+    struct vr_route_req vr_req = { 0 };
     struct vrouter *router;
 	struct vr_rtable *rtable = NULL;
 

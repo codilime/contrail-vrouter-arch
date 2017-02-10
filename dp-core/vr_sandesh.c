@@ -9,6 +9,8 @@
 #include "vr_sandesh.h"
 #include "vrouter.h"
 
+#pragma warning(disable: 4100)
+
 struct sandesh_object_md sandesh_md[] = {
     [VR_NULL_OBJECT_ID]         =   {
         .obj_len                =       sizeof(vr_response),

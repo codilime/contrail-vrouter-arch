@@ -139,7 +139,7 @@ typedef UINT64 uint64_t;
 
 #define ENETRESET       117
 #define EOPNOTSUPP      130
-
+#define AF_BRIDGE         7
 struct iovec {
     void *iov_base;
     SIZE_T iov_len;

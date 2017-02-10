@@ -13,6 +13,12 @@
 #include "vr_datapath.h"
 #include "vr_ip_mtrie.h"
 
+// TODO: JW-199 Remove/Clean this warnings. 
+#pragma warning(disable: 4100)
+#pragma warning(disable: 4018)
+#pragma warning(disable: 4389)
+#pragma warning(disable: 4057)
+
 extern unsigned int vr_vrfs;
 
 extern struct vr_nexthop *ip4_default_nh;
@@ -119,7 +125,7 @@ set_entry_to_bucket(struct ip_bucket_entry *ent, struct ip_bucket *bkt)
     /* save old... */
     tmp_nh = ent->entry_nh_p;
     /* update... */
-    ent->entry_long_i = (unsigned long)bkt | 0x1ul;
+    ent->entry_long_i = (unsigned long long)bkt | 0x1ul;
     /* release old */
     if (tmp_nh)
         vrouter_put_nexthop(tmp_nh);
@@ -158,7 +164,7 @@ set_entry_to_nh(struct ip_bucket_entry *entry, struct vr_nexthop *nh)
     entry->entry_nh_p = nh;
 
     /* ...and then take steps to release original */
-    if (tmp_nh && PTR_IS_NEXTHOP((unsigned long)(tmp_nh))) {
+    if (tmp_nh && PTR_IS_NEXTHOP((unsigned long long)(tmp_nh))) {
         vrouter_put_nexthop(tmp_nh);
     }
 
@@ -1001,7 +1007,7 @@ mtrie_add(struct vr_rtable * _unused, struct vr_route_req *rt)
     int ret;
     struct vr_route_req tmp_req;
 
-    mtrie = (mtrie ? : mtrie_alloc_vrf(vrf_id, rt->rtr_req.rtr_family));
+    mtrie = (mtrie ? mtrie : mtrie_alloc_vrf(vrf_id, rt->rtr_req.rtr_family));
     if (!mtrie)
         return -ENOMEM;
 

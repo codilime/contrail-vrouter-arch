@@ -30,39 +30,46 @@ int vr_flow_init(struct vrouter *router) {
 void vr_flow_exit(struct vrouter *router, bool soft_reset) {
 }
 
-int vr_fib_init(struct vrouter *router) {
+vr_itable_t
+vr_itable_create(unsigned int index_len, unsigned int stride_cnt, ...)
+{
     return 0;
 }
 
-void vr_fib_exit(struct vrouter *router, bool soft_reset) {
-}
+struct vr_nexthop *(*vr_bridge_lookup)(unsigned int, struct vr_route_req *);
 
-int vr_vxlan_init(struct vrouter *router) {
+int
+vr_itable_trav(vr_itable_t t, vr_itable_trav_cb_t func,
+    unsigned int marker, void *udata)
+{
     return 0;
 }
 
-void vr_vxlan_exit(struct vrouter *router, bool soft_reset) {
-}
-
-int vr_stats_init(struct vrouter *router) {
+void *
+vr_itable_set(vr_itable_t t, unsigned int index, void *data)
+{
     return 0;
 }
 
-void vr_stats_exit(struct vrouter *router, bool soft_reset) {
-}
-
-int vr_mpls_init(struct vrouter *router) {
+void *
+vr_itable_get(vr_itable_t t, unsigned int index)
+{
     return 0;
 }
 
-void vr_mpls_exit(struct vrouter *router, bool soft_reset) {
+void
+vr_flow_req_process(void *s_req) {
 }
 
-int vr_qos_init(struct vrouter *router) {
+void
+vr_itable_delete(vr_itable_t t, vr_itable_del_cb_t func)
+{
+}
+
+void *
+vr_itable_del(vr_itable_t t, unsigned int index)
+{
     return 0;
-}
-
-void vr_qos_exit(struct vrouter *router, bool soft_reset) {
 }
 
 unsigned int vr_flow_table_used_oflow_entries(struct vrouter *router) {
@@ -152,8 +159,10 @@ struct vr_flow_entry *vr_flow_get_entry(struct vrouter *router, int index) {
     return NULL;
 }
 
-struct vr_forwarding_class_qos *vr_qos_get_forwarding_class(struct vrouter *router, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
-    return NULL;
+int16_t
+vr_flow_get_qos(struct vrouter *router, struct vr_packet *pkt,
+    struct vr_forwarding_md *fmd) {
+    return 0;
 }
 
 bool vr_flow_forward(struct vrouter *router, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
@@ -241,4 +250,10 @@ l4_pkt_type_t vr_ip6_well_known_packet(struct vr_packet *pkt) {
 
 l4_pkt_type_t vr_ip_well_known_packet(struct vr_packet *pkt) {
     return 0;
+}
+
+int bridge_table_init(struct vr_rtable *a, struct rtable_fspec *b) {
+    return 0;
+}
+void bridge_table_deinit(struct vr_rtable *x, struct rtable_fspec *y, bool z) {
 }
