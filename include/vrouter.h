@@ -206,6 +206,7 @@ struct host_os {
     unsigned int *(*hos_get_enabled_log_types)(int *);
     void (*hos_soft_reset)(struct vrouter *);
     int (*hos_is_frag_limit_exceeded)(void);
+    void (*hos_register_nic)(struct vr_interface* vif);
 };
 
 #define vr_printf                       vrouter_host->hos_printf
@@ -253,6 +254,7 @@ struct host_os {
 #define vr_get_log_level                vrouter_host->hos_get_log_level
 #define vr_get_enabled_log_types        vrouter_host->hos_get_enabled_log_types
 #define vr_soft_reset                   vrouter_host->hos_soft_reset
+#define vr_register_nic                 vrouter_host->hos_register_nic
 
 struct vr_malloc_stats {
     int64_t ms_size;
@@ -319,6 +321,7 @@ extern struct vrouter *vrouter_get(unsigned int);
 extern unsigned int vrouter_generation_num_get(struct vrouter *router);
 
 extern int vrouter_init(void);
+extern void vrouter_exit(bool);
 extern int vr_module_error(int, const char *, int, int);
 extern int vhost_init(void);
 

@@ -23,23 +23,23 @@ win_if_unlock(void)
 static int
 win_if_add(struct vr_interface* vif)
 {
-    UNREFERENCED_PARAMETER(vif);
+    if (vif->vif_type == VIF_TYPE_STATS)
+        return 0;
 
-    /* TODO: Implement (JW-138) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
+    if (vif->vif_name[0] == '\0')
+        return -ENODEV;
 
-    return -ENODEV;
+    // Unlike FreeBSD/Linux, we don't have to register handlers here
+
+    return 0;
 }
 
 static int
 win_if_add_tap(struct vr_interface* vif)
 {
     UNREFERENCED_PARAMETER(vif);
-
-    /* TODO: Implement (JW-138) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
-
-    return -ENODEV;
+    // NOOP - no bridges on Windows
+    return 0;
 }
 
 static int
