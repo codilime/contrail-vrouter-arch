@@ -25,6 +25,9 @@ vr_free_stats(unsigned int object)
     UNREFERENCED_PARAMETER(object);
 }
 
+// Forward declaration
+static void win_pfree(struct vr_packet *pkt, unsigned short reason);
+
 typedef void(*scheduled_work_cb)(void *arg);
 
 struct deferred_work_cb_data {
@@ -181,7 +184,7 @@ win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
     return nbl->MiniportReserved[VR_MINIPORT_VPKT_INDEX];
 }
 
-inline struct vr_packet *
+struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
@@ -190,18 +193,17 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     win_assoc_packet_nb(nbl, pkt);
 
     pkt->vp_net_buffer_list = nbl;
-    pkt->vp_cpu = (unsigned char)vr_get_cpu();
+    pkt->vp_cpu = (unsigned char)win_get_cpu();
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    pkt->vp_head =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute) + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    if (!pkt->vp_head)
+    unsigned char* mdl_data =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute);
+    if (!mdl_data)
         goto drop;
-
+    pkt->vp_head = mdl_data + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
     pkt->vp_tail = pkt->vp_data = 0;
 
     unsigned short length = (unsigned short) NET_BUFFER_DATA_LENGTH(nb);
-
     pkt->vp_end = length;
 
     pkt->vp_len = 0;
@@ -222,7 +224,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    vr_pfree(pkt, VP_DROP_INVALID_PACKET);
+    win_pfree(pkt, VP_DROP_INVALID_PACKET);
     return NULL;
 }
 
