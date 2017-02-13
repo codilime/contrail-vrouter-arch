@@ -78,19 +78,23 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
     // DbgPrint only transmits at most 512 bytes in single call, so multiple prints are needed
     // to dump whole packet contents.
     DbgPrint("%s data[length=%d,copied=%d]: ", prefix, data_length, bytes_copied);
-    unsigned char print_buffer[512];
+    unsigned char *str_iter = str;
+    unsigned char tmp;
     ULONG printed = 0, max_print_length = 510;
+    ULONG to_print;
     while (printed < str_length) {
-        if (str_length - printed <= max_print_length) {
-            NdisMoveMemory(print_buffer, str + printed, str_length - printed);
-            print_buffer[str_length - printed] = 0;
-            printed += str_length - printed;
+        if (str_length - printed < max_print_length) {
+            to_print = str_length - printed;
         } else {
-            NdisMoveMemory(print_buffer, str + printed, max_print_length);
-            print_buffer[max_print_length] = 0;
-            printed += max_print_length;
+            to_print = max_print_length;
         }
-        DbgPrint("%s", print_buffer);
+        tmp = str_iter[to_print];
+        str_iter[to_print] = 0;
+        DbgPrint("%s", str_iter);
+        str_iter[to_print] = tmp;
+
+        str_iter += to_print;
+        printed += to_print;
     }
     DbgPrint("\n");
 
