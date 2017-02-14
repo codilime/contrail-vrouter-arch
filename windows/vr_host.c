@@ -891,6 +891,29 @@ win_soft_reset(struct vrouter *router)
     return;
 }
 
+void
+win_register_nic(struct vr_interface* vif)
+{
+    NDIS_IF_COUNTED_STRING interface_name;
+    ANSI_STRING ansi_string;
+    NDIS_STRING unicode_string;
+
+    RtlInitAnsiString(&ansi_string, (char*) vif->vif_name);
+    RtlAnsiStringToUnicodeString(&unicode_string, &ansi_string, TRUE);
+    RtlCopyMemory(interface_name.String, unicode_string.Buffer, unicode_string.Length);
+    interface_name.Length = unicode_string.Length;
+
+    RtlFreeUnicodeString(&unicode_string);
+
+    struct vr_assoc* assoc = vr_get_assoc_name(interface_name);
+    assoc->interface = vif;
+
+    if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
+        assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
+        assoc->interface = vif;
+    }
+}
+
 struct host_os windows_host = {
     .hos_printf = win_printf,
     .hos_malloc = win_malloc,
@@ -940,6 +963,7 @@ struct host_os windows_host = {
     .hos_get_log_level = win_get_log_level,
     .hos_get_enabled_log_types = win_get_enabled_log_types,
     .hos_soft_reset = win_soft_reset,
+    .hos_register_nic = win_register_nic,
 };
 
 struct host_os *
