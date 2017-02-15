@@ -1,4 +1,6 @@
 #include "precomp.h"
+#include "vr_windows.h"
+#include "vr_ksync.h"
 #include "vrouter.h"
 #include "vr_packet.h"
 
@@ -104,15 +106,15 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 }
 
 NDIS_STATUS
-AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
+AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED_STRING name)
 {
-    if (nic.nic_type != NdisSwitchNicTypeExternal)
+    if (nic->nic_type != NdisSwitchNicTypeExternal)
     {
-        DbgPrint("Internal NIC, Index: %u, Type: %u, PortId: %u\r\n", nic.nic_index, nic.nic_type, nic.port_id);
+        DbgPrint("Internal NIC, Index: %u, Type: %u, PortId: %u\r\n", nic->nic_index, nic->nic_type, nic->port_id);
     }
     else
     {
-        DbgPrint("External NIC, Index: %u, Type: %u, PortId: %u\r\n", nic.nic_index, nic.nic_type, nic.port_id);
+        DbgPrint("External NIC, Index: %u, Type: %u, PortId: %u\r\n", nic->nic_index, nic->nic_type, nic->port_id);
     }
 
     if (ctx->num_nics == MAX_NIC_NUMBER - 1)
@@ -120,10 +122,27 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
         DbgPrint("All slots filled\r\n");
         return NDIS_STATUS_RESOURCES;
     }
-    ctx->nics[ctx->num_nics++] = nic;
+    ctx->nics[ctx->num_nics++] = *nic;
+
+    NDIS_IF_COUNTED_STRING _name = vr_get_name_from_friendly_name(name);
+
+    if (nic->nic_type == NdisSwitchNicTypeInternal &&
+        name.Length != 0) // We've got a container, because vr_get_name_from_friendly_name returned us the container name
+    {
+        struct vr_assoc* assoc = vr_get_assoc_name(_name);
+
+        assoc->port_id = nic->port_id;
+        assoc->nic_index = nic->nic_index;
+        struct vr_interface* interface = assoc->interface;
+
+        assoc = vr_get_assoc_ids(nic->port_id, nic->nic_index);
+        assoc->string = _name;
+        assoc->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+    }
 
     return NDIS_STATUS_SUCCESS;
 }
+
 
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
@@ -137,14 +156,24 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
         return NDIS_STATUS_FAILURE;
     }
 
-    return NDIS_STATUS_SUCCESS;
+    NTSTATUS Status = CreateDevice(DriverObject);
+    if (NT_ERROR(Status))
+    {
+        return NDIS_STATUS_DEVICE_FAILED;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("CreateDevice informal/warning: %d\n", Status);
+    }
+
+  return NDIS_STATUS_SUCCESS;
 }
 
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
-{
+
     DbgPrint("SxExtUninitialize\r\n");
-    UNREFERENCED_PARAMETER(DriverObject);
+    DestroyDevice(DriverObject);
 }
 
 NDIS_STATUS
@@ -176,7 +205,16 @@ SxExtCreateSwitch(
         return NDIS_STATUS_RESOURCES;
     }
 
-    return 0;
+    if (vrouter_init())
+    {
+        NdisFreeRWLock(AsyncWorkRWLock);
+        NdisFreeNetBufferListPool(SxNBLPool);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    vr_init_assoc();
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 VOID
@@ -188,8 +226,6 @@ SxExtDeleteSwitch(
     DbgPrint("SxExtDeleteSwitch\r\n");
     UNREFERENCED_PARAMETER(Switch);
 
-    vrouter_exit(false);
-
     NdisFreeRWLock(AsyncWorkRWLock);
     SxSwitchObject = NULL;
 
@@ -198,6 +234,7 @@ SxExtDeleteSwitch(
     ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);
 
     vr_clean_assoc();
+    vrouter_exit(false);
 }
 
 VOID
@@ -238,13 +275,7 @@ SxExtRestartSwitch(
         nic.nic_type = entry->NicType;
         nic.port_id = entry->PortId;
 
-        AddNicToArray(ctx, nic);
-
-        struct vr_interface* iface = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_interface), SxExtAllocationTag);
-        NdisZeroMemory(iface, sizeof(struct vr_interface));
-
-        vr_set_assoc_oid_name(entry->NicFriendlyName, iface);
-        vr_set_assoc_oid_ids(entry->PortId, entry->NicIndex, iface);
+        AddNicToArray(ctx, &nic, entry->NicFriendlyName);
     }
 
     int vrouter_init_status = vrouter_init();
@@ -314,7 +345,7 @@ SxExtCreateNic(
         NdisMSleep(100);
     }
 
-    DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S",
+    DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S\r\n",
         Nic->NicFriendlyName.String, Nic->NicName.String, Nic->NicIndex, Nic->NicState, Nic->NicType, Nic->PortId, Nic->PermanentMacAddress, Nic->CurrentMacAddress, Nic->VMMacAddress, Nic->VmName.String);
 
     return 0;
@@ -329,7 +360,6 @@ SxExtConnectNic(
 {
     DbgPrint("SxExtConnectNic\r\n");
     UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(Nic);
 
     struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
 
@@ -344,13 +374,7 @@ SxExtConnectNic(
     nic.nic_type = Nic->NicType;
     nic.port_id = Nic->PortId;
 
-    AddNicToArray(ctx, nic);
-
-    struct vr_interface* iface = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_interface), SxExtAllocationTag);
-    NdisZeroMemory(iface, sizeof(struct vr_interface));
-
-    vr_set_assoc_oid_name(Nic->NicFriendlyName, iface);
-    vr_set_assoc_oid_ids(Nic->PortId, Nic->NicIndex, iface);
+    AddNicToArray(ctx, &nic, Nic->NicFriendlyName);
 }
 
 VOID
@@ -720,8 +744,6 @@ vr_win_split_nbls_by_forwarding_type(
     {
         // Rememeber the next NBL
         nextNbl = curNbl->Next;
-        // Break the list
-        curNbl->Next = NULL;
 
         fwdDetail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
 
@@ -771,13 +793,6 @@ SxExtStartNetBufferListsIngress(
     PNET_BUFFER_LIST curNbl = NULL;
     PNET_BUFFER_LIST nextNbl = NULL;
 
-    PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail;
-    NDIS_SWITCH_PORT_ID source_port;
-    NDIS_SWITCH_NIC_INDEX source_nic;
-    struct vr_interface *vif;
-    struct vr_packet *pkt;
-    int rx_ret;
-
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
     if (sameSource) {
@@ -800,10 +815,11 @@ SxExtStartNetBufferListsIngress(
         nextNbl = curNbl->Next;
 
         //  vif := vr_interface from <source_port_id, nic_id>
-        fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
-        source_port = fwd_detail->SourcePortId;
-        source_nic = fwd_detail->SourceNicIndex;
-        vif = vr_get_assoc_ids(source_port, source_nic);
+        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
+        NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
+        NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
+        struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
+        struct vr_interface *vif = assoc_entry->interface;
         if (!vif) {
             // If no vif attached yet, then drop NBL.
             vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
@@ -813,7 +829,7 @@ SxExtStartNetBufferListsIngress(
         }
 
         //  pkt := vr_packet from PNET_BUFFER_LIST and vr_interface
-        pkt = win_get_packet(curNbl, vif);
+        struct vr_packet *pkt = win_get_packet(curNbl, vif);
         if (!pkt) {
             // If creating vr_packet failed, then drop NBL.
             vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
@@ -823,7 +839,7 @@ SxExtStartNetBufferListsIngress(
         }
 
         if (vif->vif_rx) {
-            rx_ret = vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
+            int rx_ret = vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
             if (!rx_ret) {
                 // TODO: Remove packet drop when dp-core will properfly forward packets.
                 vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
