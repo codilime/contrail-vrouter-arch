@@ -171,7 +171,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
-
+{
     DbgPrint("SxExtUninitialize\r\n");
     DestroyDevice(DriverObject);
 }
@@ -185,9 +185,12 @@ SxExtCreateSwitch(
     DbgPrint("SxExtCreateSwitch\r\n");
 
     struct vr_switch_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
+    if (!ctx) {
+        DbgPrint("%s: Allocating vr_switch_context failed\n", __func__);
+        return NDIS_STATUS_FAILURE;
+    }
     RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
     ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
-
     ctx->restart = TRUE;
 
     *ExtensionContext = (NDIS_HANDLE)ctx;
@@ -205,16 +208,20 @@ SxExtCreateSwitch(
         return NDIS_STATUS_RESOURCES;
     }
 
-    if (vrouter_init())
-    {
-        NdisFreeRWLock(AsyncWorkRWLock);
-        NdisFreeNetBufferListPool(SxNBLPool);
-        return NDIS_STATUS_FAILURE;
+    if (vrouter_init()) {
+        goto Failure;
     }
 
-    vr_init_assoc();
+    if (vr_init_assoc()) {
+        goto Failure;
+    }
 
     return NDIS_STATUS_SUCCESS;
+
+Failure:
+    NdisFreeRWLock(AsyncWorkRWLock);
+    NdisFreeNetBufferListPool(SxNBLPool);
+    return NDIS_STATUS_FAILURE;
 }
 
 VOID
@@ -276,11 +283,6 @@ SxExtRestartSwitch(
         nic.port_id = entry->PortId;
 
         AddNicToArray(ctx, &nic, entry->NicFriendlyName);
-    }
-
-    int vrouter_init_status = vrouter_init();
-    if (vrouter_init_status) {
-        return NDIS_STATUS_FAILURE;
     }
 
     ctx->restart = FALSE;
@@ -791,7 +793,6 @@ SxExtStartNetBufferListsIngress(
     PNET_BUFFER_LIST dropNbl = NULL;
     PNET_BUFFER_LIST *nextDropNbl = &dropNbl;
     PNET_BUFFER_LIST curNbl = NULL;
-    PNET_BUFFER_LIST nextNbl = NULL;
 
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
@@ -810,16 +811,14 @@ SxExtStartNetBufferListsIngress(
 
     vr_win_split_nbls_by_forwarding_type(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
-    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
+    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = curNbl->Next)
     {
-        nextNbl = curNbl->Next;
-
         //  vif := vr_interface from <source_port_id, nic_id>
         PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
         NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
         NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
         struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
-        struct vr_interface *vif = assoc_entry->interface;
+        struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
         if (!vif) {
             // If no vif attached yet, then drop NBL.
             vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);

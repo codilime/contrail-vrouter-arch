@@ -13,6 +13,9 @@ extern "C" {
 #define VR_OID_SOURCE	0x00000001
 #define VR_AGENT_SOURCE	0x00000002
 
+#define VR_INIT_ASSOC_OK        0
+#define VR_INIT_ASSOC_FAILED    1
+
 struct vr_interface; // Forward declaration
 
 struct vr_packet;
@@ -55,7 +58,7 @@ struct vr_assoc* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_
 void vr_set_assoc_oid_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index, struct vr_interface* interface);
 void vr_delete_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index);
 
-void vr_init_assoc();
+int vr_init_assoc();
 void vr_clean_assoc();
 
 void get_random_bytes(void *buf, int nbytes);
