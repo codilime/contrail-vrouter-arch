@@ -26,3 +26,5 @@ modules.order
 /ipch/
 /sandesh/gen-c/*
 /utils/*obj
+/test/cmocka
+/test/atomic-test/x64

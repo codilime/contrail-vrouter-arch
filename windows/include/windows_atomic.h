@@ -1,10 +1,9 @@
 #pragma once
 
-#include <Wdm.h>
-
-typedef UINT8 bool;
+#include "vr_compiler.h"
 
 #pragma intrinsic(_ReadWriteBarrier)
+
 
 __forceinline UINT32 _sync_sub_and_fetch_32u(UINT32 *ptr, UINT32 val) {
     return InterlockedAdd((PLONG)ptr, -((LONG)val));
