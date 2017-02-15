@@ -14,10 +14,6 @@
 #include "vr_datapath.h"
 #include "vr_btable.h"
 
-// TODO: JW-200 Clean/Remove pragma warnings
-#pragma warning(disable: 4100)
-#pragma warning(disable: 4018)
-#pragma warning(disable: 4701)
 unsigned int vr_mpls_labels = VR_DEF_LABELS;
 
 struct vr_nexthop *

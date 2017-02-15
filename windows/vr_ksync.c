@@ -3,8 +3,8 @@
 #include "Ntstrsafe.h"
 #include "vr_message.h"
 
-const WCHAR DeviceName[] = L"\\Device\\ksync";
-const WCHAR DeviceSymLink[] = L"\\DosDevices\\ksync";
+const WCHAR DeviceName[] = L"\\Device\\vrouterKsync";
+const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 NTSTATUS
 Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -55,13 +55,13 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     struct nlmsghdr* p_nlmsghdr = (struct nlmsghdr*)WriteDataBuffer;
     struct genlmsghdr* p_genlmsghdr = (struct genlmsghdr*)(WriteDataBuffer + sizeof(struct nlmsghdr));
-    struct nlattr *aap = (struct nlattr*)(WriteDataBuffer + sizeof(struct nlmsghdr) + sizeof(struct genlmsghdr));
+    struct nlattr *p_nlattrr = (struct nlattr*)(WriteDataBuffer + sizeof(struct nlmsghdr) + sizeof(struct genlmsghdr));
 
-    request.vr_message_buf = NLA_DATA(aap);
-    request.vr_message_len = NLA_LEN(aap);
+    request.vr_message_buf = NLA_DATA(p_nlattrr);
+    request.vr_message_len = NLA_LEN(p_nlattrr);
 
-    UNREFERENCED_PARAMETER(p_nlmsghdr);
-    UNREFERENCED_PARAMETER(p_genlmsghdr);
+    DBG_UNREFERENCED_LOCAL_VARIABLE(p_nlmsghdr);
+    DBG_UNREFERENCED_LOCAL_VARIABLE(p_genlmsghdr);
 
     ret = vr_message_request(&request);
     if (ret < 0) {
@@ -70,6 +70,8 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     }
 
     while ((response = vr_message_dequeue_response())) {
+        // At this moment we keep only last reponse, but this solution can be not fully correct.
+        // If dp-core will response more then one reponse, then we have to implement buffer/queue here
         DriverObject->DeviceExtension = response;
         vr_message_free(response);
     }
@@ -88,6 +90,7 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PWCHAR ReadDataBuffer;
+    unsigned int len;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
 
@@ -104,7 +107,8 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL 
         && IoStackIrp->Parameters.Read.Length >= (((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len))
     {
-        RtlCopyMemory(ReadDataBuffer, DriverObject->DeviceExtension, ((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len);
+        len = ((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len;
+        RtlCopyMemory(ReadDataBuffer, DriverObject->DeviceExtension, len);
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -173,9 +177,13 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
 
         Status = IoCreateSymbolicLink(&_DeviceSymLink, &_DeviceName);
 
-        if (NT_WARNING(Status) || NT_INFORMATION(Status) || NT_ERROR(Status))
+        if (NT_WARNING(Status) || NT_INFORMATION(Status))
         {
             DbgPrint("IoCreateSymbolicLink %d\n", Status);
+        }
+        else if (NT_ERROR(Status))
+        {
+            DestroyDevice(DriverObject);
         }
         return Status;
     }

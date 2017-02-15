@@ -13,7 +13,6 @@
 #include "vr_bridge.h"
 #include "vr_datapath.h"
 
-#pragma warning(disable: 4100)
 int
 vr_vxlan_input(struct vrouter *router, struct vr_packet *pkt,
                                 struct vr_forwarding_md *fmd)

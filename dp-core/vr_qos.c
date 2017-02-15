@@ -14,11 +14,6 @@
 #include "vr_datapath.h"
 #include "vr_qos.h"
 
-// TODO: JW-201 Remove/Clean up this warnings.
-#pragma warning(disable: 4100)
-#pragma warning(disable: 4018)
-#pragma warning(disable: 4701)
-
 unsigned int vr_qos_map_entries = VR_DEF_QOS_MAP_ENTRIES;
 unsigned int vr_fc_map_entries = VR_DEF_FC_MAP_ENTRIES;
 unsigned int vr_qos_map_entry_size = VR_QOS_MAP_ENTRY_SIZE;
@@ -635,7 +630,7 @@ vr_fc_map_get(vr_fc_map_req *req)
 {
     int ret = 0;
 
-    vr_fc_map_req *resp = 0;
+    vr_fc_map_req *resp = NULL;
     struct vrouter *router = vrouter_get(req->fmr_rid);
     struct vr_forwarding_class *fc_p;
 

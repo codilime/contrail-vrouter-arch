@@ -28,14 +28,7 @@ PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 static int
 vr_message_init(void)
 {
-    int ret;
-
-    ret = vr_sandesh_init();
-    if (ret) {
-        return ret;
-    }
-
-    return 0;
+    return vr_sandesh_init();
 }
 
 static char encoding_table[] = {
@@ -103,20 +96,20 @@ NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
     int ret;
-	DbgPrint("SxExtInitialize\r\n");
+    DbgPrint("SxExtInitialize\r\n");
     
-	NTSTATUS Status = CreateDevice(DriverObject);
+    NTSTATUS Status = CreateDevice(DriverObject);
 
     ret = vr_message_init();
     
-	if (NT_ERROR(Status) || ret)
-	{
-		return NDIS_STATUS_DEVICE_FAILED;
-	}
-	else if (!NT_SUCCESS(Status))
-	{
-		DbgPrint("CreateDevice informal/warning: %d\n", Status);
-	}
+    if (NT_ERROR(Status) || ret)
+    {
+	    return NDIS_STATUS_DEVICE_FAILED;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
+    }
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -125,7 +118,6 @@ VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
     DbgPrint("SxExtUninitialize\r\n");
-    DestroyDevice(DriverObject);
 }
 
 NDIS_STATUS

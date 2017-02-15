@@ -4,14 +4,9 @@
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
+#include <vr_os.h>
 #include "vr_sandesh.h"
-#include "vr_os.h"
 #include "vr_types.h"
-
-// TODO: JW-202
-#pragma warning(disable: 4100)
-#pragma warning(disable: 4018)
-#pragma warning(disable: 4701)
 
 int vr_generate_response(vr_response *, int code, unsigned char *, int);
 

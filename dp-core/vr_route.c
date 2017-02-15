@@ -10,14 +10,15 @@
 #include "vr_message.h"
 #include "vr_sandesh.h"
 
-//TODO JW-203 Remove/Clean up pragma warnings
-#pragma warning(disable: 4100)
-#pragma warning(disable: 4018)
-#pragma warning(disable: 4057)
-#pragma warning(disable: 4101)
 unsigned int vr_vrfs = VR_DEF_VRFS;
 
-static struct rtable_fspec rtable_families[3];
+static int inet_rtb_family_init(struct rtable_fspec *fs, struct vrouter *router);
+static void inet_rtb_family_deinit(struct rtable_fspec *fs, struct vrouter *router, bool soft_reset);
+static int bridge_rtb_family_init(struct rtable_fspec *fs, struct vrouter *router);
+static void bridge_rtb_family_deinit(struct rtable_fspec *fs, struct vrouter *router, bool soft_reset);
+
+
+
 extern int mtrie_algo_init(struct vr_rtable *, struct rtable_fspec *);
 extern void mtrie_algo_deinit(struct vr_rtable *, struct rtable_fspec *, bool);
 extern int bridge_table_init(struct vr_rtable *, struct rtable_fspec *);
@@ -32,6 +33,37 @@ int inet_route_del(struct rtable_fspec *, struct vr_route_req *);
 
 int bridge_entry_add(struct rtable_fspec *, struct vr_route_req *);
 int bridge_entry_del(struct rtable_fspec *, struct vr_route_req *);
+
+/* hopefully we can afford a bit of bloat while loading ? */
+static struct rtable_fspec rtable_families[] = {
+    {
+        .rtb_family = AF_INET,
+        .rtb_family_init = inet_rtb_family_init,
+        .rtb_family_deinit = inet_rtb_family_deinit,
+        .route_add = inet_route_add,
+        .route_del = inet_route_del,
+        .algo_init = mtrie_algo_init,
+        .algo_deinit = mtrie_algo_deinit,
+    },
+    {
+        .rtb_family = AF_BRIDGE,
+        .rtb_family_init = bridge_rtb_family_init,
+        .rtb_family_deinit = bridge_rtb_family_deinit,
+        .route_add = bridge_entry_add,
+        .route_del = bridge_entry_del,
+        .algo_init = bridge_table_init,
+        .algo_deinit = bridge_table_deinit,
+    },
+    {
+        .rtb_family = AF_INET6,
+        .rtb_family_init = inet_rtb_family_init,
+        .rtb_family_deinit = inet_rtb_family_deinit,
+        .route_add = inet_route_add,
+        .route_del = inet_route_del,
+        .algo_init = mtrie_algo_init,
+        .algo_deinit = mtrie_algo_deinit,
+    }
+};
 
 
 static struct rtable_fspec *
@@ -556,37 +588,6 @@ bridge_rtb_family_deinit(struct rtable_fspec *fs, struct vrouter *router,
         router->vr_bridge_rtable = NULL;
     }
 }
-
-/* hopefully we can afford a bit of bloat while loading ? */
-static struct rtable_fspec rtable_families[] = {
-    {
-        .rtb_family                     =   AF_INET,
-        .rtb_family_init                =   inet_rtb_family_init,
-        .rtb_family_deinit              =   inet_rtb_family_deinit,
-        .route_add                      =   inet_route_add,
-        .route_del                      =   inet_route_del,
-        .algo_init                      =   mtrie_algo_init,
-        .algo_deinit                    =   mtrie_algo_deinit,
-    },
-    {
-        .rtb_family                     =   AF_BRIDGE,
-        .rtb_family_init                =   bridge_rtb_family_init,
-        .rtb_family_deinit              =   bridge_rtb_family_deinit,
-        .route_add                      =   bridge_entry_add,
-        .route_del                      =   bridge_entry_del,
-        .algo_init                      =   bridge_table_init,
-        .algo_deinit                    =   bridge_table_deinit,
-    },
-    {
-        .rtb_family                     =   AF_INET6,
-        .rtb_family_init                =   inet_rtb_family_init,
-        .rtb_family_deinit              =   inet_rtb_family_deinit,
-        .route_add                      =   inet_route_add,
-        .route_del                      =   inet_route_del,
-        .algo_init                      =   mtrie_algo_init,
-        .algo_deinit                    =   mtrie_algo_deinit,
-    }
-};
 
 void
 vr_fib_exit(struct vrouter *router, bool soft_reset)
