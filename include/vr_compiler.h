@@ -71,10 +71,18 @@ struct iovec {
 
 #define UNREFERENCED_PARAMETER(a) (a)
 
-#define _sync_sub_and_fetch_32u(a, b) __sync_sub_and_fetch((uint32_t*)(a), (uint32_t)(b))
-#define _sync_sub_and_fetch_32s(a, b) __sync_sub_and_fetch((int32_t*)(a), (int32_t)(b))
-#define _sync_sub_and_fetch_64u(a, b) __sync_sub_and_fetch((uint64_t*)(a), (uint64_t)(b))
-#define _sync_sub_and_fetch_64s(a, b) __sync_sub_and_fetch((int64_t*)(a), (int64_t)(b))
+#define _sync_sub_and_fetch_32u(a, b)               __sync_sub_and_fetch((uint32_t*)(a), (uint32_t)(b))
+#define _sync_sub_and_fetch_32s(a, b)               __sync_sub_and_fetch((int32_t*)(a), (int32_t)(b))
+#define _sync_sub_and_fetch_64u(a, b)               __sync_sub_and_fetch((uint64_t*)(a), (uint64_t)(b))
+#define _sync_sub_and_fetch_64s(a, b)               __sync_sub_and_fetch((int64_t*)(a), (int64_t)(b))
+#define _sync_add_and_fetch_32u(a, b)               __sync_add_and_fetch((uint32_t*)(a), (uint32_t)(b))
+#define _sync_fetch_and_add_32u(a, b)               __sync_fetch_and_add((uint32_t*)(a), (uint32_t)(b))
+#define _sync_fetch_and_add_64u(a, b)               __sync_fetch_and_add((uint64_t*)(a), (uint64_t)(b))
+#define _sync_fetch_and_or_16u(a, b)                __sync_fetch_and_or((uint16_t*)(a), (uint16_t)(b))
+#define _sync_and_and_fetch_16u(a, b)               __sync_and_and_fetch((uint16_t*)(a), (uint16_t)(b))
+#define _sync_bool_compare_and_swap_16u(a, b, c)    __sync_bool_compare_and_swap((uint16_t*)(a), (uint16_t)(b), (uint16_t)(c))
+#define _sync_bool_compare_and_swap_p(a, b, c)      __sync_bool_compare_and_swap((void**)(a), (void*)(b), (void*)(c))
+
 
 #endif /* _WINDOWS */
 
