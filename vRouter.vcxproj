@@ -369,7 +369,7 @@
     <ClCompile Include="windows\SxBase\SxBase.c" />
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
-    <ClCompile Include="windows\vr_assoc.c" /
+    <ClCompile Include="windows\vr_assoc.c" />
     <ClCompile Include="windows\vr_host_interface.c" />
     <ClCompile Include="windows\windows_random.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
