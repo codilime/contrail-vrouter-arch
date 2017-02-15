@@ -7,6 +7,8 @@
 #ifndef __VR_OS_H__
 #define __VR_OS_H__
 
+#include "vr_compiler.h"
+
 #if defined(__linux__)
 #ifdef __KERNEL__
 
@@ -92,7 +94,6 @@ typedef unsigned int __u32;
 #endif
 #endif /* __FreeBSD__ */
 #if defined(_WINDOWS)
-#include "vr_compiler.h"
 #include "windows_atomic.h"
 #endif /* _WINDOWS */
 
