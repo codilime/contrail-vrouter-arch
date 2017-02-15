@@ -91,16 +91,16 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>C:\Program Files\cmocka\lib;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\Program Files\cmocka\include;$(ProjectDir)\..\..\include;$(ProjectDir)\..\..\windows\include;$(IncludePath)</IncludePath>
+    <LibraryPath>..\cmocka\debug\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\cmocka\debug\include;$(ProjectDir)\..\..\include;$(ProjectDir)\..\..\windows\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>C:\Program Files\cmocka\lib;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\Program Files\cmocka\include;$(ProjectDir)\..\..\include;$(ProjectDir)\..\..\windows\include;$(IncludePath)</IncludePath>
+    <LibraryPath>..\cmocka\release\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\cmocka\release\include;$(ProjectDir)\..\..\include;$(ProjectDir)\..\..\windows\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
