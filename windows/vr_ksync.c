@@ -104,11 +104,12 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority);
 
-    if (ReadDataBuffer && DriverObject->DeviceExtension != NULL 
-        && IoStackIrp->Parameters.Read.Length >= (((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len))
+    if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
         len = ((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len;
-        RtlCopyMemory(ReadDataBuffer, DriverObject->DeviceExtension, len);
+
+        if (IoStackIrp->Parameters.Read.Length >= len)
+            RtlCopyMemory(ReadDataBuffer, DriverObject->DeviceExtension, len);
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
