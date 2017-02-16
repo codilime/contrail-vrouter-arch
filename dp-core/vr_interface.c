@@ -1438,7 +1438,7 @@ vif_free(struct vr_interface *vif)
 void
 vrouter_put_interface(struct vr_interface *vif)
 {
-    if (!_sync_sub_and_fetch_32u(&vif->vif_users, 1))
+    if (!vr_sync_sub_and_fetch_32u(&vif->vif_users, 1))
         vif_free(vif);
 
     return;

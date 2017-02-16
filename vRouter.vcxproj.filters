@@ -121,7 +121,7 @@
     <ClInclude Include="windows\include\windows_atomic.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_compiler.h">
+    <ClInclude Include="include\vr_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

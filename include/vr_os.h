@@ -7,7 +7,7 @@
 #ifndef __VR_OS_H__
 #define __VR_OS_H__
 
-#include "vr_compiler.h"
+#include "vr_common.h"
 
 #if defined(__linux__)
 #ifdef __KERNEL__
@@ -95,6 +95,19 @@ typedef unsigned int __u32;
 #endif /* __FreeBSD__ */
 #if defined(_WINDOWS)
 #include "windows_atomic.h"
+#ifdef _NTKERNEL
+
+#pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
+#pragma warning(disable : 4057)     // difference in indirection (pointer to different type but same size, ex. unsigned char* and int8_t*)
+#pragma warning(disable : 4100)     // unreferenced formal parameter (used a lot in dp-core)
+#pragma warning(disable : 4200)     // nonstandard extension used: zero-sized array in struct/union (it exist in gcc and msvc)
+#pragma warning(disable : 4242)     // '=': conversion, possible loss of data
+#pragma warning(disable : 4244)     // same as above
+#pragma warning(disable : 4267)     // same as above
+#pragma warning(disable : 4389)     // '==': signed/unsigned mismatch
+#pragma warning(disable : 4706)     // assignment within conditional expression
+
+#endif /* _NTKERNEL */
 #endif /* _WINDOWS */
 
 extern int vrouter_dbg;

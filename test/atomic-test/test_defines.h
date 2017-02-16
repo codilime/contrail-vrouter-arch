@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "vr_compiler.h"
+#include "vr_common.h"
 #include "windows_atomic.h"
 
 #define ITERATIONS 1000000U
@@ -15,13 +15,13 @@
 #define __EVAL3(A, B, C)    A##B##C
 #define EVAL3(A, B, C)      __EVAL3(A, B, C)
 
-#define GENERATE_TEST_CASE_FETCH_FIRST(A, B, C)     TESTED_TYPE a = (TESTED_TYPE)(A), b = (TESTED_TYPE)(B);     \
-                                                    TESTED_TYPE old_a = a;                                      \
-                                                    TESTED_TYPE c = TESTED_FUNCTION(&a, b);                     \
+#define GENERATE_TEST_CASE_FETCH_AND_X(A, B, C)     TESTING_TYPE a = (TESTING_TYPE)(A), b = (TESTING_TYPE)(B);  \
+                                                    TESTING_TYPE old_a = a;                                     \
+                                                    TESTING_TYPE c = TESTING_FUNCTION(&a, b);                   \
                                                     assert_true(c == old_a);                                    \
-                                                    assert_true(a == (TESTED_TYPE)(C));
+                                                    assert_true(a == (TESTING_TYPE)(C));
 
-#define GENERATE_TEST_CASE_FETCH_SECOND(A, B, C)    TESTED_TYPE a = (TESTED_TYPE)(A), b = (TESTED_TYPE)(B);     \
-                                                    TESTED_TYPE c = TESTED_FUNCTION(&a, b);                     \
+#define GENERATE_TEST_CASE_X_AND_FETCH(A, B, C)    TESTING_TYPE a = (TESTING_TYPE)(A), b = (TESTING_TYPE)(B);   \
+                                                    TESTING_TYPE c = TESTING_FUNCTION(&a, b);                   \
                                                     assert_true(c == a);                                        \
-                                                    assert_true(a == (TESTED_TYPE)(C));
+                                                    assert_true(a == (TESTING_TYPE)(C));

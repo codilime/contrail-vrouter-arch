@@ -150,7 +150,7 @@ vrouter_put_nexthop(struct vr_nexthop *nh)
     /* This function might get invoked with zero ref_cnt */
     ref_cnt = nh->nh_users;
     if (ref_cnt) {
-        ref_cnt = _sync_sub_and_fetch_32u(&nh->nh_users, 1);
+        ref_cnt = vr_sync_sub_and_fetch_32u(&nh->nh_users, 1);
     }
 
     if (!ref_cnt ) {

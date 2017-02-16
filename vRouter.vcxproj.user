@@ -15,5 +15,7 @@
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <TestCertificate>
+    </TestCertificate>
   </PropertyGroup>
 </Project>

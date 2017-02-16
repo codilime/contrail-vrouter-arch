@@ -1,12 +1,14 @@
-#ifndef TESTED_FUNCTION
-#ifndef TESTED_OFFSET
+#ifndef TESTING_FUNCTION
+#ifndef TESTING_OFFSET
 #error
 #endif
 #endif
 
 #include "test_defines.h"
 
-#define TEST_NAME(S)        EVAL2(TESTED_FUNCTION, S)
+extern DWORD timeout;
+
+#define TEST_NAME(S)        EVAL2(TESTING_FUNCTION, S)
 #define TEST_ARR            TEST_NAME(_arr)
 #define TEST_VAR            TEST_NAME(_var)
 #define TEST_EXPECT         TEST_NAME(_expect)
@@ -19,7 +21,7 @@ DWORD WINAPI TEST_THREAD(void* data) {
 
     UINT32 i;
     for (i = 0; i < ITERATIONS; ++i)
-        TEST_ARR[TESTED_FUNCTION(&TEST_VAR, 1) - TESTED_OFFSET] = TRUE;
+        TEST_ARR[TESTING_FUNCTION(&TEST_VAR, 1) - TESTING_OFFSET] = TRUE;
 
     return 0;
 }
@@ -35,14 +37,15 @@ void TEST_NAME(_races) (void **state) {
         assert_non_null(threads[i]);
     }
 
-    WaitForMultipleObjects(NR_THREADS, threads, TRUE, INFINITE);
+    DWORD ret = WaitForMultipleObjects(NR_THREADS, threads, TRUE, timeout);
+
     for (i = 0; i < NR_THREADS; ++i)
         CloseHandle(threads[i]);
 
+    assert_false(ret == WAIT_TIMEOUT || ret == WAIT_FAILED);
+    assert_true(TEST_VAR == TEST_EXPECT);
     for (i = 0; i < ITERATIONS * NR_THREADS; ++i)
         assert_true(TEST_ARR[i]);
-
-    assert_true(TEST_VAR == TEST_EXPECT);
 }
 
 

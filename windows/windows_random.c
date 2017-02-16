@@ -1,9 +1,6 @@
 #include "vr_os.h"
 #include "vr_windows.h"
 
-const ULONG a = 1103515245;
-const ULONG c = 12345;
-
 ULONG seed;
 bool isSeedInitialized;
 
@@ -16,6 +13,7 @@ static void prepareSeed() {
 
 // make sure prepareSeed has been run before using this function
 static ULONG get_random_ulong() {
+    const ULONG a = 1103515245UL, c = 12345UL;
     seed = a * seed + c;
     return seed;
 }
