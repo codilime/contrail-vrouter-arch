@@ -6,6 +6,8 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
+extern void vif_attach(struct vr_interface *);
+
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -68,10 +70,19 @@ create_nbl(unsigned int size)
 }
 
 static void
+delete_nbl_context(PNET_BUFFER_LIST nbl)
+{
+    NdisFreeNetBufferListContext(nbl, MEMORY_ALLOCATION_ALIGNMENT);
+}
+
+static void
 delete_nbl(PNET_BUFFER_LIST nbl)
 {
+    delete_nbl_context(nbl);
+
     NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
+
     SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
     NdisFreeNetBufferList(nbl);
     NdisFreeMdl(mdl);
@@ -160,19 +171,24 @@ win_page_free(void *address, unsigned int size)
 void 
 win_assoc_packet_nb(PNET_BUFFER_LIST nbl, struct vr_packet* pkt)
 {
-    nbl->MiniportReserved[VR_MINIPORT_VPKT_INDEX] = pkt;
+    struct vr_packet** ctx = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    *ctx = pkt;
 }
 
 struct vr_packet*
 win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
 {
-    return nbl->MiniportReserved[VR_MINIPORT_VPKT_INDEX];
+    struct vr_packet** ret = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    return *ret;
 }
 
 struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+
+    NdisAllocateNetBufferListContext(nbl, MEMORY_ALLOCATION_ALIGNMENT, 0, SxExtAllocationTag);
+
     if (pkt == NULL)
         return NULL;
     win_assoc_packet_nb(nbl, pkt);
@@ -237,6 +253,8 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
         if (nbl == NULL)
             return;
         cpu = pkt->vp_cpu;
+
+        ExFreePoolWithTag(pkt, SxExtAllocationTag);
     }
     else {
         cpu = win_get_cpu();
@@ -248,8 +266,14 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
     if (nbl)
     {
         // We are only allowed to delete stuff created by our extension
-        if(nbl->SourceHandle == SxSwitchObject->NdisFilterHandle)
+        if (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle)
             delete_nbl(nbl);
+        else // We can only mark not ours packets as complete, without sending them further
+        {
+            delete_nbl_context(nbl);
+            SxLibCompleteNetBufferListsIngress(SxSwitchObject, nbl,
+                NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE); // Because there is only 1 packet
+        }
     }
 
     return;
@@ -904,8 +928,13 @@ win_register_nic(struct vr_interface* vif)
     assoc->interface = vif;
 
     if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
+        vif->vif_port = assoc->port_id;
+        vif->vif_nic = assoc->nic_index;
+
         assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
         assoc->interface = vif;
+
+        vif_attach(vif);
     }
 }
 
