@@ -70,15 +70,15 @@ char *base64_encode(const unsigned char *data, size_t input_length) {
 }
 
 NDIS_STATUS
-AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
+AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED_STRING name)
 {
-    if (nic.nic_type != NdisSwitchNicTypeExternal)
+    if (nic->nic_type != NdisSwitchNicTypeExternal)
     {
-        DbgPrint("Internal NIC, Index: %u, Type: %u, PortId: %u\r\n", nic.nic_index, nic.nic_type, nic.port_id);
+        DbgPrint("Internal NIC, Index: %u, Type: %u, PortId: %u\r\n", nic->nic_index, nic->nic_type, nic->port_id);
     }
     else
     {
-        DbgPrint("External NIC, Index: %u, Type: %u, PortId: %u\r\n", nic.nic_index, nic.nic_type, nic.port_id);
+        DbgPrint("External NIC, Index: %u, Type: %u, PortId: %u\r\n", nic->nic_index, nic->nic_type, nic->port_id);
     }
 
     if (ctx->num_nics == MAX_NIC_NUMBER - 1)
@@ -86,7 +86,23 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic nic)
         DbgPrint("All slots filled\r\n");
         return NDIS_STATUS_RESOURCES;
     }
-    ctx->nics[ctx->num_nics++] = nic;
+    ctx->nics[ctx->num_nics++] = *nic;
+
+    NDIS_IF_COUNTED_STRING _name = vr_get_name_from_friendly_name(name);
+
+    if (nic->nic_type == NdisSwitchNicTypeInternal &&
+        name.Length != 0) // We've got a container, because vr_get_name_from_friendly_name returned us the container name
+    {
+        struct vr_assoc* assoc = vr_get_assoc_name(_name);
+
+        assoc->port_id = nic->port_id;
+        assoc->nic_index = nic->nic_index;
+        struct vr_interface* interface = assoc->interface;
+
+        assoc = vr_get_assoc_ids(nic->port_id, nic->nic_index);
+        assoc->string = _name;
+        assoc->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+    }
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -149,7 +165,16 @@ SxExtCreateSwitch(
         return NDIS_STATUS_RESOURCES;
     }
 
-    return 0;
+    if (vrouter_init())
+    {
+        NdisFreeRWLock(AsyncWorkRWLock);
+        NdisFreeNetBufferListPool(SxNBLPool);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    vr_init_assoc();
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 VOID
@@ -169,6 +194,8 @@ SxExtDeleteSwitch(
     ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);
 
     vr_clean_assoc();
+
+    vrouter_exit(false);
 }
 
 VOID
@@ -209,12 +236,7 @@ SxExtRestartSwitch(
         nic.nic_type = entry->NicType;
         nic.port_id = entry->PortId;
 
-        AddNicToArray(ctx, nic);
-
-        struct vr_interface* iface = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_interface), SxExtAllocationTag);
-
-        vr_set_assoc_oid_name(entry->NicFriendlyName, iface);
-        vr_set_assoc_oid_ids(entry->PortId, entry->NicIndex, iface);
+        AddNicToArray(ctx, &nic, entry->NicFriendlyName);
     }
 
     ctx->restart = FALSE;
@@ -279,7 +301,7 @@ SxExtCreateNic(
         NdisMSleep(100);
     }
 
-    DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S",
+    DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S\r\n",
         Nic->NicFriendlyName.String, Nic->NicName.String, Nic->NicIndex, Nic->NicState, Nic->NicType, Nic->PortId, Nic->PermanentMacAddress, Nic->CurrentMacAddress, Nic->VMMacAddress, Nic->VmName.String);
 
     return 0;
@@ -294,7 +316,6 @@ SxExtConnectNic(
 {
     DbgPrint("SxExtConnectNic\r\n");
     UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(Nic);
 
     struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
 
@@ -309,12 +330,7 @@ SxExtConnectNic(
     nic.nic_type = Nic->NicType;
     nic.port_id = Nic->PortId;
 
-    AddNicToArray(ctx, nic);
-
-    struct vr_interface* iface = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_interface), SxExtAllocationTag);
-
-    vr_set_assoc_oid_name(Nic->NicFriendlyName, iface);
-    vr_set_assoc_oid_ids(Nic->PortId, Nic->NicIndex, iface);
+    AddNicToArray(ctx, &nic, Nic->NicFriendlyName);
 }
 
 VOID

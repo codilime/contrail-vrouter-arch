@@ -1,10 +1,20 @@
 #include "precomp.h"
 
+extern PSX_SWITCH_OBJECT SxSwitchObject;
+NDIS_RW_LOCK_EX* name_lock;
+NDIS_RW_LOCK_EX* ids_lock;
+
 #define MAP_SIZE 512
 
-typedef void (*setterFunc)(struct vr_assoc*, const void*);
-typedef BOOLEAN (*compareFunc)(struct vr_assoc*, const void*);
-typedef int (*hashFunc)(const void*);
+struct criteria {
+    NDIS_IF_COUNTED_STRING name;
+    NDIS_SWITCH_PORT_ID port_id;
+    NDIS_SWITCH_NIC_INDEX nic_index;
+};
+
+typedef void (*setterFunc)(struct vr_assoc*, const struct criteria*);
+typedef BOOLEAN (*compareFunc)(struct vr_assoc*, const struct criteria*);
+typedef int (*hashFunc)(const struct criteria*);
 
 /*
  * A generated map of chars.
@@ -41,7 +51,12 @@ NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRI
     int i = friendly.Length;
     // The names are in format of "Container Port a30f213f"
     // To be the most accurate, get the last "word", speparated by a space
-    while (friendly.String[--i] != L' ');
+    while (friendly.String[--i] != L' ')
+        if (i == 0) // Name is not conforming to our standards, must be not a container port
+        {
+            ret.Length = 0;
+            return ret;
+        }
 
     wcscpy_s(ret.String, friendly.Length - i + 1, friendly.String + i + 1);
     ret.Length = (USHORT)(friendly.Length - i + 1);
@@ -49,13 +64,13 @@ NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRI
     return ret;
 }
 
-struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc hash, compareFunc cmp, const void* target)
+struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc hash, compareFunc cmp, const struct criteria* params)
 {
-    struct vr_assoc** field = map + hash(target);
+    struct vr_assoc** field = map + hash(params);
 
     while (*field != NULL)
     {
-        if (cmp(*field, target) == 1)
+        if (cmp(*field, params) == 1)
             break;
         field = &((*field)->next);
     }
@@ -64,20 +79,20 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
     {
         *field = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_assoc), SxExtAllocationTag);
         RtlZeroMemory(*field, sizeof(struct vr_assoc));
-        setter(*field, target);
+        setter(*field, params);
     }
 
     return (*field);
 }
 
-void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, const void* target)
+void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, const struct criteria* params)
 {
     // This is a pointer to a pointer. Therefore at the start in points to the pointer in the hasharray and then it points to the "next" field of the previous list entry.
-    struct vr_assoc** field = map + hash(target);
+    struct vr_assoc** field = map + hash(params);
 
     while (*field != NULL)
     {
-        if (cmp(*field, target) == 1)
+        if (cmp(*field, params) == 1)
             break;
         field = &((*field)->next);
     }
@@ -89,16 +104,18 @@ void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, cons
     *field = (*field)->next;
 }
 
-static void setter_name(struct vr_assoc* entry, NDIS_IF_COUNTED_STRING* interface_name)
+static void setter_name(struct vr_assoc* entry, const struct criteria* params)
 {
-    entry->string = *interface_name;
+    entry->string = params->name;
+    entry->nic_index = 0;
+    entry->port_id = 0;
 }
 
-static int hash_name(const NDIS_IF_COUNTED_STRING* interface_name)
+static int hash_name(const struct criteria* params)
 {
     int hash = 0;
-    int i = interface_name->Length;
-    const WCHAR* str = interface_name->String;
+    int i = params->name.Length;
+    const WCHAR* str = params->name.String;
 
     while (i-- != 0)
     {
@@ -108,82 +125,127 @@ static int hash_name(const NDIS_IF_COUNTED_STRING* interface_name)
     return hash;
 }
 
-static BOOLEAN cmp_name(struct vr_assoc* entry, const NDIS_IF_COUNTED_STRING* target)
+static BOOLEAN cmp_name(struct vr_assoc* entry, const struct criteria* params)
 {
-    return (entry->string.Length == target->Length && wcsncmp(entry->string.String, target->String, target->Length) == 0);
+    return (entry->string.Length == params->name.Length && wcsncmp(entry->string.String, params->name.String, params->name.Length) == 0);
 }
 
-struct vr_interface* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
+struct vr_assoc* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
 {
-    return vr_get_assoc(name_map, (setterFunc)setter_name, (hashFunc)hash_name, (compareFunc)cmp_name, &interface_name)->interface;
+    struct criteria params;
+    params.name = interface_name;
+
+    LOCK_STATE_EX lock;
+
+    // This is because the requested element can be lazy-created
+    NdisAcquireRWLockWrite(name_lock, &lock, 0);
+
+    struct vr_assoc* ret = vr_get_assoc(name_map, setter_name, hash_name, cmp_name, &params);
+
+    NdisReleaseRWLock(name_lock, &lock);
+
+    return ret;
 }
 
 void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct vr_interface* interface)
 {
-    struct vr_assoc* element = vr_get_assoc(name_map, (setterFunc)setter_name, (hashFunc)hash_name, (compareFunc)cmp_name, &interface_name);
+    struct criteria params;
+    params.name = interface_name;
+
+    LOCK_STATE_EX lock;
+
+    NdisAcquireRWLockWrite(name_lock, &lock, 0);
+
+    struct vr_assoc* element = vr_get_assoc(name_map, setter_name, hash_name, cmp_name, &params);
 
     element->interface = interface;
     element->sources |= VR_OID_SOURCE;
+
+    NdisReleaseRWLock(name_lock, &lock);
+
     return;
 }
 
 void vr_delete_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
 {
-    vr_delete_assoc(name_map, (hashFunc)hash_name, (compareFunc)cmp_name, &interface_name);
+    struct criteria params;
+    params.name = interface_name;
+
+    LOCK_STATE_EX lock;
+
+    NdisAcquireRWLockWrite(name_lock, &lock, 0);
+
+    vr_delete_assoc(name_map, hash_name, cmp_name, &params);
+
+    NdisReleaseRWLock(name_lock, &lock);
 }
 
-struct ids_pair {
-    NDIS_SWITCH_PORT_ID port;
-    NDIS_SWITCH_NIC_INDEX nic;
-};
-
-static void setter_ids(struct vr_assoc* entry, const struct ids_pair* target)
+static void setter_ids(struct vr_assoc* entry, const struct criteria* params)
 {
-    entry->port_id = target->port;
-    entry->nic_index = target->nic;
+    entry->nic_index = params->nic_index;
+    entry->port_id = params->port_id;
 }
 
-static int hash_ids(const struct ids_pair* pair)
+static int hash_ids(const struct criteria* params)
 {
-    int hash = (pair->port + pair->nic) % MAP_SIZE; //NIC is almost always 0 and port grows incrementally, so this should be a pretty good hash
+    int hash = (params->port_id + params->nic_index) % MAP_SIZE; //NIC is almost always 0 and port grows incrementally, so this should be a pretty good hash
 
     return hash;
 }
 
-static BOOLEAN cmp_ids(struct vr_assoc* entry, const struct ids_pair* target)
+static BOOLEAN cmp_ids(struct vr_assoc* entry, const struct criteria* params)
 {
-    return (entry->port_id == target->port && entry->nic_index == target->nic);
+    return (entry->port_id == params->port_id && entry->nic_index == params->nic_index);
 }
 
-struct vr_interface* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index)
+struct vr_assoc* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index)
 {
-    struct ids_pair pair;
-    pair.nic = nic_index;
-    pair.port = port_id;
+    struct criteria params;
+    params.nic_index = nic_index;
+    params.port_id = port_id;
 
-    return vr_get_assoc(ids_map, (setterFunc)setter_ids, (hashFunc)hash_ids, (compareFunc)cmp_ids, &pair)->interface;
+    LOCK_STATE_EX lock;
+
+    // This is because the requested element can be lazy-created
+    NdisAcquireRWLockWrite(ids_lock, &lock, 0);
+
+    struct vr_assoc* ret = vr_get_assoc(ids_map, setter_ids, hash_ids, cmp_ids, &params);
+
+    NdisReleaseRWLock(ids_lock, &lock);
+
+    return ret;
 }
 
 void vr_set_assoc_oid_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index, struct vr_interface* interface)
 {
-    struct ids_pair pair;
-    pair.nic = nic_index;
-    pair.port = port_id;
+    struct criteria params;
+    params.nic_index = nic_index;
+    params.port_id = port_id;
 
-    struct vr_assoc* element = vr_get_assoc(ids_map, (setterFunc)setter_ids, (hashFunc)hash_ids, (compareFunc)cmp_ids, &pair);
+    LOCK_STATE_EX lock;
+
+    NdisAcquireRWLockWrite(ids_lock, &lock, 0);
+
+    struct vr_assoc* element = vr_get_assoc(ids_map, setter_ids, hash_ids, cmp_ids, &params);
 
     element->interface = interface;
     element->sources |= VR_OID_SOURCE;
+
+    NdisReleaseRWLock(ids_lock, &lock);
     return;
 }
 
 void vr_delete_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index)
 {
-    struct ids_pair pair;
-    pair.nic = nic_index;
-    pair.port = port_id;
+    struct criteria params;
+    params.nic_index = nic_index;
+    params.port_id = port_id;
 
-    vr_delete_assoc(name_map, (hashFunc)hash_ids, (compareFunc)cmp_ids, &pair);
+    LOCK_STATE_EX lock;
+
+    NdisAcquireRWLockWrite(ids_lock, &lock, 0);
+    vr_delete_assoc(ids_map, hash_ids, cmp_ids, &params);
+    NdisReleaseRWLock(ids_lock, &lock);
 }
 
 void vr_assoc_destroy(struct vr_assoc** map)
@@ -207,6 +269,22 @@ void vr_assoc_destroy(struct vr_assoc** map)
 
 void vr_clean_assoc()
 {
+    LOCK_STATE_EX lock;
+
+    NdisAcquireRWLockWrite(ids_lock, &lock, 0);
     vr_assoc_destroy(ids_map);
+    NdisReleaseRWLock(ids_lock, &lock);
+
+    NdisAcquireRWLockWrite(name_lock, &lock, 0);
     vr_assoc_destroy(name_map);
+    NdisReleaseRWLock(name_lock, &lock);
+
+    NdisFreeRWLock(name_lock);
+    NdisFreeRWLock(ids_lock);
+}
+
+void vr_init_assoc()
+{
+    name_lock = NdisAllocateRWLock(SxSwitchObject->NdisFilterHandle);
+    ids_lock = NdisAllocateRWLock(SxSwitchObject->NdisFilterHandle);
 }
