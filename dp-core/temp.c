@@ -2,13 +2,8 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 
-#pragma warning(disable : 4100)
-
 struct host_os *vrouter_host;
 
-unsigned int vr_flow_entries = 0;
-unsigned int vr_oflow_entries = 0;
-unsigned int vr_flow_hold_limit = 0;
 unsigned int vr_bridge_entries = 0;
 unsigned int vr_bridge_oentries = 0;
 
@@ -16,19 +11,9 @@ const char *ContrailBuildInfo = "";
 
 unsigned int vr_num_cpus = 0;
 
-int hashrnd_inited = 0;
-uint32_t vr_hashrnd = 0;
-
 
 struct vr_vrf_stats *(*vr_inet_vrf_stats)(int, unsigned int);
 
-
-int vr_flow_init(struct vrouter *router) {
-    return 0;
-}
-
-void vr_flow_exit(struct vrouter *router, bool soft_reset) {
-}
 
 vr_itable_t
 vr_itable_create(unsigned int index_len, unsigned int stride_cnt, ...)
@@ -58,10 +43,6 @@ vr_itable_get(vr_itable_t t, unsigned int index)
 }
 
 void
-vr_flow_req_process(void *s_req) {
-}
-
-void
 vr_itable_delete(vr_itable_t t, vr_itable_del_cb_t func)
 {
 }
@@ -69,14 +50,6 @@ vr_itable_delete(vr_itable_t t, vr_itable_del_cb_t func)
 void *
 vr_itable_del(vr_itable_t t, unsigned int index)
 {
-    return 0;
-}
-
-unsigned int vr_flow_table_used_oflow_entries(struct vrouter *router) {
-    return 0;
-}
-
-unsigned int vr_flow_table_used_total_entries(struct vrouter *router) {
     return 0;
 }
 
@@ -153,20 +126,6 @@ int vif_bridge_add(struct vr_interface *pvif, struct vr_interface *vif) {
 
 void vhost_remove_xconnect(void) {
     return;
-}
-
-struct vr_flow_entry *vr_flow_get_entry(struct vrouter *router, int index) {
-    return NULL;
-}
-
-int16_t
-vr_flow_get_qos(struct vrouter *router, struct vr_packet *pkt,
-    struct vr_forwarding_md *fmd) {
-    return 0;
-}
-
-bool vr_flow_forward(struct vrouter *router, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
-    return false;
 }
 
 int vr_inet6_form_flow(struct vrouter *router, unsigned short vrf, struct vr_packet *pkt, uint16_t vlan, struct vr_ip6 *ip6, struct vr_flow *flow_p) {
@@ -250,6 +209,89 @@ l4_pkt_type_t vr_ip6_well_known_packet(struct vr_packet *pkt) {
 
 l4_pkt_type_t vr_ip_well_known_packet(struct vr_packet *pkt) {
     return 0;
+}
+
+
+vr_htable_t vr_htable_attach(struct vrouter *router, unsigned int entries, void *htable, unsigned int oentries, void *otable, unsigned int entry_size, unsigned int key_size, unsigned int bucket_size, get_hentry_key get_entry_key) {
+    return (vr_htable_t)0;
+}
+
+unsigned int vr_htable_used_oflow_entries(vr_htable_t htable) {
+    return 0;
+}
+
+unsigned int vr_htable_used_total_entries(vr_htable_t htable) {
+    return 0;
+}
+
+void vr_htable_delete(vr_htable_t htable) {
+}
+
+vr_hentry_t *vr_htable_find_hentry(vr_htable_t htable, void *key, unsigned int key_len) {
+    return NULL;
+}
+
+vr_hentry_t *vr_htable_get_hentry_by_index(vr_htable_t htable, unsigned int index) {
+    return NULL;
+}
+
+vr_hentry_t *vr_htable_find_free_hentry(vr_htable_t htable, void *key, unsigned int key_size) {
+    return NULL;
+}
+
+void vr_htable_reset(vr_htable_t htable, htable_trav_cb cb, void *data) {
+}
+
+void vr_htable_release_hentry(vr_htable_t htable, vr_hentry_t *ent) {
+}
+
+unsigned int vr_htable_size(vr_htable_t htable) {
+    return 0;
+}
+
+void *vr_htable_get_address(vr_htable_t htable, uint64_t offset) {
+    return NULL;
+}
+
+flow_result_t vr_inet_flow_lookup(struct vrouter *router, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
+    return (flow_result_t)0;
+}
+
+flow_result_t vr_inet6_flow_lookup(struct vrouter *router, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
+    return (flow_result_t)0;
+}
+
+flow_result_t vr_inet_flow_nat(struct vr_flow_entry *fe, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
+    return (flow_result_t)0;
+}
+
+void vr_inet_fill_flow(struct vr_flow *flow_p, unsigned short nh_id, unsigned char *ip, uint8_t proto, uint16_t sport, uint16_t dport) {
+}
+
+void vr_inet6_fill_flow(struct vr_flow *flow_p, unsigned short nh_id, unsigned char *ip, uint8_t proto, uint16_t sport, uint16_t dport) {
+}
+
+bool vr_inet_flow_is_fat_flow(struct vrouter *router, struct vr_packet *pkt, struct vr_flow_entry *fe) {
+    return false;
+}
+
+bool vr_inet6_flow_is_fat_flow(struct vrouter *router, struct vr_packet *pkt, struct vr_flow_entry *fe) {
+    return false;
+}
+
+bool vr_inet_flow_allow_new_flow(struct vrouter *router, struct vr_packet *pkt) {
+    return false;
+}
+
+unsigned int vr_reinject_packet(struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
+    return 0;
+}
+
+int vr_fragment_table_init(struct vrouter *router) {
+    return 0;
+}
+
+void vr_fragment_table_exit(struct vrouter *router) {
 }
 
 int bridge_table_init(struct vr_rtable *a, struct rtable_fspec *b) {

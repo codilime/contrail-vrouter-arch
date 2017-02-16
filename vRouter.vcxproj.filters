@@ -118,6 +118,12 @@
     <ClInclude Include="include\vr_vxlan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="windows\include\windows_atomic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="include\vr_ksync.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -231,6 +237,9 @@
     <ClCompile Include="dp-core\vr_vxlan.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dp-core\vr_flow.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">
@@ -238,4 +247,3 @@
     </Inf>
   </ItemGroup>
 </Project>
-

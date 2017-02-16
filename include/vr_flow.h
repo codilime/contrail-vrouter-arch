@@ -205,14 +205,12 @@ struct vr_flow {
  * no two values will differ by more than hold count.
  */
 
-__attribute__zerosized__open__
 struct vr_flow_table_info {
     uint64_t vfti_action_count;
     uint64_t vfti_added;
     uint32_t vfti_oflows;
     uint32_t vfti_hold_count[0];
 };
-__attribute__zerosized__close__
 
 /*
  * flow bytes and packets are of same width. this should be

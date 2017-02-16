@@ -7,6 +7,8 @@
 #ifndef __VR_OS_H__
 #define __VR_OS_H__
 
+#include "vr_common.h"
+
 #if defined(__linux__)
 #ifdef __KERNEL__
 
@@ -92,76 +94,20 @@ typedef unsigned int __u32;
 #endif
 #endif /* __FreeBSD__ */
 #if defined(_WINDOWS)
-
-#include <basetsd.h>
-#include <errno.h>
-
+#include "windows_atomic.h"
 #ifdef _NTKERNEL
 
-//#include <Ntifs.h>
-#include "vr_windows.h"
-
-typedef BOOLEAN bool;
-
-#define true TRUE
-#define false FALSE
-
-#define htons(a) RtlUshortByteSwap(a)
-#define ntohs(a) RtlUshortByteSwap(a)
-#define htonl(a) RtlUlongByteSwap(a)
-#define ntohl(a) RtlUlongByteSwap(a)
+#pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
+#pragma warning(disable : 4057)     // difference in indirection (pointer to different type but same size, ex. unsigned char* and int8_t*)
+#pragma warning(disable : 4100)     // unreferenced formal parameter (used a lot in dp-core)
+#pragma warning(disable : 4200)     // nonstandard extension used: zero-sized array in struct/union (it exist in gcc and msvc)
+#pragma warning(disable : 4242)     // '=': conversion, possible loss of data
+#pragma warning(disable : 4244)     // same as above
+#pragma warning(disable : 4267)     // same as above
+#pragma warning(disable : 4389)     // '==': signed/unsigned mismatch
+#pragma warning(disable : 4706)     // assignment within conditional expression
 
 #endif /* _NTKERNEL */
-
-typedef INT8 __s8;
-typedef UINT8 __u8;
-typedef INT16 __s16;
-typedef UINT16 __u16;
-typedef INT32 __s32;
-typedef UINT32 __u32;
-
-typedef INT8 int8_t;
-typedef UINT8 uint8_t;
-typedef INT16 int16_t;
-typedef UINT16 uint16_t;
-typedef INT32 int32_t;
-typedef UINT32 uint32_t;
-typedef INT64 int64_t;
-typedef UINT64 uint64_t;
-
-#define __attribute__packed__open__ __pragma(pack(push, 1))
-#define __attribute__packed__close__ __pragma(pack(pop))
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) /* do nothing */
-#define __attribute__zerosized__open__  __pragma(warning(push) ) \
-                                        __pragma(warning(disable : 4200))
-#define __attribute__zerosized__close__ __pragma(warning(pop))
-
-#define ENETRESET       117
-#define EOPNOTSUPP      130
-#define AF_BRIDGE         7
-struct iovec {
-    void *iov_base;
-    SIZE_T iov_len;
-};
-
-inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
-    return InterlockedAdd((LONG*)a, -b);
-}
-
-#pragma warning(disable : 4706 4267 4244 4242 4100 4018 4389 4057)
-
-#else
-
-#define __attribute__packed__open__ /* do nothing */
-#define __attribute__packed__close__ __attribute__((__packed__))
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
-#define __attribute__zerosized__open__ /* do nothing */
-#define __attribute__zerosized__close__ /* do nothing */
-
-#define UNREFERENCED_PARAMETER(a) (a)
-
 #endif /* _WINDOWS */
 
 extern int vrouter_dbg;
