@@ -9,8 +9,8 @@
     <HardwareIdString />
     <CommandLine>c:\scr.bat</CommandLine>
     <ScriptPath>C:\Program Files (x86)\Windows Kits\10\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
-    <DbgengRemoteMachineName>mc1</DbgengRemoteMachineName>
-    <DbgengKernelMachineName>mc1</DbgengKernelMachineName>
+    <DbgengRemoteMachineName>DebuggingDeploy</DbgengRemoteMachineName>
+    <DbgengKernelMachineName>DebuggingDeploy</DbgengKernelMachineName>
     <DeployFiles />
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />

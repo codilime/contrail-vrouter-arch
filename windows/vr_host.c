@@ -11,23 +11,6 @@ extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
-/* TODO: Change to extern linkage when dp-core/vr_stats.c is ported. */
-void
-vr_malloc_stats(unsigned int size, unsigned int object)
-{
-    UNREFERENCED_PARAMETER(size);
-    UNREFERENCED_PARAMETER(object);
-}
-
-void 
-vr_free_stats(unsigned int object)
-{
-    UNREFERENCED_PARAMETER(object);
-}
-
-// Forward declaration
-static void win_pfree(struct vr_packet *pkt, unsigned short reason);
-
 typedef void(*scheduled_work_cb)(void *arg);
 
 struct deferred_work_cb_data {
@@ -42,6 +25,8 @@ struct scheduled_work_cb_data {
 };
 
 NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
+
+static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward declaration
 
 static PNET_BUFFER_LIST
 create_nbl(unsigned int size)

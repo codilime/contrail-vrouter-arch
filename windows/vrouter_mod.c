@@ -3,6 +3,7 @@
 #include "vr_ksync.h"
 #include "vrouter.h"
 #include "vr_packet.h"
+#include "vr_sandesh.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -28,6 +29,12 @@ static char hex_table[] = {
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 };
+
+static int
+vr_message_init(void)
+{
+    return vr_sandesh_init();
+}
 
 /*  Dumps packet contents to the debug buffer. Packet contents will be formatted in
     Wireshark friendly format.
@@ -147,33 +154,35 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-    UNREFERENCED_PARAMETER(DriverObject);
+    int ret;
     DbgPrint("SxExtInitialize\r\n");
-
+    
     vr_num_cpus = KeQueryActiveProcessorCount(NULL);
     if (!vr_num_cpus) {
         DbgPrint("%s: Failed to get processor count\n", __func__);
         return NDIS_STATUS_FAILURE;
     }
-
+    
     NTSTATUS Status = CreateDevice(DriverObject);
-    if (NT_ERROR(Status))
+
+    ret = vr_message_init();
+    
+    if (NT_ERROR(Status) || ret)
     {
-        return NDIS_STATUS_DEVICE_FAILED;
+	    return NDIS_STATUS_DEVICE_FAILED;
     }
     else if (!NT_SUCCESS(Status))
     {
-        DbgPrint("CreateDevice informal/warning: %d\n", Status);
+	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
     }
 
-  return NDIS_STATUS_SUCCESS;
+    return NDIS_STATUS_SUCCESS;
 }
 
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
     DbgPrint("SxExtUninitialize\r\n");
-    DestroyDevice(DriverObject);
 }
 
 NDIS_STATUS
