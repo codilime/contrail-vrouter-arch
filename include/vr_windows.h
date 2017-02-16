@@ -12,6 +12,9 @@ extern "C" {
 
 #define VR_OID_SOURCE	0x00000001
 #define VR_AGENT_SOURCE	0x00000002
+#define NLA_HDRLEN      4
+#define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
+#define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)
 
 struct vr_interface; // Forward declaration
 
@@ -47,6 +50,26 @@ struct vr_assoc {
 
 NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRING friendly);
 
+struct nlattr {
+    UINT16           nla_len;
+    UINT16           nla_type;
+};
+
+struct nlmsghdr {
+    UINT32           nlmsg_len;      /* Length of message including header */
+    UINT16           nlmsg_type;     /* Message content */
+    UINT16           nlmsg_flags;    /* Additional flags */
+    UINT32           nlmsg_seq;      /* Sequence number */
+    UINT32           nlmsg_pid;      /* Sending process port ID */
+};
+
+struct genlmsghdr {
+    UINT8    cmd;
+    UINT8    version;
+    UINT16   reserved;
+};
+
+struct vr_interface* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING string);
 struct vr_assoc* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING string);
 void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct vr_interface* interface);
 void vr_delete_assoc_name(const NDIS_IF_COUNTED_STRING interface_name);

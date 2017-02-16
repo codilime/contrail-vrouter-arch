@@ -139,7 +139,7 @@ typedef UINT64 uint64_t;
 
 #define ENETRESET       117
 #define EOPNOTSUPP      130
-
+#define AF_BRIDGE         7
 struct iovec {
     void *iov_base;
     SIZE_T iov_len;
@@ -149,7 +149,7 @@ inline unsigned int __sync_sub_and_fetch(unsigned int *a, int b) {
     return InterlockedAdd((LONG*)a, -b);
 }
 
-#pragma warning(disable : 4706 4267 4244 4242)
+#pragma warning(disable : 4706 4267 4244 4242 4100 4018 4389 4057)
 
 #else
 

@@ -11,20 +11,6 @@ extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
-/* TODO: Change to extern linkage when dp-core/vr_stats.c is ported. */
-void
-vr_malloc_stats(unsigned int size, unsigned int object)
-{
-    UNREFERENCED_PARAMETER(size);
-    UNREFERENCED_PARAMETER(object);
-}
-
-void 
-vr_free_stats(unsigned int object)
-{
-    UNREFERENCED_PARAMETER(object);
-}
-
 typedef void(*scheduled_work_cb)(void *arg);
 
 struct deferred_work_cb_data {

@@ -3,6 +3,7 @@
 #include "vr_ksync.h"
 #include "vrouter.h"
 #include "vr_packet.h"
+#include "vr_sandesh.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -23,6 +24,12 @@ NDIS_HANDLE SxNBLPool = NULL;
 * `host_os` struct.
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
+
+static int
+vr_message_init(void)
+{
+    return vr_sandesh_init();
+}
 
 static char encoding_table[] = {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
@@ -104,26 +111,29 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-	DbgPrint("SxExtInitialize\r\n");
-	NTSTATUS Status = CreateDevice(DriverObject);
+    int ret;
+    DbgPrint("SxExtInitialize\r\n");
+    
+    NTSTATUS Status = CreateDevice(DriverObject);
 
-	if (NT_ERROR(Status))
-	{
-		return NDIS_STATUS_DEVICE_FAILED;
-	}
-	else if (!NT_SUCCESS(Status))
-	{
-		DbgPrint("CreateDevice informal/warning: %d\n", Status);
-	}
+    ret = vr_message_init();
+    
+    if (NT_ERROR(Status) || ret)
+    {
+	    return NDIS_STATUS_DEVICE_FAILED;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
+    }
 
-  return NDIS_STATUS_SUCCESS;
+    return NDIS_STATUS_SUCCESS;
 }
 
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
     DbgPrint("SxExtUninitialize\r\n");
-    DestroyDevice(DriverObject);
 }
 
 NDIS_STATUS
