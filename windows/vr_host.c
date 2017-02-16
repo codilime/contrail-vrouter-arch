@@ -26,6 +26,8 @@ struct scheduled_work_cb_data {
 
 NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
 
+static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward declaration
+
 static PNET_BUFFER_LIST
 create_nbl(unsigned int size)
 {
@@ -167,7 +169,7 @@ win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
     return nbl->MiniportReserved[VR_MINIPORT_VPKT_INDEX];
 }
 
-inline struct vr_packet *
+struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
@@ -176,18 +178,17 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     win_assoc_packet_nb(nbl, pkt);
 
     pkt->vp_net_buffer_list = nbl;
-    pkt->vp_cpu = (unsigned char)vr_get_cpu();
+    pkt->vp_cpu = (unsigned char)win_get_cpu();
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    pkt->vp_head =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute) + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    if (!pkt->vp_head)
+    unsigned char* mdl_data =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute);
+    if (!mdl_data)
         goto drop;
-
+    pkt->vp_head = mdl_data + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
     pkt->vp_tail = pkt->vp_data = 0;
 
     unsigned short length = (unsigned short) NET_BUFFER_DATA_LENGTH(nb);
-
     pkt->vp_end = length;
 
     pkt->vp_len = 0;
@@ -208,7 +209,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    vr_pfree(pkt, VP_DROP_INVALID_PACKET);
+    win_pfree(pkt, VP_DROP_INVALID_PACKET);
     return NULL;
 }
 
@@ -344,27 +345,15 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 }
 
-static int
-win_pcopy(unsigned char *dst, struct vr_packet *p_src,
-        unsigned int offset, unsigned int len)
+int
+win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER nb,
+    unsigned int offset, unsigned int len)
 {
-    if (!p_src) {
-        return -EFAULT;
-    }
-    PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
-    if (!nbl) {
-        return -EFAULT;
-    }
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    if (!nb) {
-        return -EFAULT;
-    }
-
     /*  Check if requested data lies inside NET_BUFFER data buffer:
-            * data_offset - offset inside MDL list
-            * data_length - size of the data stored in MDL list
+        * data_offset - offset inside MDL list
+        * data_length - size of the data stored in MDL list
         Relation between those is presented in https://msdn.microsoft.com/en-us/microsoft-r/ff568728.aspx
-     */
+    */
     ULONG data_offset = NET_BUFFER_DATA_OFFSET(nb);
     ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG data_size = data_offset + data_length;
@@ -413,7 +402,8 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
     }
 
     /*  Iterate MDL list, starting from where `current_mdl` now points and copy the rest
-        of the requested data */
+        of the requested data
+    */
     current_mdl = current_mdl->Next;
     while (current_mdl && copied_bytes < len) {
         /* Get the pointer to the beginning of data represented in current MDL. */
@@ -441,11 +431,30 @@ win_pcopy(unsigned char *dst, struct vr_packet *p_src,
     if (copied_bytes < len) {
         /*  This case appears when MDL list has ended before all of the requested
             packet data could be copied.
-         */
+        */
         return -EFAULT;
     }
 
     return len;
+}
+
+static int
+win_pcopy(unsigned char *dst, struct vr_packet *p_src,
+        unsigned int offset, unsigned int len)
+{
+    if (!p_src) {
+        return -EFAULT;
+    }
+    PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
+    if (!nbl) {
+        return -EFAULT;
+    }
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (!nb) {
+        return -EFAULT;
+    }
+
+    return win_pcopy_from_nb(dst, nb, offset, len);
 }
 
 static unsigned short

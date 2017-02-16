@@ -78,6 +78,9 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
     if (*field == NULL)
     {
         *field = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_assoc), SxExtAllocationTag);
+        if (*field != NULL) {
+            return NULL;
+        }
         RtlZeroMemory(*field, sizeof(struct vr_assoc));
         setter(*field, params);
     }
@@ -106,9 +109,11 @@ void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, cons
 
 static void setter_name(struct vr_assoc* entry, const struct criteria* params)
 {
-    entry->string = params->name;
-    entry->nic_index = 0;
-    entry->port_id = 0;
+    if (entry) {
+        entry->string = params->name;
+        entry->nic_index = 0;
+        entry->port_id = 0;
+    }
 }
 
 static int hash_name(const struct criteria* params)
@@ -158,8 +163,10 @@ void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct v
 
     struct vr_assoc* element = vr_get_assoc(name_map, setter_name, hash_name, cmp_name, &params);
 
-    element->interface = interface;
-    element->sources |= VR_OID_SOURCE;
+    if (element) {
+        element->interface = interface;
+        element->sources |= VR_OID_SOURCE;
+    }
 
     NdisReleaseRWLock(name_lock, &lock);
 
@@ -182,8 +189,10 @@ void vr_delete_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
 
 static void setter_ids(struct vr_assoc* entry, const struct criteria* params)
 {
-    entry->nic_index = params->nic_index;
-    entry->port_id = params->port_id;
+    if (entry) {
+        entry->nic_index = params->nic_index;
+        entry->port_id = params->port_id;
+    }
 }
 
 static int hash_ids(const struct criteria* params)
@@ -228,8 +237,10 @@ void vr_set_assoc_oid_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_N
 
     struct vr_assoc* element = vr_get_assoc(ids_map, setter_ids, hash_ids, cmp_ids, &params);
 
-    element->interface = interface;
-    element->sources |= VR_OID_SOURCE;
+    if (element) {
+        element->interface = interface;
+        element->sources |= VR_OID_SOURCE;
+    }
 
     NdisReleaseRWLock(ids_lock, &lock);
     return;
@@ -283,8 +294,17 @@ void vr_clean_assoc()
     NdisFreeRWLock(ids_lock);
 }
 
-void vr_init_assoc()
+int vr_init_assoc()
 {
     name_lock = NdisAllocateRWLock(SxSwitchObject->NdisFilterHandle);
+    if (!name_lock) {
+        return VR_INIT_ASSOC_FAILED;
+    }
+
     ids_lock = NdisAllocateRWLock(SxSwitchObject->NdisFilterHandle);
+    if (!ids_lock) {
+        return VR_INIT_ASSOC_FAILED;
+    }
+
+    return VR_INIT_ASSOC_OK;
 }

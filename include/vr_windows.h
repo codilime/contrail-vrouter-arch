@@ -16,6 +16,9 @@ extern "C" {
 #define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
 #define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)
 
+#define VR_INIT_ASSOC_OK        0
+#define VR_INIT_ASSOC_FAILED    1
+
 struct vr_interface; // Forward declaration
 
 struct vr_packet;
@@ -69,7 +72,6 @@ struct genlmsghdr {
     UINT16   reserved;
 };
 
-struct vr_interface* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING string);
 struct vr_assoc* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING string);
 void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct vr_interface* interface);
 void vr_delete_assoc_name(const NDIS_IF_COUNTED_STRING interface_name);
@@ -78,7 +80,7 @@ struct vr_assoc* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_
 void vr_set_assoc_oid_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index, struct vr_interface* interface);
 void vr_delete_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index);
 
-void vr_init_assoc();
+int vr_init_assoc();
 void vr_clean_assoc();
 
 void get_random_bytes(void *buf, int nbytes);
@@ -87,7 +89,9 @@ struct host_os * vrouter_get_host(void);
 
 NDIS_HANDLE vrouter_generate_pool(void);
 void vrouter_free_pool(NDIS_HANDLE pool);
-struct vr_packet* win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
+struct vr_packet *win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif);
+struct vr_packet *win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
+int win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER src, unsigned int offset, unsigned int len);
 
 extern struct host_os windows_host;
 

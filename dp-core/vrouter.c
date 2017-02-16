@@ -103,7 +103,6 @@ static struct vr_module modules[] = {
         .exit           =       vr_qos_exit,
     },*/
 
-
 };
 
 

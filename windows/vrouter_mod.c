@@ -25,48 +25,91 @@ NDIS_HANDLE SxNBLPool = NULL;
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 
+static char hex_table[] = {
+    '0', '1', '2', '3', '4', '5', '6', '7',
+    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+};
+
 static int
 vr_message_init(void)
 {
     return vr_sandesh_init();
 }
 
-static char encoding_table[] = {
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
-    'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-    'w', 'x', 'y', 'z', '0', '1', '2', '3',
-    '4', '5', '6', '7', '8', '9', '+', '/' };
-static int mod_table[] = { 0, 2, 1 };
+/*  Dumps packet contents to the debug buffer. Packet contents will be formatted in
+    Wireshark friendly format.
+*/
+void
+debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
+{
+#ifdef _DEBUG
+    ULONG data_length;
+    ULONG str_length;
+    ULONG str_alloc_size;
+    unsigned char *buffer;
+    unsigned char *str;
+    int bytes_copied;
+    int i, j;
 
-char *base64_encode(const unsigned char *data, size_t input_length) {
-    size_t output_length = 4 * ((input_length + 2) / 3);
-
-    char *encoded_data = ExAllocatePoolWithTag(NonPagedPoolNx, output_length + 1, SxExtAllocationTag);
-    if (encoded_data == NULL) return NULL;
-
-    for (int i = 0, j = 0; i < input_length;) {
-
-        UINT32 octet_a = i < input_length ? (unsigned char)data[i++] : 0;
-        UINT32 octet_b = i < input_length ? (unsigned char)data[i++] : 0;
-        UINT32 octet_c = i < input_length ? (unsigned char)data[i++] : 0;
-
-        UINT32 triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
-
-        encoded_data[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
-        encoded_data[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
-        encoded_data[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
-        encoded_data[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
+    if (!nb) {
+        return;
     }
 
-    for (int i = 0; i < mod_table[input_length % 3]; i++)
-        encoded_data[output_length - 1 - i] = '=';
-    encoded_data[output_length] = 0;
+    data_length = NET_BUFFER_DATA_LENGTH(nb);
+    str_length = data_length * 3 + 1;  // '|' + 3 chars ("FF|") per byte
+    str_alloc_size = str_length + 1;  // additional '\0' at the end
 
-    return encoded_data;
+    buffer = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, data_length, SxExtAllocationTag);
+    if (!buffer) {
+        return;
+    }
+    str = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, str_alloc_size, SxExtAllocationTag);
+    if (!str) {
+        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        return;
+    }
+
+    bytes_copied = win_pcopy_from_nb(buffer, nb, 0, data_length);
+    if (bytes_copied < 0) {
+        DbgPrint("%s: win_pcopy_from_nbl failed; result = %d\n", bytes_copied);
+        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        return;
+    }
+
+    str[0] = '|';
+    for (i = 0, j = 1; i < bytes_copied; ++i, j += 3) {
+        str[j]     = hex_table[(buffer[i] & 0xF0) >> 4];
+        str[j + 1] = hex_table[(buffer[i] & 0x0F)];
+        str[j + 2] = '|';
+    }
+    str[j] = 0;
+    
+    // DbgPrint only transmits at most 512 bytes in single call, so multiple prints are needed
+    // to dump whole packet contents.
+    DbgPrint("%s data[length=%d,copied=%d]: ", prefix, data_length, bytes_copied);
+    unsigned char *str_iter = str;
+    unsigned char tmp;
+    ULONG printed = 0, max_print_length = 510;
+    ULONG to_print;
+    while (printed < str_length) {
+        if (str_length - printed < max_print_length) {
+            to_print = str_length - printed;
+        } else {
+            to_print = max_print_length;
+        }
+        tmp = str_iter[to_print];
+        str_iter[to_print] = 0;
+        DbgPrint("%s", str_iter);
+        str_iter[to_print] = tmp;
+
+        str_iter += to_print;
+        printed += to_print;
+    }
+    DbgPrint("\n");
+
+    ExFreePoolWithTag(str, SxExtAllocationTag);
+    ExFreePoolWithTag(buffer, SxExtAllocationTag);
+#endif
 }
 
 NDIS_STATUS
@@ -114,6 +157,12 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
     int ret;
     DbgPrint("SxExtInitialize\r\n");
     
+    vr_num_cpus = KeQueryActiveProcessorCount(NULL);
+    if (!vr_num_cpus) {
+        DbgPrint("%s: Failed to get processor count\n", __func__);
+        return NDIS_STATUS_FAILURE;
+    }
+    
     NTSTATUS Status = CreateDevice(DriverObject);
 
     ret = vr_message_init();
@@ -145,9 +194,12 @@ SxExtCreateSwitch(
     DbgPrint("SxExtCreateSwitch\r\n");
 
     struct vr_switch_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
+    if (!ctx) {
+        DbgPrint("%s: Allocating vr_switch_context failed\n", __func__);
+        return NDIS_STATUS_FAILURE;
+    }
     RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
     ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
-
     ctx->restart = TRUE;
 
     *ExtensionContext = (NDIS_HANDLE)ctx;
@@ -165,16 +217,20 @@ SxExtCreateSwitch(
         return NDIS_STATUS_RESOURCES;
     }
 
-    if (vrouter_init())
-    {
-        NdisFreeRWLock(AsyncWorkRWLock);
-        NdisFreeNetBufferListPool(SxNBLPool);
-        return NDIS_STATUS_FAILURE;
+    if (vrouter_init()) {
+        goto Failure;
     }
 
-    vr_init_assoc();
+    if (vr_init_assoc()) {
+        goto Failure;
+    }
 
     return NDIS_STATUS_SUCCESS;
+
+Failure:
+    NdisFreeRWLock(AsyncWorkRWLock);
+    NdisFreeNetBufferListPool(SxNBLPool);
+    return NDIS_STATUS_FAILURE;
 }
 
 VOID
@@ -194,7 +250,6 @@ SxExtDeleteSwitch(
     ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);
 
     vr_clean_assoc();
-
     vrouter_exit(false);
 }
 
@@ -685,6 +740,48 @@ SxExtProcessNicStatus(
     return 0;
 }
 
+static void
+vr_win_split_nbls_by_forwarding_type(
+    PNET_BUFFER_LIST nbl,
+    PNET_BUFFER_LIST *nextExtForwardNbl,
+    PNET_BUFFER_LIST *nextNativeForwardedNbl)
+{
+    PNET_BUFFER_LIST curNbl;
+    PNET_BUFFER_LIST nextNbl;
+    PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwdDetail;
+
+    // Divide the NBL into two: part which requires native forwarding and the rest
+    for (curNbl = nbl; curNbl != NULL; curNbl = nextNbl)
+    {
+        // Rememeber the next NBL
+        nextNbl = curNbl->Next;
+
+        fwdDetail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
+
+        if (fwdDetail->NativeForwardingRequired)
+        {
+            // Set the next NBL to current NBL. This pointer points to either first pointer to
+            // native forwarded NBL or the "Next" field of the last one.
+            *nextNativeForwardedNbl = curNbl;
+            nextNativeForwardedNbl = &(curNbl->Next);
+        }
+        else
+        {
+            // Set the next NBL to current NBL. This pointer points to either first pointer to
+            // non-native forwarded NBL or the "Next" field of the last one.
+            *nextExtForwardNbl = curNbl;
+            nextExtForwardNbl = &(curNbl->Next);
+        }
+    }
+}
+
+static void
+vr_win_add_to_dropped_pkts(PNET_BUFFER_LIST nbl, PNET_BUFFER_LIST *dropped)
+{
+    *dropped = nbl;
+    dropped = &nbl->Next;
+}
+
 VOID
 SxExtStartNetBufferListsIngress(
     _In_ PSX_SWITCH_OBJECT Switch,
@@ -693,155 +790,110 @@ SxExtStartNetBufferListsIngress(
     _In_ ULONG SendFlags
 )
 {
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    DbgPrint("SxExtStartNetBufferListsIngress\r\n");
-
     struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
-    PNDIS_RW_LOCK_EX lock = ctx->lock;
     LOCK_STATE_EX lockState;
 
     BOOLEAN sameSource;
     ULONG sendCompleteFlags = 0;
-    BOOLEAN dispatch;
+    BOOLEAN on_dispatch_level;
 
-    PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwdDetail;
-
+    PNET_BUFFER_LIST extForwardedNbls = NULL;  // NBLs forwarded by extension.
+    PNET_BUFFER_LIST nativeForwardedNbls = NULL;  // NBLs that require native forwarding - extension just sends them.
     PNET_BUFFER_LIST dropNbl = NULL;
-    PNET_BUFFER_LIST extForwardedNbls = NULL;
-    PNET_BUFFER_LIST nativeForwardedNbls = NULL;
-    PNET_BUFFER_LIST *nextExtForwardNbl = &extForwardedNbls;
-    PNET_BUFFER_LIST *nextNativeForwardedNbl = &nativeForwardedNbls;
+    PNET_BUFFER_LIST *nextDropNbl = &dropNbl;
+    PNET_BUFFER_LIST curNbl = NULL;
 
-    PNET_BUFFER_LIST curNbl = NULL, nextNbl = NULL;
-
-    dispatch = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+    // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
+    if (sameSource) {
+        sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE;
+    }
 
-    sendCompleteFlags |= (dispatch) ? NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0;
-    SendFlags |= NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP;
+    // Forward DISPATCH_LEVEL flag.
+    on_dispatch_level = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+    if (on_dispatch_level) {
+        sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL;
+    }
 
     // Acquire the lock, now interfaces cannot disconnect, etc.
-    NdisAcquireRWLockRead(lock, &lockState, dispatch);
+    NdisAcquireRWLockRead(ctx->lock, &lockState, on_dispatch_level);
 
-    // Mark the flag is everything comes from a single source
-    if (sameSource)
+    vr_win_split_nbls_by_forwarding_type(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
+
+    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = curNbl->Next)
     {
-        sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE;
-        DbgPrint("Same-source NBL\r\n");
-    }
-    else
-    {
-        DbgPrint("Not same-source NBL\r\n");
-    }
-
-    // Divide the NBL into two: part which requires native forwarding and the rest
-    for (curNbl = NetBufferLists; curNbl != NULL; curNbl = nextNbl)
-    {
-        // Rememeber the next NBL
-        nextNbl = curNbl->Next;
-        // Break the list
-        curNbl->Next = NULL;
-
-        fwdDetail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
-
-        if (fwdDetail->NativeForwardingRequired)
-        {
-            DbgPrint("Native forwarded NBL\r\n");
-            // Set the next NBL to current NBL. This pointer points to either first pointer to
-            // native forwarded NBL or the "Next" field of the last one.
-            *nextNativeForwardedNbl = curNbl;
-            nextNativeForwardedNbl = &(curNbl->Next);
+        //  vif := vr_interface from <source_port_id, nic_id>
+        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
+        NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
+        NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
+        struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
+        struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
+        if (!vif) {
+            // If no vif attached yet, then drop NBL.
+            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
+            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
+            debug_print_net_buffer(nb, "StartIngress: dropped, vif == NULL");
+            continue;
         }
-        else
-        {
-            DbgPrint("Non-native forewarded NBL\r\n");
-            // Set the next NBL to current NBL. This pointer points to either first pointer to
-            // non-native forwarded NBL or the "Next" field of the last one.
-            *nextExtForwardNbl = curNbl;
-            nextExtForwardNbl = &(curNbl->Next);
+
+        //  pkt := vr_packet from PNET_BUFFER_LIST and vr_interface
+        struct vr_packet *pkt = win_get_packet(curNbl, vif);
+        if (!pkt) {
+            // If creating vr_packet failed, then drop NBL.
+            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
+            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
+            debug_print_net_buffer(nb, "StartIngress: dropped, couldn't get vr_packet");
+            continue;
+        }
+
+        if (vif->vif_rx) {
+            int rx_ret = vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
+            if (!rx_ret) {
+                // TODO: Remove packet drop when dp-core will properfly forward packets.
+                vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
+                NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
+                debug_print_net_buffer(nb, "StartIngress: vif_rx succeeded");
+            } else {
+                //  If vif_rx failed, then drop NBL.
+                //  TODO: Proper error logging.
+                vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
+                DbgPrint("StartIngress: dropped, vif_rx failed");
+            }
+        } else {
+            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
+            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
+            debug_print_net_buffer(nb, "StartIngress: vif_rx == NULL");
+            continue;
         }
     }
 
-    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
-    {
-        nextNbl = curNbl->Next;
+    // Release the lock, now interfaces can disconnect, etc.
+    NdisReleaseRWLock(ctx->lock, &lockState);
 
-        NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-        MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
-        void* ptr = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
-        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO  fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
-        DbgPrint("Source port ID: %u\r\n", fwd->SourcePortId);
+    // Handle packet sending
+    // NOTE: Currently every received packet is dropped.
+    /*if (extForwardedNbls != NULL) {
+        DbgPrint("StartIngress: send extension forwarded NBL\r\n");
+        SxLibSendNetBufferListsIngress(Switch,
+            extForwardedNbls,
+            SendFlags,
+            0);
+    }*/
 
-        char* str = base64_encode((const unsigned char*) ptr + NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
-        DbgPrint("Packet data : %s\r\n", str);
-
-        ExFreePoolWithTag(str, SxExtAllocationTag);
-    }
-
-    if (nativeForwardedNbls != NULL)
-    {
-        DbgPrint("Sending native forwarded NBLs\r\n");
+    if (nativeForwardedNbls != NULL) {
+        DbgPrint("StartIngress: send native forwarded NBL\r\n");
         SxLibSendNetBufferListsIngress(Switch,
             nativeForwardedNbls,
             SendFlags,
             0);
     }
 
-    if (extForwardedNbls != NULL)
-    {
-        PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY broadcastArray = NULL;
-        Switch->NdisSwitchHandlers.GetNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, &broadcastArray);
-
-        if (broadcastArray)
-        {
-            DbgPrint("NumDestinations: %u, NumElements: %u\r\n", broadcastArray->NumDestinations, broadcastArray->NumElements);
-            DbgPrint("%u Nics...\r\n", ctx->num_nics);
-        }
-        else
-        {
-            DbgPrint("Broadcast Array is NULL\r\n");
-        }
-
-        unsigned int numTargets = ctx->num_nics;
-
-        if (broadcastArray->NumDestinations < numTargets)
-        {
-            Switch->NdisSwitchHandlers.GrowNetBufferListDestinations(Switch->NdisSwitchContext, extForwardedNbls, numTargets - broadcastArray->NumDestinations, &broadcastArray);
-            DbgPrint("Adding %u targets to broacastArray\r\n", numTargets - broadcastArray->NumDestinations);
-        }
-
-        NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
-
-        for (unsigned int i = 0; i < ctx->num_nics; i++)
-        {
-            newDestination.PortId = ctx->nics[i].port_id;
-            newDestination.NicIndex = ctx->nics[i].nic_index;
-
-            DbgPrint("Adding target, PID: %u, NID: %u\r\n", newDestination.PortId, newDestination.NicIndex);
-
-            Switch->NdisSwitchHandlers.AddNetBufferListDestination(Switch->NdisSwitchContext, extForwardedNbls, &newDestination);
-        }
-
-
-
-        DbgPrint("Sending extension forwarded NBLs\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
-            extForwardedNbls,
-            SendFlags,
-            0);
-    }
-
-    if (dropNbl != NULL)
-    {
-        DbgPrint("Dropping dropped NBLs\r\n");
+    if (dropNbl != NULL) {
+        DbgPrint("StartIngress: dropping dropped NBLs\r\n");
         SxLibCompleteNetBufferListsIngress(Switch,
             dropNbl,
             sendCompleteFlags);
     }
-
-    // Release the lock, now interfaces can disconnect, etc.
-    NdisReleaseRWLock(lock, &lockState);
 }
 
 VOID
