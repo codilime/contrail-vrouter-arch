@@ -2127,6 +2127,13 @@ lh_soft_reset(struct vrouter *router)
     return;
 }
 
+void
+lh_register_nic(struct vr_interface* vif)
+{
+    UNREFERENCED_PARAMETER(vif);
+    // NOOP
+}
+
 struct host_os linux_host = {
     .hos_printf                     =       lh_printk,
     .hos_malloc                     =       lh_malloc,
@@ -2176,6 +2183,7 @@ struct host_os linux_host = {
     .hos_get_log_level              =       lh_get_log_level,
     .hos_get_enabled_log_types      =       lh_get_enabled_log_types,
     .hos_soft_reset                 =       lh_soft_reset,
+    .hos_register_nic               =       lh_register_nic,
 };
     
 struct host_os *

@@ -124,6 +124,9 @@
     <ClInclude Include="include\vr_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\vr_ksync.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">
@@ -169,6 +172,69 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\windows_random.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_ksync.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host_interface.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_sandesh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_qos.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tools\sandesh\library\c\sandesh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_protocol.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_fake_transport.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_memory_buffer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_transport.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\sandesh-temp\vr_types.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_stats.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_mpls.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_response.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_route.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_ip_mtrie.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_vrf_assign.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_host_interface.c">	    
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_vxlan.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_flow.c">

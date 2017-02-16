@@ -15,39 +15,42 @@ unsigned int vr_num_cpus = 0;
 struct vr_vrf_stats *(*vr_inet_vrf_stats)(int, unsigned int);
 
 
-int vr_fib_init(struct vrouter *router) {
+vr_itable_t
+vr_itable_create(unsigned int index_len, unsigned int stride_cnt, ...)
+{
     return 0;
 }
 
-void vr_fib_exit(struct vrouter *router, bool soft_reset) {
-}
+struct vr_nexthop *(*vr_bridge_lookup)(unsigned int, struct vr_route_req *);
 
-int vr_vxlan_init(struct vrouter *router) {
+int
+vr_itable_trav(vr_itable_t t, vr_itable_trav_cb_t func,
+    unsigned int marker, void *udata)
+{
     return 0;
 }
 
-void vr_vxlan_exit(struct vrouter *router, bool soft_reset) {
-}
-
-int vr_stats_init(struct vrouter *router) {
+void *
+vr_itable_set(vr_itable_t t, unsigned int index, void *data)
+{
     return 0;
 }
 
-void vr_stats_exit(struct vrouter *router, bool soft_reset) {
-}
-
-int vr_mpls_init(struct vrouter *router) {
+void *
+vr_itable_get(vr_itable_t t, unsigned int index)
+{
     return 0;
 }
 
-void vr_mpls_exit(struct vrouter *router, bool soft_reset) {
+void
+vr_itable_delete(vr_itable_t t, vr_itable_del_cb_t func)
+{
 }
 
-int vr_qos_init(struct vrouter *router) {
+void *
+vr_itable_del(vr_itable_t t, unsigned int index)
+{
     return 0;
-}
-
-void vr_qos_exit(struct vrouter *router, bool soft_reset) {
 }
 
 unsigned int vr_bridge_table_used_oflow_entries(struct vrouter *router) {
@@ -56,10 +59,6 @@ unsigned int vr_bridge_table_used_oflow_entries(struct vrouter *router) {
 
 unsigned int vr_bridge_table_used_total_entries(struct vrouter *router) {
     return 0;
-}
-
-struct host_os * vrouter_get_host(void) {
-    return vrouter_host;
 }
 
 unsigned int vr_virtual_input(unsigned short vrf, struct vr_interface *vif, struct vr_packet *pkt, unsigned short vlan_id) {
@@ -101,16 +100,6 @@ int vif_plug_mac_request(struct vr_interface *vif, struct vr_packet *pkt, struct
     return 0;
 }
 
-struct vr_host_interface_ops *vr_host_interface_init(void) {
-    return NULL;
-}
-
-void vr_host_interface_exit(void) {
-}
-
-void vr_host_vif_init(struct vrouter *router) {
-}
-
 struct vr_interface *vif_bridge_get_sub_interface(vr_htable_t htable, unsigned short vlan, unsigned char *mac) {
     return NULL;
 }
@@ -137,10 +126,6 @@ int vif_bridge_add(struct vr_interface *pvif, struct vr_interface *vif) {
 
 void vhost_remove_xconnect(void) {
     return;
-}
-
-struct vr_forwarding_class_qos *vr_qos_get_forwarding_class(struct vrouter *router, struct vr_packet *pkt, struct vr_forwarding_md *fmd) {
-    return NULL;
 }
 
 int vr_inet6_form_flow(struct vrouter *router, unsigned short vrf, struct vr_packet *pkt, uint16_t vlan, struct vr_ip6 *ip6, struct vr_flow *flow_p) {
@@ -226,6 +211,7 @@ l4_pkt_type_t vr_ip_well_known_packet(struct vr_packet *pkt) {
     return 0;
 }
 
+
 vr_htable_t vr_htable_attach(struct vrouter *router, unsigned int entries, void *htable, unsigned int oentries, void *otable, unsigned int entry_size, unsigned int key_size, unsigned int bucket_size, get_hentry_key get_entry_key) {
     return (vr_htable_t)0;
 }
@@ -301,13 +287,15 @@ unsigned int vr_reinject_packet(struct vr_packet *pkt, struct vr_forwarding_md *
     return 0;
 }
 
-struct vr_nexthop *__vrouter_get_label(struct vrouter *router, unsigned int label) {
-    return NULL;
-}
-
 int vr_fragment_table_init(struct vrouter *router) {
     return 0;
 }
 
 void vr_fragment_table_exit(struct vrouter *router) {
+}
+
+int bridge_table_init(struct vr_rtable *a, struct rtable_fspec *b) {
+    return 0;
+}
+void bridge_table_deinit(struct vr_rtable *x, struct rtable_fspec *y, bool z) {
 }

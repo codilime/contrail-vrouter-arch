@@ -23,13 +23,12 @@ typedef BOOLEAN bool;
 
 #else
 
-#include <Windows.h>
+#include <winsock2.h>
+#include <windows.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 #endif /* _NTKERNEL */
-
-#include "windows_atomic.h"
 
 typedef INT8 __s8;
 typedef UINT8 __u8;
@@ -54,6 +53,7 @@ typedef UINT64 uint64_t;
 
 #define ENETRESET       117
 #define EOPNOTSUPP      130
+#define AF_BRIDGE       7
 
 struct iovec {
     void *iov_base;

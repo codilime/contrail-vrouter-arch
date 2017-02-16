@@ -66,6 +66,7 @@ static struct vr_module modules[] = {
         .exit           =       vr_interface_exit,
         .shut           =       vr_interface_shut,
     },
+    /* Uncomment as needed and possible (ATM it causes runtime errors)
     {
         .mod_name       =       "Nexthop",
         .init           =       vr_nexthop_init,
@@ -100,8 +101,7 @@ static struct vr_module modules[] = {
         .mod_name       =       "QOS",
         .init           =       vr_qos_init,
         .exit           =       vr_qos_exit,
-    },
-
+    },*/
 
 };
 

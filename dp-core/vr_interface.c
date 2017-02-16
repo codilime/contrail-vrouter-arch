@@ -1946,6 +1946,8 @@ generate_resp:
 
     if (ret && vif)
         vif_free(vif);
+    else
+        vr_register_nic(vif);
 
     return ret;
 }
