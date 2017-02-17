@@ -105,6 +105,7 @@ typedef unsigned int __u32;
 #pragma warning(disable : 4244)     // same as above
 #pragma warning(disable : 4267)     // same as above
 #pragma warning(disable : 4389)     // '==': signed/unsigned mismatch
+#pragma warning(disable : 4701)     // potentially uninitialized local variable used
 #pragma warning(disable : 4706)     // assignment within conditional expression
 
 #endif /* _NTKERNEL */

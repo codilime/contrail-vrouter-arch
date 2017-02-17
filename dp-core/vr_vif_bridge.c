@@ -18,16 +18,18 @@
 #define VIF_BRIDGE_ENTRIES      1024
 #define VIF_BRIDGE_OENTRIES     512
 
+__attribute__packed__open__
 struct vif_bridge_key {
     unsigned short vbk_vlan;
     unsigned char vbk_mac[VR_ETHER_ALEN];
-} __attribute__((packed));
+} __attribute__packed__close__;
 
+__attribute__packed__open__
 struct vif_bridge_entry {
     vr_hentry_t vif_bridge_hentry;
     struct vif_bridge_key vbe_key;
     struct vr_interface *vbe_vif;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 static struct vif_bridge_entry *
 vif_bridge_get(vr_htable_t htable, unsigned short vlan,
@@ -71,9 +73,10 @@ vif_bridge_get_index(struct vr_interface *pvif, struct vr_interface *vif)
 
 static void
 vif_bridge_free(vr_htable_t htable, vr_hentry_t *hentry,
-        unsigned int index __attribute__((unused)),
-        void *data __attribute__((unused)))
+        unsigned int index, void *data)
 {
+    UNREFERENCED_PARAMETER(index);
+    UNREFERENCED_PARAMETER(data);
     struct vif_bridge_entry *be = (struct vif_bridge_entry *)hentry;
 
     if (!be)

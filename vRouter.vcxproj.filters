@@ -231,13 +231,28 @@
     <ClCompile Include="windows\vr_host.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="windows\vr_host_interface.c">	    
+    <ClCompile Include="windows\vr_host_interface.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_vxlan.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_flow.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_datapath.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_bridge.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_htable.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_btable.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_vif_bridge.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

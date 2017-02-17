@@ -2,6 +2,41 @@
 
 #include "test_defines.h"
 #include <stdint.h>
+
+static void vr_sync_bool_compare_and_swap_8u_swap(void **state) {
+    UNREFERENCED_PARAMETER(state);
+    UINT8 a = 5, b = 5, c = 7;
+    bool ret = vr_sync_bool_compare_and_swap_8u(&a, b, c);
+    assert_true(ret);
+    assert_true(a == c);
+}
+
+static void vr_sync_bool_compare_and_swap_8u_noswap(void **state) {
+    UNREFERENCED_PARAMETER(state);
+    UINT8 a = 5, b = 9, c = 7;
+    UINT8 old_a = a;
+    bool ret = vr_sync_bool_compare_and_swap_8u(&a, b, c);
+    assert_false(ret);
+    assert_true(a == old_a);
+}
+
+static void vr_sync_bool_compare_and_swap_8u_comp_max(void **state) {
+    UNREFERENCED_PARAMETER(state);
+    UINT8 a = UINT8_MAX, b = UINT8_MAX, c = 0;
+    bool ret = vr_sync_bool_compare_and_swap_8u(&a, b, c);
+    assert_true(ret);
+    assert_true(a == c);
+}
+
+static void vr_sync_bool_compare_and_swap_8u_assign_max(void **state) {
+    UNREFERENCED_PARAMETER(state);
+    UINT8 a = 0, b = 0, c = UINT8_MAX;
+    bool ret = vr_sync_bool_compare_and_swap_8u(&a, b, c);
+    assert_true(ret);
+    assert_true(a == c);
+}
+
+
 static void vr_sync_bool_compare_and_swap_16u_swap(void **state) {
     UNREFERENCED_PARAMETER(state);
     UINT16 a = 5, b = 5, c = 7;

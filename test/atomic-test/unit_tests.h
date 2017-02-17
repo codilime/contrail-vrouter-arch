@@ -1,5 +1,9 @@
 #pragma once
 
+#define TESTING_SIZE 16
+#include "sub_unsigned.h"
+#undef TESTING_SIZE
+
 #define TESTING_SIZE 32
 #include "sub_unsigned.h"
 #undef TESTING_SIZE
@@ -17,6 +21,10 @@
 #include "sub_signed.h"
 #undef TESTING_SIZE
 
+
+#define TESTING_SIZE 16
+#include "add_unsigned.h"
+#undef TESTING_SIZE
 
 #define TESTING_SIZE 32
 #include "add_unsigned.h"
