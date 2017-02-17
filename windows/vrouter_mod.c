@@ -136,15 +136,18 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
     if (nic->nic_type == NdisSwitchNicTypeInternal &&
         name.Length != 0) // We've got a container, because vr_get_name_from_friendly_name returned us the container name
     {
-        struct vr_assoc* assoc = vr_get_assoc_name(_name);
+        struct vr_assoc* assoc_by_name = vr_get_assoc_name(_name);
+        struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(nic->port_id, nic->nic_index);
+        if (assoc_by_name != NULL && assoc_by_ids != NULL) {
+            assoc_by_name->port_id = nic->port_id;
+            assoc_by_name->nic_index = nic->nic_index;
+            struct vr_interface* interface = assoc_by_name->interface;
 
-        assoc->port_id = nic->port_id;
-        assoc->nic_index = nic->nic_index;
-        struct vr_interface* interface = assoc->interface;
-
-        assoc = vr_get_assoc_ids(nic->port_id, nic->nic_index);
-        assoc->string = _name;
-        assoc->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+            assoc_by_ids->string = _name;
+            assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+        } else {
+            return NDIS_STATUS_RESOURCES;
+        }
     }
 
     return NDIS_STATUS_SUCCESS;

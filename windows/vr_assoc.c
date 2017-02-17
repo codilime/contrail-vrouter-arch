@@ -78,7 +78,7 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
     if (*field == NULL)
     {
         *field = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_assoc), SxExtAllocationTag);
-        if (*field != NULL) {
+        if (*field == NULL) {
             return NULL;
         }
         RtlZeroMemory(*field, sizeof(struct vr_assoc));
