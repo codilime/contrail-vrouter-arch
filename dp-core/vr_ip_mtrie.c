@@ -168,7 +168,7 @@ set_entry_to_nh(struct ip_bucket_entry *entry, struct vr_nexthop *nh)
 static inline struct ip_bucket *
 entry_to_bucket(struct ip_bucket_entry *ent)
 {
-    unsigned long long_i = ent->entry_long_i;
+    uint64_t long_i = ent->entry_long_i;
 
     if (PTR_IS_BUCKET(long_i))
         return (struct ip_bucket *)(long_i & ~0x1UL);
@@ -868,7 +868,7 @@ static struct vr_nexthop *
 __mtrie_lookup(struct vr_route_req *rt, struct ip_bucket *bkt, unsigned int level)
 {
     unsigned int i, limit, index;
-    unsigned long ptr;
+    uint64_t ptr;
 
     struct ip_bucket_entry *ent;
     struct mtrie_bkt_info *ip_bkt_info;
@@ -942,7 +942,7 @@ static struct vr_nexthop *
 mtrie_lookup(unsigned int vrf_id, struct vr_route_req *rt)
 {
     unsigned int level = 0;
-    unsigned long ptr;
+    uint64_t ptr;
 
     struct ip_mtrie *table;
     struct ip_bucket *bkt;

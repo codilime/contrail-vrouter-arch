@@ -42,7 +42,7 @@
     <ClInclude Include="and_unsigned.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cas_tests.h">
+    <ClInclude Include="bool_cas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

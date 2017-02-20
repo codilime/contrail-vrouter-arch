@@ -12,23 +12,26 @@
 #include "vr_datapath.h"
 #include "vr_defs.h"
 
+__attribute__packed__open__
 struct vr_bridge_entry_key {
     unsigned char be_mac[VR_ETHER_ALEN];
     unsigned short be_vrf_id;
-}__attribute__((packed));
+} __attribute__packed__close__;
 
 struct vr_bridge_entry;
 
+__attribute__packed__open__
 struct vr_dummy_bridge_entry {
     vr_hentry_t be_hentry;
     struct vr_bridge_entry_key be_key;
     struct vr_nexthop *be_nh;
     uint32_t be_label;
     unsigned short be_flags;
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 #define VR_BRIDGE_ENTRY_PACK (64 - sizeof(struct vr_dummy_bridge_entry))
 
+__attribute__packed__open__
 struct vr_bridge_entry {
     vr_hentry_t be_hentry;
     struct vr_bridge_entry_key be_key;
@@ -36,7 +39,7 @@ struct vr_bridge_entry {
     uint32_t be_label;
     unsigned short be_flags;
     unsigned char be_pack[VR_BRIDGE_ENTRY_PACK];
-} __attribute__((packed));
+} __attribute__packed__close__;
 
 unsigned int vr_bridge_entries = VR_DEF_BRIDGE_ENTRIES;
 unsigned int vr_bridge_oentries = 0;
