@@ -21,7 +21,7 @@
   <ItemGroup>
     <ClInclude Include="algebraic_races.h" />
     <ClInclude Include="and_unsigned.h" />
-    <ClInclude Include="cas_tests.h" />
+    <ClInclude Include="bool_cas.h" />
     <ClInclude Include="or_unsigned.h" />
     <ClInclude Include="races_tests.h" />
     <ClInclude Include="test_defines.h" />

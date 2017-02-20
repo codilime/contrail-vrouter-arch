@@ -6,7 +6,6 @@
 
 #include "unit_tests.h"
 #include "races_tests.h"
-#include "cas_tests.h"
 
 const char* timeout_env_name = "VR_ATOMIC_TEST_TIMEOUT";
 const DWORD default_timeout = 120 * 1000; // 2 minutes in miliseconds (per multithreaded test)
