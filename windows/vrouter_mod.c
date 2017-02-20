@@ -20,6 +20,8 @@ ULONG  SxExtOidRequestId = 'RVCO';
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
 
+unsigned int vr_num_cpus = 1;
+
 /* Read/write lock which must be acquired by deferred callbacks. Used in functions from
 * `host_os` struct.
 */

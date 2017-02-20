@@ -148,7 +148,7 @@ fragment_entry_get(struct vrouter *router, unsigned int index)
 static inline bool
 fragment_entry_alloc(struct vr_fragment *fe)
 {
-    return __sync_bool_compare_and_swap(&fe->f_dip, 0, 1);
+    return vr_sync_bool_compare_and_swap_32u(&fe->f_dip, 0, 1);
 }
 
 static void
@@ -472,7 +472,7 @@ vr_fragment_enqueue(struct vrouter *router,
         tail = *tailp;
         fqe->fqe_next = tail;
         vfq->vfq_length++;
-        swapped = __sync_bool_compare_and_swap(tailp, tail, fqe);
+        swapped = vr_sync_bool_compare_and_swap_p(tailp, tail, fqe);
         if (swapped) {
             if (tail == NULL)
                 vfq->vfq_length = 1;

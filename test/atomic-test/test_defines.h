@@ -5,7 +5,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include "vr_common.h"
-#include "windows_atomic.h"
+#include "windows_builtins.h"
 
 #define ITERATIONS 1000000U
 #define NR_THREADS 16

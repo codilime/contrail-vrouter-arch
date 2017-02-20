@@ -35,6 +35,10 @@
 #include "and_unsigned.h"
 #undef TESTING_SIZE
 
+#define TESTING_SIZE 32
+#include "and_unsigned.h"
+#undef TESTING_SIZE
+
 
 #define TESTING_FETCH_AND_X
 
@@ -62,6 +66,12 @@
 
 #define TESTING_FUNCTION    vr_sync_bool_compare_and_swap_16u
 #define TESTING_TYPE        UINT16
+#include "bool_cas.h"
+#undef TESTING_TYPE
+#undef TESTING_FUNCTION
+
+#define TESTING_FUNCTION    vr_sync_bool_compare_and_swap_32u
+#define TESTING_TYPE        UINT32
 #include "bool_cas.h"
 #undef TESTING_TYPE
 #undef TESTING_FUNCTION

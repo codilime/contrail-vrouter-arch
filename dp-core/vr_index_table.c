@@ -4,7 +4,7 @@
 #include <vr_index_table.h>
 #include <vr_os.h>
 #include <vrouter.h>
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WINDOWS)
 #include <stdarg.h>
 #elif defined(__FreeBSD__)
 #include <machine/stdarg.h>
@@ -41,7 +41,7 @@ print_ind(unsigned int index, void *data, void *udata)
     return 1;
 }
 
-#ifdef __KERNEL__
+#if defined(__KERNEL__) || defined(_NTKERNEL)
 static unsigned int
 get_page_shift(void)
 {

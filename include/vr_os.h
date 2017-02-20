@@ -94,7 +94,7 @@ typedef unsigned int __u32;
 #endif
 #endif /* __FreeBSD__ */
 #if defined(_WINDOWS)
-#include "windows_atomic.h"
+#include "windows_builtins.h"
 #ifdef _NTKERNEL
 
 #pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
