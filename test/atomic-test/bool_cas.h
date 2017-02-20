@@ -12,10 +12,10 @@
 #define GENERATE_TEST_CASE_BOOL_CAS(A, B, C)        TESTING_TYPE a = (TESTING_TYPE)(A), b = (TESTING_TYPE)(B);              \
                                                     TESTING_TYPE c = (TESTING_TYPE)(C), old_a = a;                          \
                                                     bool ret = TESTING_FUNCTION(&a, b, c);                                  \
-                                                    if(old_a == b) {                                                        \
+                                                    if(old_a == b) { /* swap inside CAS should have happened */             \
                                                         assert_true(ret);                                                   \
                                                         assert_true(a == c);                                                \
-                                                    } else {                                                                \
+                                                    } else { /* swap inside CAS should not have happened */                 \
                                                         assert_false(ret);                                                  \
                                                         assert_true(a == old_a);                                            \
                                                     }
