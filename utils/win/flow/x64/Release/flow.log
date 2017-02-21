@@ -1,0 +1,24 @@
+﻿  thrift_binary_protocol.c
+..\..\..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c(20): fatal error C1083: Cannot open include file: 'sandesh.h': No such file or directory
+  thrift_protocol.c
+..\..\..\..\tools\sandesh\library\c\protocol\thrift_protocol.c(20): fatal error C1083: Cannot open include file: 'sandesh.h': No such file or directory
+  sandesh.c
+c:\gits\vnc\tools\sandesh\library\c\sandesh.h(138): fatal error C1083: Cannot open include file: 'syslog.h': No such file or directory
+  thrift_fake_transport.c
+..\..\..\..\tools\sandesh\library\c\transport\thrift_fake_transport.c(11): fatal error C1083: Cannot open include file: 'sandesh.h': No such file or directory
+  thrift_memory_buffer.c
+..\..\..\..\tools\sandesh\library\c\transport\thrift_memory_buffer.c(20): fatal error C1083: Cannot open include file: 'sandesh.h': No such file or directory
+  thrift_transport.c
+..\..\..\..\tools\sandesh\library\c\transport\thrift_transport.c(20): fatal error C1083: Cannot open include file: 'sandesh.h': No such file or directory
+  vr_types.c
+c:\gits\vnc\vrouter\windows\sandesh-temp\vr_types.h(16): fatal error C1083: Cannot open include file: 'sandesh/library/c/sandesh.h': No such file or directory
+  flow.c
+..\..\flow.c(6): fatal error C1083: Cannot open include file: 'vr_os.h': No such file or directory
+  ini_parser.c
+..\..\ini_parser.c(12): fatal error C1083: Cannot open include file: 'ini_parser.h': No such file or directory
+  nl_util.c
+..\..\nl_util.c(33): fatal error C1083: Cannot open include file: 'vr_types.h': No such file or directory
+  vr_util.c
+..\..\vr_util.c(28): fatal error C1083: Cannot open include file: 'vr_types.h': No such file or directory
+  vr_win_util.c
+..\..\vr_win_util.c(2): fatal error C1083: Cannot open include file: 'nl_util.h': No such file or directory
