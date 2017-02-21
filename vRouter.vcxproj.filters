@@ -118,13 +118,13 @@
     <ClInclude Include="include\vr_vxlan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="windows\include\windows_atomic.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\vr_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\vr_ksync.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="windows\include\windows_builtins.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -253,6 +253,21 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_vif_bridge.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_fragment.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_proto_ip.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_proto_ip6.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_index_table.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_bitmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
