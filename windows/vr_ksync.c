@@ -6,6 +6,11 @@
 const WCHAR DeviceName[] = L"\\Device\\vrouterKsync";
 const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
+#define SYMLINK 1
+#define DEVICE  2
+
+int ToClean = 0;
+
 NTSTATUS
 Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
