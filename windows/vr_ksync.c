@@ -139,19 +139,19 @@ NotImplemented(PDEVICE_OBJECT DriverObject, PIRP Irp)
 VOID
 DestroyDevice(PDRIVER_OBJECT DriverObject)
 {
-   UNICODE_STRING _DeviceSymLink;
+    UNICODE_STRING _DeviceSymLink;
 
-   if (ToClean & SYMLINK)
-   {
-      RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
-      IoDeleteSymbolicLink(&_DeviceSymLink);
-      ToClean ^= SYMLINK;
-   }
-   if (ToClean & DEVICE)
-   {
-      IoDeleteDevice(DriverObject->DeviceObject);
-	  ToClean ^= DEVICE;
-   }
+    if (ToClean & SYMLINK)
+    {
+        RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
+        IoDeleteSymbolicLink(&_DeviceSymLink);
+        ToClean ^= SYMLINK;
+    }
+    if (ToClean & DEVICE)
+    {
+        IoDeleteDevice(DriverObject->DeviceObject);
+	    ToClean ^= DEVICE;
+    }
 }
 
 NTSTATUS
