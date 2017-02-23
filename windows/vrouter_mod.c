@@ -185,7 +185,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
-	DestroyDevice(DriverObject);
+    DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }
 

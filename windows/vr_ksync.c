@@ -9,7 +9,7 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 #define SYMLINK 1
 #define DEVICE 2
 
-int ToClean = 0;
+static int ToClean = 0;
 
 NTSTATUS
 Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -139,19 +139,19 @@ NotImplemented(PDEVICE_OBJECT DriverObject, PIRP Irp)
 VOID
 DestroyDevice(PDRIVER_OBJECT DriverObject)
 {
-	UNICODE_STRING _DeviceSymLink;
+   UNICODE_STRING _DeviceSymLink;
 
-	if (ToClean & SYMLINK)
-	{
-		RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
-		IoDeleteSymbolicLink(&_DeviceSymLink);
-		ToClean ^= SYMLINK;
-	}
-	if (ToClean & DEVICE)
-	{
-		IoDeleteDevice(DriverObject->DeviceObject);
-		ToClean ^= DEVICE;
-	}
+   if (ToClean & SYMLINK)
+   {
+      RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
+      IoDeleteSymbolicLink(&_DeviceSymLink);
+      ToClean ^= SYMLINK;
+   }
+   if (ToClean & DEVICE)
+   {
+      IoDeleteDevice(DriverObject->DeviceObject);
+	  ToClean ^= DEVICE;
+   }
 }
 
 NTSTATUS
@@ -182,7 +182,7 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
 
     if (NT_SUCCESS(Status))
     {
-		ToClean |= DEVICE;
+        ToClean |= DEVICE;
         for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; i++)
             DriverObject->MajorFunction[i] = NotImplemented;
 
@@ -199,7 +199,7 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
         if (NT_WARNING(Status) || NT_INFORMATION(Status) || NT_SUCCESS(Status))
         {
             DbgPrint("IoCreateSymbolicLink %d\n", Status);
-			ToClean |= SYMLINK;
+            ToClean |= SYMLINK;
         }
         return Status;
     }
