@@ -1,3 +1,4 @@
+#include <strsafe.h>
 #include <stdbool.h>
 #include "nl_util.h"
 
@@ -7,7 +8,6 @@
 struct ether_addr {
 	u_char ether_addr_octet[ETHER_ADDR_LEN];
 };
-
 
 static inline int
 xdigit(char c) {
@@ -78,33 +78,51 @@ nl_client_datagram_recvmsg(struct nl_client *cl)
     return nl_client_stream_recvmsg(cl);
 }
 
-// TODO: JW-120 - Refactoring of vr_win_utils.cl
 int
 nl_client_stream_recvmsg(struct nl_client *cl) 
 {
-    DWORD dwWritten;
-    DWORD dwRead;
-    void *rr;
-    struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
-    int d = cl->cl_buf_offset;
-    char buffer[4096];
-    int r = 0;
-    while (hPipe != INVALID_HANDLE_VALUE)
+    DWORD dwRead = 0;
+	LPVOID lpMsgBuf;
+	LPVOID lpDisplayBuf;
+
+	char buffer[4096];
+
+	cl->cl_buf_offset = 0;
+	cl->cl_recv_len = 0;
+
+    if (hPipe != INVALID_HANDLE_VALUE)
     {
-            while (ReadFile(hPipe, buffer, 4096, &dwRead, NULL) != FALSE)
-            {
-                struct nlmsghdr *nlh = (struct nlmsghdr *)buffer;
-                /* do something with data in buffer */
-                printf("%d\n", nlh->nlmsg_len);
-                printf("%d\n", nlh->nlmsg_type);
-                printf("%d\n", nlh->nlmsg_flags);
-                printf("----\n");
-                break;
-            }
-            break;
+		if (ReadFile(hPipe, buffer, 4096, &dwRead, NULL)) {
+			printf("DWREAD %d\n", dwRead);
+			memcpy(cl->cl_buf, buffer, dwRead);
+		}
+		else {
+			DWORD dw = GetLastError();
+
+			FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				dw,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR)&lpMsgBuf,
+				0, NULL);
+
+			lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT,
+				(lstrlen((LPCTSTR)lpMsgBuf)) * sizeof(TCHAR));
+			StringCchPrintf((LPTSTR)lpDisplayBuf,
+				LocalSize(lpDisplayBuf) / sizeof(TCHAR),
+				TEXT("Failed with error %d: %s"),
+				 dw, lpMsgBuf);
+			MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK);
+
+			LocalFree(lpMsgBuf);
+			LocalFree(lpDisplayBuf);
+			ExitProcess(dw);
+		}
     }
-    cl->cl_recv_len = 4096;
-    return cl->cl_recv_len;
+    return dwRead;
 }
 
 // TODO: JW-120 - Refactoring of vr_win_utils.c
