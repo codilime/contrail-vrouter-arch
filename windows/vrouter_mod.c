@@ -5,6 +5,8 @@
 #include "vr_packet.h"
 #include "vr_sandesh.h"
 
+extern void vif_attach(struct vr_interface *);
+
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 
@@ -151,6 +153,38 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
             return NDIS_STATUS_RESOURCES;
         }
     }
+
+    // TODO: REMOVE THIS
+
+    vr_nexthop_req nh = { 0 };
+    nh.h_op = SANDESH_OP_ADD;
+    nh.nhr_rid = 0;
+    nh.nhr_id = nic->port_id;
+    nh.nhr_type = NH_L2_RCV; // ?? mby NH_L2_RCV
+    nh.nhr_flags = NH_FLAG_VALID;
+    nh.nhr_encap_size = 0;
+    nh.nhr_family = AF_BRIDGE;
+    nh.nhr_vrf = nic->port_id;
+
+    vr_nexthop_req_process(&nh);
+
+    // --------------------------------
+
+    vr_route_req req = { 0 };
+    req.h_op = SANDESH_OP_ADD;
+    req.rtr_family = AF_BRIDGE;
+    req.rtr_rid = 0;
+    req.rtr_vrf_id = nic->port_id;
+    req.rtr_mac_size = VR_ETHER_ALEN;
+
+    req.rtr_mac = nic->mac;
+
+    req.rtr_nh_id = nic->port_id;
+    req.rtr_label_flags = VR_BE_LABEL_VALID_FLAG;
+
+    vr_route_req_process((void*)&req);
+
+    // /TODO: REMOVE THIS
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -967,18 +1001,25 @@ SxExtStartCompleteNetBufferListsIngress(
         SxLibCompleteNetBufferListsIngress(Switch,
             NetBufferLists,
             SendCompleteFlags);
+        DbgPrint("Done!\r\n");
     }
+
 
     PNET_BUFFER_LIST curNbl = NetBufferLists;
     PNET_BUFFER_LIST nextNbl = NULL;
 
     while (curNbl != NULL)
     {
+        DbgPrint("Looping...\r\n");
         nextNbl = curNbl->Next;
         struct vr_packet* pkt = win_get_packet_from_nbl(curNbl);
         if (pkt != NULL)
+        {
+            pkt->vp_net_buffer_list = NULL;
             windows_host.hos_pfree(pkt, VP_DROP_DISCARD);
+        }
 
         curNbl = nextNbl;
     }
+    DbgPrint("After looping\r\n");
 }

@@ -67,11 +67,44 @@ win_if_del_tap(struct vr_interface *vif)
 static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
-    UNREFERENCED_PARAMETER(vif);
-    UNREFERENCED_PARAMETER(pkt);
+    if (vif == NULL)
+        return 0; // Sent into /dev/null
 
-    /* TODO: Implement (JW-141) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+
+    PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY dests;
+    SxSwitchObject->NdisSwitchHandlers.GetNetBufferListDestinations(SxSwitchObject->NdisSwitchContext, nbl, &dests);
+
+    if (!dests)
+        return -EFAULT;
+
+    // If there are any destinations already, disable them.
+    if (dests->NumDestinations != 0)
+    {
+        PNDIS_SWITCH_PORT_DESTINATION dest = dests->FirstElement;
+        for (int i = 0; i < dests->NumElements; i++)
+        {
+            dest->IsExcluded = true;
+            dest = dest + 1;
+        }
+    }
+
+    if (dests->NumElements - dests->NumDestinations == 0) // If there is no space for more destinations, we have to grow the buffer;
+        SxSwitchObject->NdisSwitchHandlers.GrowNetBufferListDestinations(SxSwitchObject->NdisSwitchContext, nbl, 1, &dests);
+
+    NDIS_SWITCH_PORT_DESTINATION dest;
+    dest.IsExcluded = 0;
+    dest.NicIndex = vif->vif_nic;
+    dest.PortId = vif->vif_port;
+    dest.PreservePriority = true;
+    dest.PreserveVLAN = true;
+
+    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisFilterHandle, nbl, &dest);
+
+    int injected = (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle) ? 1 : 0;
+
+    // We are sure there is only 1 packet so all packets have a single source. Same is true for destinations.
+    SxLibSendNetBufferListsIngress(SxSwitchObject, nbl, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP, injected);
 
     return 0;
 }
@@ -82,8 +115,7 @@ win_if_rx(struct vr_interface *vif, struct vr_packet* pkt)
     UNREFERENCED_PARAMETER(vif);
     UNREFERENCED_PARAMETER(pkt);
 
-    /* TODO: Implement (JW-140) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
+    /* NOOP ATM. Only used in vhosts, which are not supported */
 
     return 0;
 }
