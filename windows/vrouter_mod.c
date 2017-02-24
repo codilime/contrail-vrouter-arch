@@ -533,9 +533,9 @@ SxExtConnectNic(
     req.vifr_flags = 0;  // test with no flags
     req.vifr_mir_id = 0;
 
-    req.vifr_vrf = 0;  // mocked VRF
+    req.vifr_vrf = DEBUG_VRF;  // mocked VRF
     req.vifr_mtu = 1500;
-    req.vifr_nh_id = 0;  // ???
+    req.vifr_nh_id = nh_id;  // ???
     req.vifr_qos_map_index = 0;  // ???
     req.vifr_mac = Nic->PermanentMacAddress;
     req.vifr_mac_size = sizeof(unsigned char[6]);
