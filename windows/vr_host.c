@@ -533,7 +533,8 @@ win_create_timer(struct vr_timer *vtimer)
 {
     vtimer->vt_os_arg = ExAllocateTimer(win_timer_callback, (void *)vtimer, EX_TIMER_HIGH_RESOLUTION);
 
-    ExSetTimer(vtimer->vt_os_arg, vtimer->vt_msecs * 10, vtimer->vt_msecs * 10, NULL);
+    // DueTime is negative, because it's then treated as relative time instead of absolute.
+    ExSetTimer(vtimer->vt_os_arg, (-1) * vtimer->vt_msecs * 10, vtimer->vt_msecs * 10, NULL);
 
     return 0;
 }
