@@ -1761,6 +1761,13 @@ del_fail:
     return ret;
 }
 
+/* DEBUG(sodar) */
+int
+debug_vr_interface_delete(vr_interface_req *req, bool need_response)
+{
+    return vr_interface_delete(req, need_response);
+}
+
 static void
 vif_set_flags(struct vr_interface *vif, vr_interface_req *req)
 {

@@ -6,7 +6,7 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
-extern void vif_attach(struct vr_interface *);
+extern void vif_attach(struct vr_interface *vif);
 
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
@@ -132,7 +132,10 @@ win_zalloc(unsigned int size, unsigned int object)
 static void *
 win_page_alloc(unsigned int size)
 {
+    /* DEBUG(sodar): Temporary change */
     void *mem = ExAllocatePoolWithTag(PagedPool, size, SxExtAllocationTag);
+    //void *mem = ExAllocatePoolWithTag(NonPagedPool, size, SxExtAllocationTag);
+    //NdisZeroMemory(mem, size);
 
     return mem;
 }
@@ -173,6 +176,8 @@ win_assoc_packet_nb(PNET_BUFFER_LIST nbl, struct vr_packet* pkt)
 {
     struct vr_packet** ctx = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     *ctx = pkt;
+
+    pkt->vp_net_buffer_list = nbl;
 }
 
 struct vr_packet*
@@ -186,28 +191,50 @@ struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
-
-    NdisAllocateNetBufferListContext(nbl, MEMORY_ALLOCATION_ALIGNMENT, 0, SxExtAllocationTag);
-
     if (pkt == NULL)
         return NULL;
-    win_assoc_packet_nb(nbl, pkt);
 
-    pkt->vp_net_buffer_list = nbl;
     pkt->vp_cpu = (unsigned char)win_get_cpu();
 
+    /* Allocate NDIS context, which will store vr_packet pointer */
+    NDIS_STATUS ndis_status = NdisAllocateNetBufferListContext(
+        nbl, MEMORY_ALLOCATION_ALIGNMENT, 0, SxExtAllocationTag
+    );
+    if (ndis_status != NDIS_STATUS_SUCCESS) {
+        ExFreePoolWithTag(pkt, SxExtAllocationTag);
+        return NULL;
+    }
+
+    /* Associate NBL and allocated vr_packet */
+    win_assoc_packet_nb(nbl, pkt);
+
+    /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_count = MmGetMdlByteCount(current_mdl);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
     unsigned char* mdl_data =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute);
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
     if (!mdl_data)
         goto drop;
-    pkt->vp_head = mdl_data + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    pkt->vp_tail = pkt->vp_data = 0;
+    pkt->vp_head = mdl_data + current_mdl_offset;
 
-    unsigned short length = (unsigned short) NET_BUFFER_DATA_LENGTH(nb);
-    pkt->vp_end = length;
+    /* vp_data is the offset from vp_head, where packet begins.
+       TODO: When packet encapsulation comes into play, then vp_data should differ.
+             There should be enough room between vp_head and vp_data to add packet headers.
+    */
+    pkt->vp_data = 0;
 
-    pkt->vp_len = 0;
+    /* vp_tail points to the end of packet data in non-paged memory */
+    ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
+    pkt->vp_tail = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+
+    /* vp_end points to the end of accesible non-paged memory */
+    pkt->vp_end = left_mdl_space;
+
+    /* vp_len is the size of non-paged data block */
+    pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
     pkt->vp_if = vif;
     pkt->vp_network_h = pkt->vp_inner_network_h = 0;
     pkt->vp_nh = NULL;
@@ -220,7 +247,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     pkt->vp_ttl = 64;
     pkt->vp_type = VP_TYPE_NULL;
     pkt->vp_queue = 0;
-    pkt->vp_priority = VP_PRIORITY_INVALID;
+    pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
 
     return pkt;
 
@@ -245,7 +272,7 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
     unsigned int cpu;
 
-    struct vrouter *router = NULL;// TODO after vRouter gets ported: vrouter_get(0);
+    struct vrouter *router = vrouter_get(0);
     PNET_BUFFER_LIST nbl = NULL;
 
     if (pkt != NULL) {
@@ -255,24 +282,26 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
         cpu = pkt->vp_cpu;
 
         ExFreePoolWithTag(pkt, SxExtAllocationTag);
-    }
-    else {
+    } else {
         cpu = win_get_cpu();
     }
 
-    if (router)
+    if (router) {
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
+    }
 
-    if (nbl)
-    {
+    if (nbl) {
         // We are only allowed to delete stuff created by our extension
-        if (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle)
+        if (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle) {
             delete_nbl(nbl);
-        else // We can only mark not ours packets as complete, without sending them further
-        {
+        } else {
+            /* Flag SINGLE_SOURCE is used, because of singular NBLS */
             delete_nbl_context(nbl);
-            SxLibCompleteNetBufferListsIngress(SxSwitchObject, nbl,
-                NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE); // Because there is only 1 packet
+            SxLibCompleteNetBufferListsIngress(
+                SxSwitchObject,
+                nbl,
+                NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE
+            );
         }
     }
 
@@ -491,9 +520,16 @@ win_pfrag_len(struct vr_packet *pkt)
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     if (!nb)
         return 0;
+    
+    PMDL nb_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG overall_len = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG nb_mdl_data_len = MmGetMdlByteCount(nb_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
 
-    unsigned short frag_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
-    return frag_len;
+    if (overall_len < nb_mdl_data_len) {
+        return 0;
+    } else {
+        return nb_mdl_data_len - overall_len;
+    }
 }
 
 static unsigned short

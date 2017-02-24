@@ -76,12 +76,13 @@ static struct vr_module modules[] = {
         .init           =       vr_fib_init,
         .exit           =       vr_fib_exit,
     },
-    {
+    /*{
         .mod_name       =       "Mpls",
         .init           =       vr_mpls_init,
         .exit           =       vr_mpls_exit,
     },
-    /*{
+    {
+    {
         .mod_name       =       "Flow",
         .init           =       vr_flow_init,
         .exit           =       vr_flow_exit,

@@ -481,6 +481,11 @@ vr_bridge_input(struct vrouter *router, struct vr_packet *pkt,
     l4_pkt_type_t l4_type = L4_TYPE_UNKNOWN;
     int8_t *dmac;
 
+    /* DEBUG(sodar): Useful for breakpoint on APR packets*/
+    if (pkt->vp_type == VP_TYPE_ARP) {
+        DbgPrint("vr_bridge_input: VP_TYPE_ARP");
+    }
+
     dmac = (int8_t *) pkt_data(pkt);
 
     pull_len = 0;

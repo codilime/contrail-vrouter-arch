@@ -29,6 +29,20 @@ unsigned int vr_num_cpus = 1;
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 
+/* DEBUG(sodar) */
+#define DEBUG_VROUTER_ID (0)
+#define DEBUG_VRF (0)
+int debug_vr_interface_delete(vr_interface_req *req, bool need_response);
+
+/* DEBUG(sodar): Used for mocked forwarding structs */
+uint8_t debug_bcast_mast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+int32_t debug_vif_counter = 1;
+int32_t debug_nh_composite = 1;
+int32_t debug_nh_counter = 2;
+int32_t debug_nh_elements[32] = { 0 };
+int32_t debug_nh_labels[32] = { 0 };
+int32_t debug_nh_elements_count = 0;
+
 static char hex_table[] = {
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
@@ -149,6 +163,12 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 
             assoc_by_ids->string = _name;
             assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+
+            if (interface) {
+                interface->vif_port = nic->port_id;
+                interface->vif_nic = nic->nic_index;
+                vif_attach(interface);
+            }
         } else {
             return NDIS_STATUS_RESOURCES;
         }
@@ -156,7 +176,7 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 
     // TODO: REMOVE THIS
 
-    vr_nexthop_req nh = { 0 };
+    /*vr_nexthop_req nh = { 0 };
     nh.h_op = SANDESH_OP_ADD;
     nh.nhr_rid = 0;
     nh.nhr_id = nic->port_id;
@@ -182,7 +202,7 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
     req.rtr_nh_id = nic->port_id;
     req.rtr_label_flags = VR_BE_LABEL_VALID_FLAG;
 
-    vr_route_req_process((void*)&req);
+    vr_route_req_process((void*)&req);*/
 
     // /TODO: REMOVE THIS
 
@@ -264,6 +284,34 @@ SxExtCreateSwitch(
     if (vr_init_assoc()) {
         goto Failure;
     }
+
+    /* DEBUG(sodar): Mock composite NH for VRF = 0*/
+#if 1
+    vr_nexthop_req nh = { 0 };
+    nh.h_op = SANDESH_OP_ADD;
+    nh.nhr_type = NH_COMPOSITE;
+    nh.nhr_family = AF_BRIDGE;
+    nh.nhr_id = debug_nh_composite;
+    nh.nhr_rid = DEBUG_VROUTER_ID;
+    nh.nhr_vrf = 0;
+    nh.nhr_flags = NH_FLAG_VALID | NH_FLAG_COMPOSITE_L2 | NH_FLAG_MCAST;
+    nh.nhr_nh_list = NULL;  // Pointer to nexthops table
+    nh.nhr_nh_list_size = 0;  // Can be 0 according to dp-core/vr_nexthop.c:2370
+    nh.nhr_label_list_size = 0;  // Must be equal to nhr_nh_list_size
+    vr_nexthop_req_process(&nh);
+
+    vr_route_req req = { 0 };
+    req.h_op = SANDESH_OP_ADD;
+    req.rtr_vrf_id = DEBUG_VRF;
+    req.rtr_family = AF_BRIDGE;
+    req.rtr_prefix = NULL;
+    req.rtr_prefix_size = 0;
+    req.rtr_rid = DEBUG_VROUTER_ID;
+    req.rtr_nh_id = debug_nh_composite;
+    req.rtr_mac = debug_bcast_mast;
+    req.rtr_mac_size = VR_ETHER_ALEN;
+    vr_route_req_process((void*)&req);
+#endif
 
     return NDIS_STATUS_SUCCESS;
 
@@ -426,6 +474,81 @@ SxExtConnectNic(
     nic.port_id = Nic->PortId;
 
     AddNicToArray(ctx, &nic, Nic->NicFriendlyName);
+
+#if 1
+    /* DEBUG(sodar): Mocked nexthop for this interface. */
+    int32_t nh_id = InterlockedIncrement(&debug_nh_counter);
+    vr_nexthop_req nh = { 0 };
+    nh.h_op = SANDESH_OP_ADD;
+    nh.nhr_type = NH_L2_RCV;
+    nh.nhr_family = AF_BRIDGE;
+    nh.nhr_id = nh_id;
+    nh.nhr_rid = DEBUG_VROUTER_ID;
+    nh.nhr_vrf = DEBUG_VRF;
+    nh.nhr_flags = NH_FLAG_VALID;
+    vr_nexthop_req_process(&nh);
+
+    debug_nh_elements[debug_nh_elements_count] = nh_id;
+    debug_nh_elements_count++;
+
+    /* DEBUG(sodar): Mocked nexthop update - there is no nexthops removal!!! */
+    vr_nexthop_req nhc = { 0 };
+    nhc.h_op = SANDESH_OP_ADD;
+    nhc.nhr_type = NH_COMPOSITE;
+    nhc.nhr_family = AF_BRIDGE;
+    nhc.nhr_id = debug_nh_composite;
+    nhc.nhr_rid = DEBUG_VROUTER_ID;
+    nhc.nhr_vrf = DEBUG_VRF;
+    nhc.nhr_flags = NH_FLAG_VALID | NH_FLAG_COMPOSITE_L2 | NH_FLAG_MCAST;
+    nhc.nhr_nh_list = debug_nh_elements;
+    nhc.nhr_nh_list_size = debug_nh_elements_count;
+    nhc.nhr_label_list = debug_nh_labels;
+    nhc.nhr_label_list_size = debug_nh_elements_count;  // Must be equal to nhr_nh_list_size
+    vr_nexthop_req_process(&nhc);
+
+    /* DEBUG(sodar): Mocked bridge entry for this interface */
+    vr_route_req br = { 0 };
+    br.h_op = SANDESH_OP_ADD;
+    br.rtr_vrf_id = DEBUG_VRF;
+    br.rtr_family = AF_BRIDGE;
+    br.rtr_rid = 0;
+    br.rtr_nh_id = nh_id;
+    br.rtr_mac = Nic->PermanentMacAddress;
+    br.rtr_mac_size = VR_ETHER_ALEN;
+    br.rtr_label_flags = VR_BE_LABEL_VALID_FLAG;
+    vr_route_req_process((void*)&br);
+
+    /* DEBUG(sodar): Mocked vr_interface attaching on OS callbacks. */
+    NDIS_IF_COUNTED_STRING vif_name = vr_get_name_from_friendly_name(Nic->NicFriendlyName);
+    vr_interface_req req;
+
+    int32_t vif_idx = InterlockedIncrement(&debug_vif_counter);
+
+    req.h_op = SANDESH_OP_ADD;
+    req.vifr_rid = DEBUG_VROUTER_ID;
+    req.vifr_idx = vif_idx;
+    req.vifr_os_idx = -1;
+    req.vifr_type = VIF_TYPE_VIRTUAL;
+    req.vifr_transport = VIF_TRANSPORT_VIRTUAL;
+    req.vifr_flags = 0;  // test with no flags
+    req.vifr_mir_id = 0;
+
+    req.vifr_vrf = 0;  // mocked VRF
+    req.vifr_mtu = 1500;
+    req.vifr_nh_id = 0;  // ???
+    req.vifr_qos_map_index = 0;  // ???
+    req.vifr_mac = Nic->PermanentMacAddress;
+    req.vifr_mac_size = sizeof(unsigned char[6]);
+    req.vifr_ip = 0;  // 0.0.0.0
+    req.vifr_name = "testname";
+    req.vifr_fat_flow_protocol_port_size = 0;  // ???
+
+    if (!vr_interface_add(&req, false)) {
+        struct vrouter *vr = vrouter_get(req.vifr_rid);
+        vr_set_assoc_oid_name(vif_name, vr->vr_interfaces[req.vifr_idx]);
+        vr_set_assoc_oid_ids(Nic->PortId, Nic->NicIndex, vr->vr_interfaces[req.vifr_idx]);
+    }
+#endif
 }
 
 VOID
@@ -479,6 +602,17 @@ SxExtDisconnectNic(
 
     vr_delete_assoc_name(Nic->NicFriendlyName);
     vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
+
+#if 1
+    /* DEBUG(sodar): Mocked vr_interface detaching on OS callback. */
+    vr_interface_req req;
+
+    req.h_op = SANDESH_OP_DELETE;
+    req.vifr_rid = DEBUG_VROUTER_ID;
+    req.vifr_idx = Nic->NicIndex * 256 + Nic->PortId;
+
+    debug_vr_interface_delete(&req, false);   /* Calls vr_interface_delete (which is static). */
+#endif
 }
 
 VOID
@@ -815,13 +949,6 @@ vr_win_split_nbls_by_forwarding_type(
     }
 }
 
-static void
-vr_win_add_to_dropped_pkts(PNET_BUFFER_LIST nbl, PNET_BUFFER_LIST *dropped)
-{
-    *dropped = nbl;
-    dropped = &nbl->Next;
-}
-
 VOID
 SxExtStartNetBufferListsIngress(
     _In_ PSX_SWITCH_OBJECT Switch,
@@ -839,9 +966,8 @@ SxExtStartNetBufferListsIngress(
 
     PNET_BUFFER_LIST extForwardedNbls = NULL;  // NBLs forwarded by extension.
     PNET_BUFFER_LIST nativeForwardedNbls = NULL;  // NBLs that require native forwarding - extension just sends them.
-    PNET_BUFFER_LIST dropNbl = NULL;
-    PNET_BUFFER_LIST *nextDropNbl = &dropNbl;
     PNET_BUFFER_LIST curNbl = NULL;
+    PNET_BUFFER_LIST nextNbl = NULL;
 
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
@@ -860,49 +986,38 @@ SxExtStartNetBufferListsIngress(
 
     vr_win_split_nbls_by_forwarding_type(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
-    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = curNbl->Next)
+    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
     {
-        //  vif := vr_interface from <source_port_id, nic_id>
+        /* Save next NBL, because after passing control to vRouter it might drop curNbl.
+           Also vRouter handles packets one-by-one, so we operate on single NBLs.
+        */
+        nextNbl = curNbl->Next;
+        curNbl->Next = NULL;
+
         PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
         NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
         NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
         struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
         struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
         if (!vif) {
-            // If no vif attached yet, then drop NBL.
-            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-            debug_print_net_buffer(nb, "StartIngress: dropped, vif == NULL");
+            /* If no vif attached yet, then drop NBL. */
+            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
             continue;
         }
 
-        //  pkt := vr_packet from PNET_BUFFER_LIST and vr_interface
         struct vr_packet *pkt = win_get_packet(curNbl, vif);
-        if (!pkt) {
-            // If creating vr_packet failed, then drop NBL.
-            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-            debug_print_net_buffer(nb, "StartIngress: dropped, couldn't get vr_packet");
+        if (pkt == NULL) {
+            /* If `win_get_packet` fails, it will drop the NBL. */
             continue;
         }
 
         if (vif->vif_rx) {
+            /* We assume that will be correctly handled by vRouter in `vif_rx` callback. */
             int rx_ret = vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
-            if (!rx_ret) {
-                // TODO: Remove packet drop when dp-core will properfly forward packets.
-                vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-                NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-                debug_print_net_buffer(nb, "StartIngress: vif_rx succeeded");
-            } else {
-                //  If vif_rx failed, then drop NBL.
-                //  TODO: Proper error logging.
-                vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-                DbgPrint("StartIngress: dropped, vif_rx failed");
-            }
+            windows_host.hos_printf("%s: vif_rx returned %d\n", __func__, rx_ret);
         } else {
-            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-            debug_print_net_buffer(nb, "StartIngress: vif_rx == NULL");
+            /* If `vif_rx` is not set (unlikely in production), then drop the packet. */
+            windows_host.hos_pfree(pkt, VP_DROP_INTERFACE_DROP);
             continue;
         }
     }
@@ -910,29 +1025,13 @@ SxExtStartNetBufferListsIngress(
     // Release the lock, now interfaces can disconnect, etc.
     NdisReleaseRWLock(ctx->lock, &lockState);
 
-    // Handle packet sending
-    // NOTE: Currently every received packet is dropped.
-    /*if (extForwardedNbls != NULL) {
-        DbgPrint("StartIngress: send extension forwarded NBL\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
-            extForwardedNbls,
-            SendFlags,
-            0);
-    }*/
-
+    // Handle packet sending.
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
         SxLibSendNetBufferListsIngress(Switch,
             nativeForwardedNbls,
             SendFlags,
             0);
-    }
-
-    if (dropNbl != NULL) {
-        DbgPrint("StartIngress: dropping dropped NBLs\r\n");
-        SxLibCompleteNetBufferListsIngress(Switch,
-            dropNbl,
-            sendCompleteFlags);
     }
 }
 
@@ -1013,8 +1112,7 @@ SxExtStartCompleteNetBufferListsIngress(
         DbgPrint("Looping...\r\n");
         nextNbl = curNbl->Next;
         struct vr_packet* pkt = win_get_packet_from_nbl(curNbl);
-        if (pkt != NULL)
-        {
+        if (pkt != NULL) {
             pkt->vp_net_buffer_list = NULL;
             windows_host.hos_pfree(pkt, VP_DROP_DISCARD);
         }
