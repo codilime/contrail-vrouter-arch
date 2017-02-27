@@ -112,7 +112,7 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
 
-	Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Information = 0;
 
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {

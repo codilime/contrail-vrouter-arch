@@ -207,11 +207,7 @@ vr_recvmsg(struct nl_client *cl, bool dump)
                 pending = false;
             }
 #ifdef _WINDOWS
-			printf("?!?!?!?\n %d\n", ret);
-			for (int i = 0; i < 30; i++)
-				printf("%c", cl->cl_buf[i]);
-			printf("\n");
-			sandesh_decode(cl->cl_buf, 30,
+			sandesh_decode(cl->cl_buf, ret,
 				vr_find_sandesh_info, &ret);
 #else
 			resp = nl_parse_reply(cl);
