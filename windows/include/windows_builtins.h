@@ -6,6 +6,9 @@
 #pragma intrinsic(_ReadWriteBarrier)
 #pragma intrinsic(_InterlockedExchangeAdd16)
 #pragma intrinsic(_InterlockedCompareExchange8)
+#pragma intrinsic(_InterlockedCompareExchange16)
+#pragma intrinsic(_InterlockedCompareExchange)
+#pragma intrinsic(_InterlockedCompareExchangePointer)
 #pragma intrinsic(_BitScanForward)
 
 
@@ -67,15 +70,15 @@ __forceinline bool vr_sync_bool_compare_and_swap_8u(UINT8 *ptr, UINT8 oldval, UI
 }
 
 __forceinline bool vr_sync_bool_compare_and_swap_16u(UINT16 *ptr, UINT16 oldval, UINT16 newval) {
-    return InterlockedCompareExchange16((PSHORT)ptr, (SHORT)newval, (SHORT)oldval) == (SHORT)oldval;
+    return _InterlockedCompareExchange16((PSHORT)ptr, (SHORT)newval, (SHORT)oldval) == (SHORT)oldval;
 }
 
 __forceinline bool vr_sync_bool_compare_and_swap_32u(UINT32 *ptr, UINT32 oldval, UINT32 newval) {
-    return InterlockedCompareExchange((PLONG)ptr, (LONG)newval, (LONG)oldval) == (LONG)oldval;
+    return _InterlockedCompareExchange((PLONG)ptr, (LONG)newval, (LONG)oldval) == (LONG)oldval;
 }
 
 __forceinline bool vr_sync_bool_compare_and_swap_p(void **ptr, void *oldval, void *newval) {
-    return InterlockedCompareExchangePointer(ptr, newval, oldval) == oldval;
+    return _InterlockedCompareExchangePointer(ptr, newval, oldval) == oldval;
 }
 
 

@@ -103,8 +103,9 @@ void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, cons
     if (*field == NULL)
         return; // Such entry did not exist
 
+    struct vr_assoc *tmp = (*field)->next;
     ExFreePoolWithTag(*field, SxExtAllocationTag);
-    *field = (*field)->next;
+    *field = tmp;
 }
 
 static void setter_name(struct vr_assoc* entry, const struct criteria* params)

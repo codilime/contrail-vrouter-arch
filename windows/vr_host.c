@@ -122,6 +122,7 @@ static void *
 win_page_alloc(unsigned int size)
 {
     void *mem = ExAllocatePoolWithTag(PagedPool, size, SxExtAllocationTag);
+    NdisZeroMemory(mem, size);
 
     return mem;
 }
@@ -534,7 +535,7 @@ win_create_timer(struct vr_timer *vtimer)
     vtimer->vt_os_arg = ExAllocateTimer(win_timer_callback, (void *)vtimer, EX_TIMER_HIGH_RESOLUTION);
 
     // DueTime is negative, because it's then treated as relative time instead of absolute.
-    ExSetTimer(vtimer->vt_os_arg, (-1) * vtimer->vt_msecs * 10, vtimer->vt_msecs * 10, NULL);
+    ExSetTimer(vtimer->vt_os_arg, (LONGLONG)(vtimer->vt_msecs) * (-10000), vtimer->vt_msecs * 10000, NULL);
 
     return 0;
 }
