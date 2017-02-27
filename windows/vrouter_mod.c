@@ -476,53 +476,12 @@ SxExtConnectNic(
     AddNicToArray(ctx, &nic, Nic->NicFriendlyName);
 
 #if 1
-    /* DEBUG(sodar): Mocked nexthop for this interface. */
-    int32_t nh_id = InterlockedIncrement(&debug_nh_counter);
-    vr_nexthop_req nh = { 0 };
-    nh.h_op = SANDESH_OP_ADD;
-    nh.nhr_type = NH_L2_RCV;
-    nh.nhr_family = AF_BRIDGE;
-    nh.nhr_id = nh_id;
-    nh.nhr_rid = DEBUG_VROUTER_ID;
-    nh.nhr_vrf = DEBUG_VRF;
-    nh.nhr_flags = NH_FLAG_VALID;
-    vr_nexthop_req_process(&nh);
-
-    debug_nh_elements[debug_nh_elements_count] = nh_id;
-    debug_nh_elements_count++;
-
-    /* DEBUG(sodar): Mocked nexthop update - there is no nexthops removal!!! */
-    vr_nexthop_req nhc = { 0 };
-    nhc.h_op = SANDESH_OP_ADD;
-    nhc.nhr_type = NH_COMPOSITE;
-    nhc.nhr_family = AF_BRIDGE;
-    nhc.nhr_id = debug_nh_composite;
-    nhc.nhr_rid = DEBUG_VROUTER_ID;
-    nhc.nhr_vrf = DEBUG_VRF;
-    nhc.nhr_flags = NH_FLAG_VALID | NH_FLAG_COMPOSITE_L2 | NH_FLAG_MCAST;
-    nhc.nhr_nh_list = debug_nh_elements;
-    nhc.nhr_nh_list_size = debug_nh_elements_count;
-    nhc.nhr_label_list = debug_nh_labels;
-    nhc.nhr_label_list_size = debug_nh_elements_count;  // Must be equal to nhr_nh_list_size
-    vr_nexthop_req_process(&nhc);
-
-    /* DEBUG(sodar): Mocked bridge entry for this interface */
-    vr_route_req br = { 0 };
-    br.h_op = SANDESH_OP_ADD;
-    br.rtr_vrf_id = DEBUG_VRF;
-    br.rtr_family = AF_BRIDGE;
-    br.rtr_rid = 0;
-    br.rtr_nh_id = nh_id;
-    br.rtr_mac = Nic->PermanentMacAddress;
-    br.rtr_mac_size = VR_ETHER_ALEN;
-    br.rtr_label_flags = VR_BE_LABEL_VALID_FLAG;
-    vr_route_req_process((void*)&br);
-
     /* DEBUG(sodar): Mocked vr_interface attaching on OS callbacks. */
     NDIS_IF_COUNTED_STRING vif_name = vr_get_name_from_friendly_name(Nic->NicFriendlyName);
     vr_interface_req req;
 
     int32_t vif_idx = InterlockedIncrement(&debug_vif_counter);
+    int32_t nh_id = InterlockedIncrement(&debug_nh_counter);
 
     req.h_op = SANDESH_OP_ADD;
     req.vifr_rid = DEBUG_VROUTER_ID;
@@ -548,6 +507,52 @@ SxExtConnectNic(
         vr_set_assoc_oid_name(vif_name, vr->vr_interfaces[req.vifr_idx]);
         vr_set_assoc_oid_ids(Nic->PortId, Nic->NicIndex, vr->vr_interfaces[req.vifr_idx]);
     }
+
+    /* DEBUG(sodar): Mocked nexthop for this interface. */
+    vr_nexthop_req nh = { 0 };
+    nh.h_op = SANDESH_OP_ADD;
+    nh.nhr_type = NH_ENCAP;
+    nh.nhr_family = AF_BRIDGE;
+    nh.nhr_id = Nic->PortId + 2;
+    nh.nhr_rid = DEBUG_VROUTER_ID;
+    nh.nhr_vrf = DEBUG_VRF;
+    nh.nhr_flags = NH_FLAG_VALID | NH_FLAG_ENCAP_L2;
+    nh.nhr_encap_size = VR_ETHER_ALEN;
+    nh.nhr_encap_len = 0; //Doesn't seem to matter
+    nh.nhr_encap_family = 0; //Doesn't seem to matter
+    nh.nhr_encap_oif_id = vif_idx;
+    nh.nhr_encap = Nic->PermanentMacAddress;
+    vr_nexthop_req_process(&nh);
+
+    debug_nh_elements[debug_nh_elements_count] = Nic->PortId + 2;
+    debug_nh_elements_count++;
+
+    /* DEBUG(sodar): Mocked nexthop update - there is no nexthops removal!!! */
+    vr_nexthop_req nhc = { 0 };
+    nhc.h_op = SANDESH_OP_ADD;
+    nhc.nhr_type = NH_COMPOSITE;
+    nhc.nhr_family = AF_BRIDGE;
+    nhc.nhr_id = 1;
+    nhc.nhr_rid = DEBUG_VROUTER_ID;
+    nhc.nhr_vrf = DEBUG_VRF;
+    nhc.nhr_flags = NH_FLAG_VALID | NH_FLAG_COMPOSITE_ENCAP | NH_FLAG_MCAST;
+    nhc.nhr_nh_list = debug_nh_elements;
+    nhc.nhr_nh_list_size = debug_nh_elements_count;
+    nhc.nhr_label_list = debug_nh_labels;
+    nhc.nhr_label_list_size = debug_nh_elements_count;  // Must be equal to nhr_nh_list_size
+    vr_nexthop_req_process(&nhc);
+
+    /* DEBUG(sodar): Mocked bridge entry for this interface */
+    vr_route_req br = { 0 };
+    br.h_op = SANDESH_OP_ADD;
+    br.rtr_vrf_id = DEBUG_VRF;
+    br.rtr_family = AF_BRIDGE;
+    br.rtr_rid = 0;
+    br.rtr_nh_id = nh_id;
+    br.rtr_mac = Nic->PermanentMacAddress;
+    br.rtr_mac_size = VR_ETHER_ALEN;
+    br.rtr_label_flags = VR_BE_LABEL_VALID_FLAG;
+    vr_route_req_process((void*)&br);
 #endif
 }
 
