@@ -82,43 +82,35 @@ int
 nl_client_stream_recvmsg(struct nl_client *cl) 
 {
     DWORD dwRead = 0;
-	LPVOID lpMsgBuf;
-	LPVOID lpDisplayBuf;
+    char buffer[NL_MSG_DEFAULT_SIZE];
 
-	char buffer[4096];
-
-	cl->cl_buf_offset = 0;
-	cl->cl_recv_len = 0;
+    cl->cl_buf_offset = 0;
+    cl->cl_recv_len = 0;
 
     if (hPipe != INVALID_HANDLE_VALUE)
     {
-		if (ReadFile(hPipe, buffer, 4096, &dwRead, NULL)) {
+		if (ReadFile(hPipe, buffer, NL_MSG_DEFAULT_SIZE, &dwRead, NULL)) {
 			printf("DWREAD %d\n", dwRead);
 			memcpy(cl->cl_buf, buffer, dwRead);
 		}
 		else {
 			DWORD dw = GetLastError();
 
-			FormatMessage(
+			if (!FormatMessage(
 				FORMAT_MESSAGE_ALLOCATE_BUFFER |
 				FORMAT_MESSAGE_FROM_SYSTEM |
 				FORMAT_MESSAGE_IGNORE_INSERTS,
 				NULL,
 				dw,
 				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				(LPTSTR)&lpMsgBuf,
-				0, NULL);
+				buffer,
+				0, NULL)) {
+				printf("Format message failed with 0x%x\n", GetLastError());
+				ExitProcess(dw);
+			}
 
-			lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT,
-				(lstrlen((LPCTSTR)lpMsgBuf)) * sizeof(TCHAR));
-			StringCchPrintf((LPTSTR)lpDisplayBuf,
-				LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-				TEXT("Failed with error %d: %s"),
-				 dw, lpMsgBuf);
-			MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK);
+			printf("%s\n", buffer);
 
-			LocalFree(lpMsgBuf);
-			LocalFree(lpDisplayBuf);
 			ExitProcess(dw);
 		}
     }
