@@ -44,7 +44,7 @@ vr_message_init(void)
 void
 debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 {
-#ifdef _DEBUG
+#ifdef _NBL_DEBUG
     ULONG data_length;
     ULONG str_length;
     ULONG str_alloc_size;
@@ -301,6 +301,8 @@ SxExtRestartSwitch(
     }
 
     ctx->restart = FALSE;
+
+    ExFreePoolWithTag(nics, SxExtAllocationTag);
 
     return 0;
 }
