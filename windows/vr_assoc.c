@@ -48,18 +48,8 @@ NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRI
 {
     NDIS_IF_COUNTED_STRING ret;
 
-    int i = friendly.Length;
-    // The names are in format of "Container Port a30f213f"
-    // To be the most accurate, get the last "word", speparated by a space
-    while (friendly.String[--i] != L' ')
-        if (i == 0) // Name is not conforming to our standards, must be not a container port
-        {
-            ret.Length = 0;
-            return ret;
-        }
-
-    wcscpy_s(ret.String, friendly.Length - i + 1, friendly.String + i + 1);
-    ret.Length = (USHORT)(friendly.Length - i + 1);
+    wcscpy_s(ret.String, NAME_SIZE, friendly.String + NAME_OFFSET);
+    ret.Length = NAME_SIZE;
 
     return ret;
 }
@@ -113,6 +103,7 @@ static void setter_name(struct vr_assoc* entry, const struct criteria* params)
         entry->string = params->name;
         entry->nic_index = 0;
         entry->port_id = 0;
+        entry->interface = NULL;
     }
 }
 
@@ -192,6 +183,7 @@ static void setter_ids(struct vr_assoc* entry, const struct criteria* params)
     if (entry) {
         entry->nic_index = params->nic_index;
         entry->port_id = params->port_id;
+        entry->interface = NULL;
     }
 }
 

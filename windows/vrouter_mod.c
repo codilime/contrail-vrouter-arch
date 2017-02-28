@@ -478,6 +478,16 @@ SxExtConnectNic(
 #if 1
     /* DEBUG(sodar): Mocked vr_interface attaching on OS callbacks. */
     NDIS_IF_COUNTED_STRING vif_name = vr_get_name_from_friendly_name(Nic->NicFriendlyName);
+    char name[200];
+    RtlZeroMemory(name, 200);
+    NDIS_STRING unicode_string;
+    ANSI_STRING ansi_string;
+    ansi_string.Buffer = name;
+    ansi_string.MaximumLength = 200;
+    
+    vif_name.String[vif_name.Length] = u'\0';
+    RtlInitUnicodeString(&unicode_string, vif_name.String);
+    RtlUnicodeStringToAnsiString(&ansi_string, &unicode_string, FALSE);
     vr_interface_req req;
 
     int32_t vif_idx = InterlockedIncrement(&debug_vif_counter);
@@ -499,7 +509,7 @@ SxExtConnectNic(
     req.vifr_mac = Nic->PermanentMacAddress;
     req.vifr_mac_size = sizeof(unsigned char[6]);
     req.vifr_ip = 0;  // 0.0.0.0
-    req.vifr_name = "testname";
+    req.vifr_name = ansi_string.Buffer; // 
     req.vifr_fat_flow_protocol_port_size = 0;  // ???
 
     if (!vr_interface_add(&req, false)) {

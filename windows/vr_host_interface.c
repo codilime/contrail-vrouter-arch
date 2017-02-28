@@ -72,7 +72,7 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
-    PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY dests;
+    /*PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY dests = NULL;
     SxSwitchObject->NdisSwitchHandlers.GetNetBufferListDestinations(SxSwitchObject->NdisSwitchContext, nbl, &dests);
 
     if (!dests)
@@ -90,16 +90,17 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
     }
 
     if (dests->NumElements - dests->NumDestinations == 0) // If there is no space for more destinations, we have to grow the buffer;
-        SxSwitchObject->NdisSwitchHandlers.GrowNetBufferListDestinations(SxSwitchObject->NdisSwitchContext, nbl, 1, &dests);
+        SxSwitchObject->NdisSwitchHandlers.GrowNetBufferListDestinations(
+            SxSwitchObject->NdisSwitchContext, nbl, 1, &dests);*/
 
-    NDIS_SWITCH_PORT_DESTINATION dest;
-    dest.IsExcluded = 0;
-    dest.NicIndex = vif->vif_nic;
-    dest.PortId = vif->vif_port;
-    dest.PreservePriority = true;
-    dest.PreserveVLAN = true;
+    PNDIS_SWITCH_PORT_DESTINATION dest = ExAllocatePoolWithTag(NonPagedPool, sizeof(NDIS_SWITCH_PORT_DESTINATION), SxExtAllocationTag); // = NDIS_SWITCH_PORT_DESTINATION_AT_ARRAY_INDEX(dests, dests->NumDestinations);
+    dest->IsExcluded = 0;
+    dest->NicIndex = vif->vif_nic;
+    dest->PortId = vif->vif_port;
+    dest->PreservePriority = true;
+    dest->PreserveVLAN = true;
 
-    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisFilterHandle, nbl, &dest);
+    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisFilterHandle, nbl, dest);
 
     int injected = (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle) ? 1 : 0;
 
