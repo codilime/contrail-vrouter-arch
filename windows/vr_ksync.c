@@ -49,7 +49,7 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
         return STATUS_INVALID_PARAMETER;
     }
 
-    WriteDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority);
+    WriteDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
 
     if (!WriteDataBuffer) {
         Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
@@ -107,7 +107,7 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
         return STATUS_INVALID_PARAMETER;
     }
 
-    ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority);
+    ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
 
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
