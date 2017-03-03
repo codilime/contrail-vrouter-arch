@@ -6,6 +6,8 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
+extern void vif_attach(struct vr_interface *vif);
+
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -27,6 +29,42 @@ struct scheduled_work_cb_data {
 NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
 
 static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward declaration
+
+static NDIS_STATUS
+create_extension_context(PNET_BUFFER_LIST nbl)
+{
+    return NdisAllocateNetBufferListContext(
+        nbl, MEMORY_ALLOCATION_ALIGNMENT, 0, SxExtAllocationTag);
+}
+
+static void
+delete_extension_context(PNET_BUFFER_LIST nbl)
+{
+    NdisFreeNetBufferListContext(nbl, MEMORY_ALLOCATION_ALIGNMENT);
+}
+
+static NDIS_STATUS
+create_contexts(PNET_BUFFER_LIST nbl)
+{
+    NDIS_STATUS status = create_extension_context(nbl);
+
+    if (status != NDIS_STATUS_SUCCESS)
+        return status;
+
+    status = SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+
+    if (status != NDIS_STATUS_SUCCESS)
+        delete_extension_context(nbl);
+
+    return status;
+}
+
+static void
+delete_contexts(PNET_BUFFER_LIST nbl)
+{
+    SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    delete_extension_context(nbl);
+}
 
 static PNET_BUFFER_LIST
 create_nbl(unsigned int size)
@@ -55,7 +93,7 @@ create_nbl(unsigned int size)
 
     nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
 
-    NDIS_STATUS status = SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    NDIS_STATUS status = create_contexts(nbl);
     if (status != NDIS_STATUS_SUCCESS)
     {
         DbgPrint("Allocate FWD CTX: %u\r\n", status);
@@ -70,6 +108,8 @@ create_nbl(unsigned int size)
 static void
 delete_nbl(PNET_BUFFER_LIST nbl)
 {
+    delete_extension_context(nbl);
+
     NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
     SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
@@ -167,13 +207,17 @@ win_page_free(void *address, unsigned int size)
 void 
 win_assoc_packet_nb(PNET_BUFFER_LIST nbl, struct vr_packet* pkt)
 {
-    nbl->MiniportReserved[VR_MINIPORT_VPKT_INDEX] = pkt;
+    struct vr_packet** ctx = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    *ctx = pkt;
+
+    pkt->vp_net_buffer_list = nbl;
 }
 
 struct vr_packet*
 win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
 {
-    return nbl->MiniportReserved[VR_MINIPORT_VPKT_INDEX];
+    struct vr_packet** ret = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    return *ret;
 }
 
 struct vr_packet *
@@ -182,23 +226,51 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
     if (pkt == NULL)
         return NULL;
-    win_assoc_packet_nb(nbl, pkt);
 
     pkt->vp_net_buffer_list = nbl;
     pkt->vp_cpu = (unsigned char)win_get_cpu();
 
+    /* Allocate NDIS context, which will store vr_packet pointer */
+    if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
+    {
+        NDIS_STATUS status = create_extension_context(nbl);
+
+        if (status != NDIS_STATUS_SUCCESS)
+        {
+            ExFreePoolWithTag(pkt, SxExtAllocationTag);
+            return NULL;
+        }
+    }
+
+    /* Associate NBL and allocated vr_packet */
+    win_assoc_packet_nb(nbl, pkt);
+
+    /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_count = MmGetMdlByteCount(current_mdl);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
     unsigned char* mdl_data =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute);
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
     if (!mdl_data)
         goto drop;
-    pkt->vp_head = mdl_data + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    pkt->vp_tail = pkt->vp_data = 0;
+    pkt->vp_head = mdl_data + current_mdl_offset;
+    /* vp_data is the offset from vp_head, where packet begins.
+       TODO: When packet encapsulation comes into play, then vp_data should differ.
+             There should be enough room between vp_head and vp_data to add packet headers.
+    */
+    pkt->vp_data = 0;
 
-    unsigned short length = (unsigned short) NET_BUFFER_DATA_LENGTH(nb);
-    pkt->vp_end = length;
+    /* vp_tail points to the end of packet data in non-paged memory */
+    ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
+    pkt->vp_tail = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
 
-    pkt->vp_len = 0;
+    /* vp_end points to the end of accesible non-paged memory */
+    pkt->vp_end = left_mdl_space;
+
+    /* vp_len is the size of non-paged data block */
+    pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
     pkt->vp_if = vif;
     pkt->vp_network_h = pkt->vp_inner_network_h = 0;
     pkt->vp_nh = NULL;
@@ -211,11 +283,12 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     pkt->vp_ttl = 64;
     pkt->vp_type = VP_TYPE_NULL;
     pkt->vp_queue = 0;
-    pkt->vp_priority = VP_PRIORITY_INVALID;
+    pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
 
     return pkt;
 
 drop:
+    delete_extension_context(nbl);
     win_pfree(pkt, VP_DROP_INVALID_PACKET);
     return NULL;
 }
@@ -244,8 +317,8 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
         if (nbl == NULL)
             return;
         cpu = pkt->vp_cpu;
-    }
-    else {
+        ExFreePoolWithTag(pkt, SxExtAllocationTag);
+    } else {
         cpu = win_get_cpu();
     }
 
@@ -255,8 +328,17 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
     if (nbl)
     {
         // We are only allowed to delete stuff created by our extension
-        if(nbl->SourceHandle == SxSwitchObject->NdisFilterHandle)
+        if (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle)
             delete_nbl(nbl);
+        else
+        {
+            /* Flag SINGLE_SOURCE is used, because of singular NBLS */
+            delete_extension_context(nbl);
+            SxLibCompleteNetBufferListsIngress(
+                SxSwitchObject,
+                nbl,
+                NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE);
+        }
     }
 
     return;
@@ -343,16 +425,42 @@ win_preset(struct vr_packet *pkt)
 static struct vr_packet *
 win_pclone(struct vr_packet *pkt)
 {
-    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
-    if (!npkt)
+    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    if (npkt == NULL)
         return NULL;
-
     *npkt = *pkt;
 
-    npkt->vp_net_buffer_list = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, NULL, NULL, 0);
-    npkt->vp_cpu = (unsigned char) win_get_cpu();
+    npkt->vp_net_buffer_list = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, SxNBLPool, NULL, 0);
+    if (npkt->vp_net_buffer_list == NULL)
+        goto cleanup_npkt;
+
+    npkt->vp_cpu = (unsigned char)win_get_cpu();
+
+    if (create_contexts(npkt->vp_net_buffer_list) != NDIS_STATUS_SUCCESS)
+        goto cleanup_nbl;
+
+    win_assoc_packet_nb(npkt->vp_net_buffer_list, npkt);
+
+    NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
+        SxSwitchObject->NdisSwitchContext,
+        npkt->vp_net_buffer_list,
+        pkt->vp_net_buffer_list,
+        0);
+    if (copy_status != NDIS_STATUS_SUCCESS) {
+        goto cleanup_ctx;
+    }
 
     return npkt;
+
+cleanup_ctx:
+    delete_contexts(npkt->vp_net_buffer_list);
+
+cleanup_nbl:
+    NdisFreeCloneNetBufferList(npkt->vp_net_buffer_list, 0);
+
+cleanup_npkt:
+    ExFreePoolWithTag(npkt, SxExtAllocationTag);
+    return NULL;
 }
 
 int
@@ -478,8 +586,15 @@ win_pfrag_len(struct vr_packet *pkt)
     if (!nb)
         return 0;
 
-    unsigned short frag_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
-    return frag_len;
+    PMDL nb_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG overall_len = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG nb_mdl_data_len = MmGetMdlByteCount(nb_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+
+    if (overall_len < nb_mdl_data_len) {
+        return 0;
+    } else {
+        return nb_mdl_data_len - overall_len;
+    }
 }
 
 static unsigned short
@@ -913,8 +1028,13 @@ win_register_nic(struct vr_interface* vif)
     assoc->interface = vif;
 
     if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
+        vif->vif_port = assoc->port_id;
+        vif->vif_nic = assoc->nic_index;
+
         assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
         assoc->interface = vif;
+
+        vif_attach(vif);
     }
 }
 

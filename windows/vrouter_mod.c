@@ -5,6 +5,8 @@
 #include "vr_packet.h"
 #include "vr_sandesh.h"
 
+extern void vif_attach(struct vr_interface *vif);
+
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 
@@ -147,6 +149,14 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 
             assoc_by_ids->string = _name;
             assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+
+            if (interface != NULL)
+            {
+                interface->vif_port = nic->port_id;
+                interface->vif_nic = nic->nic_index;
+
+                vif_attach(interface);
+            }
         } else {
             return NDIS_STATUS_RESOURCES;
         }
