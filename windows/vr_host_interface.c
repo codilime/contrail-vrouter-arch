@@ -93,6 +93,21 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
         SxSwitchObject->NdisSwitchHandlers.GrowNetBufferListDestinations(
             SxSwitchObject->NdisSwitchContext, nbl, 1, &dests);*/
 
+#if 0
+    PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY dests = NULL;
+    SxSwitchObject->NdisSwitchHandlers.GetNetBufferListDestinations(
+        SxSwitchObject->NdisSwitchContext,
+        nbl,
+        &dests
+   );
+
+    PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO info = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(nbl);
+    UINT32 available_destinations = info->NumAvailableDestinations;
+    if (available_destinations == 0) {
+        SxSwitchObject->NdisSwitchHandlers.GrowNetBufferListDestinations(SxSwitchObject->NdisFilterHandle, nbl, dest);
+    }
+#endif
+
     PNDIS_SWITCH_PORT_DESTINATION dest = ExAllocatePoolWithTag(NonPagedPool, sizeof(NDIS_SWITCH_PORT_DESTINATION), SxExtAllocationTag); // = NDIS_SWITCH_PORT_DESTINATION_AT_ARRAY_INDEX(dests, dests->NumDestinations);
     dest->IsExcluded = 0;
     dest->NicIndex = vif->vif_nic;
@@ -100,7 +115,14 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
     dest->PreservePriority = true;
     dest->PreserveVLAN = true;
 
-    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisFilterHandle, nbl, dest);
+    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisSwitchContext, nbl, dest);
+
+    PNDIS_SWITCH_FORWARDING_DESTINATION_ARRAY dests = NULL;
+    SxSwitchObject->NdisSwitchHandlers.GetNetBufferListDestinations(
+        SxSwitchObject->NdisSwitchContext,
+        nbl,
+        &dests
+    );
 
     int injected = (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle) ? 1 : 0;
 

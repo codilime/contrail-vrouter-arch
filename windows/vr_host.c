@@ -430,17 +430,34 @@ win_pclone(struct vr_packet *pkt)
 
     npkt->vp_net_buffer_list = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, SxNBLPool, NULL, 0);
     if (npkt->vp_net_buffer_list == NULL)
-        goto cleanup;
+        goto cleanup_npkt;
 
     npkt->vp_cpu = (unsigned char) win_get_cpu();
 
     if (create_contexts(npkt->vp_net_buffer_list) != NDIS_STATUS_SUCCESS)
-        goto cleanup;
+        goto cleanup_nbl;
+
+    win_assoc_packet_nb(npkt->vp_net_buffer_list, npkt);
+
+    NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
+        SxSwitchObject->NdisSwitchContext,
+        npkt->vp_net_buffer_list,
+        pkt->vp_net_buffer_list,
+        0);
+    if (copy_status != NDIS_STATUS_SUCCESS) {
+        goto cleanup_ctx;
+    }
 
     return npkt;
 
-cleanup:
+cleanup_ctx:
+    delete_contexts(npkt->vp_net_buffer_list);
+
+cleanup_nbl:
     NdisFreeCloneNetBufferList(npkt->vp_net_buffer_list, 0);
+
+cleanup_npkt:
+    ExFreePoolWithTag(npkt, SxExtAllocationTag);
     return NULL;
 }
 

@@ -1146,7 +1146,8 @@ nh_composite_encap(struct vr_packet *pkt, struct vr_nexthop *nh,
 
     /* Original packet needs to be unconditionally dropped */
 drop:
-    vr_pfree(pkt, drop_reason);
+    /* TODO */
+    //vr_pfree(pkt, drop_reason);
     return 0;
 }
 
