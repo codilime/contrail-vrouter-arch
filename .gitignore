@@ -28,4 +28,3 @@ modules.order
 /utils/*obj
 /test/cmocka
 /test/atomic-test/x64
-
