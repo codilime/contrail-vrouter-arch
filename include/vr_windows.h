@@ -19,6 +19,9 @@ extern "C" {
 #define VR_INIT_ASSOC_OK        0
 #define VR_INIT_ASSOC_FAILED    1
 
+#define NAME_SIZE 8
+#define NAME_OFFSET 15
+
 struct vr_interface; // Forward declaration
 
 struct vr_packet;

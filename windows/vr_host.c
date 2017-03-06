@@ -1000,10 +1000,10 @@ win_register_nic(struct vr_interface* vif)
     ANSI_STRING ansi_string;
     NDIS_STRING unicode_string;
 
-    RtlInitAnsiString(&ansi_string, (char*) vif->vif_name);
+    RtlInitAnsiString(&ansi_string, (char*)vif->vif_name);
     RtlAnsiStringToUnicodeString(&unicode_string, &ansi_string, TRUE);
-    RtlCopyMemory(interface_name.String, unicode_string.Buffer, unicode_string.Length);
-    interface_name.Length = unicode_string.Length;
+    RtlCopyMemory(interface_name.String, unicode_string.Buffer, sizeof(WCHAR)*unicode_string.Length);
+    interface_name.Length = NAME_SIZE;
 
     RtlFreeUnicodeString(&unicode_string);
 

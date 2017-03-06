@@ -12,16 +12,16 @@ struct criteria {
     NDIS_SWITCH_NIC_INDEX nic_index;
 };
 
-typedef void (*setterFunc)(struct vr_assoc*, const struct criteria*);
-typedef BOOLEAN (*compareFunc)(struct vr_assoc*, const struct criteria*);
-typedef int (*hashFunc)(const struct criteria*);
+typedef void(*setterFunc)(struct vr_assoc*, const struct criteria*);
+typedef BOOLEAN(*compareFunc)(struct vr_assoc*, const struct criteria*);
+typedef int(*hashFunc)(const struct criteria*);
 
 /*
- * A generated map of chars.
- * Has a field for every possible ASCII char (256 characters).
- * Maps all hyphens and alphanumeric characters into separate numbers, while the rest to 0.
- * Thanks to that, no data has to be sacrificed for ASCII characters that never appear in interface names.
- */
+* A generated map of chars.
+* Has a field for every possible ASCII char (256 characters).
+* Maps all hyphens and alphanumeric characters into separate numbers, while the rest to 0.
+* Thanks to that, no data has to be sacrificed for ASCII characters that never appear in interface names.
+*/
 const static unsigned char char_map[256] = {
     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,
     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,
@@ -48,18 +48,8 @@ NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRI
 {
     NDIS_IF_COUNTED_STRING ret;
 
-    int i = friendly.Length;
-    // The names are in format of "Container Port a30f213f"
-    // To be the most accurate, get the last "word", speparated by a space
-    while (friendly.String[--i] != L' ')
-        if (i == 0) // Name is not conforming to our standards, must be not a container port
-        {
-            ret.Length = 0;
-            return ret;
-        }
-
-    wcscpy_s(ret.String, friendly.Length - i + 1, friendly.String + i + 1);
-    ret.Length = (USHORT)(friendly.Length - i + 1);
+    wcscpy_s(ret.String, NAME_SIZE, friendly.String + NAME_OFFSET);
+    ret.Length = NAME_SIZE;
 
     return ret;
 }
@@ -77,7 +67,7 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
 
     if (*field == NULL)
     {
-        *field = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_assoc), SxExtAllocationTag);
+        *field = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_assoc), SxExtAllocationTag);
         if (*field == NULL) {
             return NULL;
         }
@@ -103,9 +93,8 @@ void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, cons
     if (*field == NULL)
         return; // Such entry did not exist
 
-    struct vr_assoc *tmp = (*field)->next;
     ExFreePoolWithTag(*field, SxExtAllocationTag);
-    *field = tmp;
+    *field = (*field)->next;
 }
 
 static void setter_name(struct vr_assoc* entry, const struct criteria* params)
@@ -114,6 +103,7 @@ static void setter_name(struct vr_assoc* entry, const struct criteria* params)
         entry->string = params->name;
         entry->nic_index = 0;
         entry->port_id = 0;
+        entry->interface = NULL;
     }
 }
 
@@ -193,6 +183,7 @@ static void setter_ids(struct vr_assoc* entry, const struct criteria* params)
     if (entry) {
         entry->nic_index = params->nic_index;
         entry->port_id = params->port_id;
+        entry->interface = NULL;
     }
 }
 

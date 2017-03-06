@@ -29,6 +29,21 @@ unsigned int vr_num_cpus = 1;
 */
 PNDIS_RW_LOCK_EX AsyncWorkRWLock = NULL;
 
+/* DEBUG(sodar) */
+#define DEBUG_VROUTER_ID 0
+#define DEBUG_VRF 0
+
+int debug_vr_interface_delete(vr_interface_req *req, bool need_response);
+
+/* DEBUG(sodar): Used for mocked forwarding structs */
+uint8_t debug_bcast_mast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+int32_t debug_vif_counter = 1;
+int32_t debug_nh_composite = 1;
+int32_t debug_nh_counter = 2;
+int32_t debug_nh_elements[32] = { 0 };
+int32_t debug_nh_labels[32] = { 0 };
+int32_t debug_nh_elements_count = 0;
+
 static char hex_table[] = {
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
@@ -241,6 +256,35 @@ SxExtCreateSwitch(
         goto Failure;
     }
 
+
+    /* DEBUG(sodar): Mock composite NH for VRF = 0*/
+    #if 1
+    vr_nexthop_req nh = { 0 };
+    nh.h_op = SANDESH_OP_ADD;
+    nh.nhr_type = NH_COMPOSITE;
+    nh.nhr_family = AF_BRIDGE;
+    nh.nhr_id = debug_nh_composite;
+    nh.nhr_rid = DEBUG_VROUTER_ID;
+    nh.nhr_vrf = 0;
+    nh.nhr_flags = NH_FLAG_VALID | NH_FLAG_COMPOSITE_L2 | NH_FLAG_MCAST;
+    nh.nhr_nh_list = NULL;  // Pointer to nexthops table
+    nh.nhr_nh_list_size = 0;  // Can be 0 according to dp-core/vr_nexthop.c:2370
+    nh.nhr_label_list_size = 0;  // Must be equal to nhr_nh_list_size
+    vr_nexthop_req_process(&nh);
+
+    vr_route_req req = { 0 };
+    req.h_op = SANDESH_OP_ADD;
+    req.rtr_vrf_id = DEBUG_VRF;
+    req.rtr_family = AF_BRIDGE;
+    req.rtr_prefix = NULL;
+    req.rtr_prefix_size = 0;
+    req.rtr_rid = DEBUG_VROUTER_ID;
+    req.rtr_nh_id = debug_nh_composite;
+    req.rtr_mac = debug_bcast_mast;
+    req.rtr_mac_size = VR_ETHER_ALEN;
+    vr_route_req_process((void*)&req);
+    #endif
+
     return NDIS_STATUS_SUCCESS;
 
 Failure:
@@ -404,6 +448,99 @@ SxExtConnectNic(
     nic.port_id = Nic->PortId;
 
     AddNicToArray(ctx, &nic, Nic->NicFriendlyName);
+
+#if 1
+    /* DEBUG(sodar): Mocked vr_interface attaching on OS callbacks. */
+    NDIS_IF_COUNTED_STRING vif_name = vr_get_name_from_friendly_name(Nic->NicFriendlyName);
+    char name[200];
+    RtlZeroMemory(name, 200);
+    NDIS_STRING unicode_string;
+    ANSI_STRING ansi_string;
+    ansi_string.Buffer = name;
+    ansi_string.MaximumLength = 200;
+    
+    vif_name.String[vif_name.Length] = u'\0';
+    RtlInitUnicodeString(&unicode_string, vif_name.String);
+    RtlUnicodeStringToAnsiString(&ansi_string, &unicode_string, FALSE);
+    vr_interface_req req;
+    
+    int32_t vif_idx = InterlockedIncrement(&debug_vif_counter);
+    int32_t nh_id = InterlockedIncrement(&debug_nh_counter);
+    
+    req.h_op = SANDESH_OP_ADD;
+    req.vifr_rid = DEBUG_VROUTER_ID;
+    req.vifr_idx = vif_idx;
+    req.vifr_os_idx = -1;
+    req.vifr_type = VIF_TYPE_VIRTUAL;
+    req.vifr_transport = VIF_TRANSPORT_VIRTUAL;
+    req.vifr_flags = 0;  // test with no flags
+    req.vifr_mir_id = 0;
+    
+    req.vifr_vrf = DEBUG_VRF;  // mocked VRF
+    req.vifr_mtu = 1500;
+    req.vifr_nh_id = nh_id;  // ???
+    req.vifr_qos_map_index = 0;  // ???
+    req.vifr_mac = Nic->PermanentMacAddress;
+    req.vifr_mac_size = sizeof(unsigned char[6]);
+    req.vifr_ip = 0;  // 0.0.0.0
+    req.vifr_name = ansi_string.Buffer; //
+    req.vifr_fat_flow_protocol_port_size = 0;  // ???
+    
+    if (!vr_interface_add(&req, false)) {
+        struct vrouter *vr = vrouter_get(req.vifr_rid);
+        vr_set_assoc_oid_name(vif_name, vr->vr_interfaces[req.vifr_idx]);
+        vr_set_assoc_oid_ids(Nic->PortId, Nic->NicIndex, vr->vr_interfaces[req.vifr_idx]);
+        
+    }
+    
+    /* DEBUG(sodar): Mocked nexthop for this interface. */
+    vr_nexthop_req nh = { 0 };
+    nh.h_op = SANDESH_OP_ADD;
+    nh.nhr_type = NH_ENCAP;
+    nh.nhr_family = AF_BRIDGE;
+    nh.nhr_id = Nic->PortId + 2;
+    nh.nhr_rid = DEBUG_VROUTER_ID;
+    nh.nhr_vrf = DEBUG_VRF;
+    nh.nhr_flags = NH_FLAG_VALID | NH_FLAG_ENCAP_L2;
+    nh.nhr_encap_size = VR_ETHER_ALEN;
+    nh.nhr_encap_len = 0; //Doesn't seem to matter
+    nh.nhr_encap_family = 0; //Doesn't seem to matter
+    nh.nhr_encap_oif_id = vif_idx;
+    nh.nhr_encap = Nic->PermanentMacAddress;
+    vr_nexthop_req_process(&nh);
+    
+    debug_nh_elements[debug_nh_elements_count] = Nic->PortId + 2;
+    debug_nh_elements_count++;
+    
+    /* DEBUG(sodar): Mocked nexthop update - there is no nexthops removal!!! */
+    vr_nexthop_req nhc = { 0 };
+    nhc.h_op = SANDESH_OP_ADD;
+    nhc.nhr_type = NH_COMPOSITE;
+    nhc.nhr_family = AF_BRIDGE;
+    nhc.nhr_id = 1;
+    nhc.nhr_rid = DEBUG_VROUTER_ID;
+    nhc.nhr_vrf = DEBUG_VRF;
+    nhc.nhr_flags = NH_FLAG_VALID | NH_FLAG_COMPOSITE_ENCAP | NH_FLAG_MCAST;
+    nhc.nhr_nh_list = debug_nh_elements;
+    nhc.nhr_nh_list_size = debug_nh_elements_count;
+    nhc.nhr_label_list = debug_nh_labels;
+    nhc.nhr_label_list_size = debug_nh_elements_count;  // Must be equal to nhr_nh_list_size
+    nhc.nhr_label_list = debug_nh_labels;
+    nhc.nhr_label_list_size = debug_nh_elements_count;  // Must be equal to nhr_nh_list_size
+    vr_nexthop_req_process(&nhc);
+
+    /* DEBUG(sodar): Mocked bridge entry for this interface */
+    vr_route_req br = { 0 };
+    br.h_op = SANDESH_OP_ADD;
+    br.rtr_vrf_id = DEBUG_VRF;
+    br.rtr_family = AF_BRIDGE;
+    br.rtr_rid = 0;
+    br.rtr_nh_id = nh_id;
+    br.rtr_mac = Nic->PermanentMacAddress;
+    br.rtr_mac_size = VR_ETHER_ALEN;
+    br.rtr_label_flags = VR_BE_LABEL_VALID_FLAG;
+    vr_route_req_process((void*)&br);
+#endif
 }
 
 VOID
