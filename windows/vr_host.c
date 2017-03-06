@@ -30,40 +30,56 @@ NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
 
 static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward declaration
 
+static int extension_context_size()
+{
+    // It's to make sure vr_packet fits into the context. This is effectively constexpr, so let's disable the warning.
+#pragma warning(push)
+#pragma warning(disable:4127)
+    int size = sizeof(struct vr_packet) + sizeof(NET_BUFFER_LIST_CONTEXT);
+    int units = size / MEMORY_ALLOCATION_ALIGNMENT;
+    if (size % MEMORY_ALLOCATION_ALIGNMENT == 0)
+        size = units * MEMORY_ALLOCATION_ALIGNMENT;
+    else
+        size = (units + 1) * MEMORY_ALLOCATION_ALIGNMENT;
+#pragma warning(pop)
+    return size;
+}
+
+struct vr_packet* win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
+
 static NDIS_STATUS
 create_extension_context(PNET_BUFFER_LIST nbl)
 {
-    return NdisAllocateNetBufferListContext(
-        nbl, MEMORY_ALLOCATION_ALIGNMENT, 0, SxExtAllocationTag);
+    NDIS_STATUS status = NdisAllocateNetBufferListContext(
+        nbl, extension_context_size(), 0, SxExtAllocationTag);
+
+    if (status != NDIS_STATUS_SUCCESS)
+        return status;
+
+    void* ptr = win_get_packet_from_nbl(nbl);
+
+    RtlZeroMemory(ptr, extension_context_size());
+
+    return NDIS_STATUS_SUCCESS;
+
 }
 
 static void
 delete_extension_context(PNET_BUFFER_LIST nbl)
 {
-    NdisFreeNetBufferListContext(nbl, MEMORY_ALLOCATION_ALIGNMENT);
+    NdisFreeNetBufferListContext(nbl, extension_context_size());
 }
 
 static NDIS_STATUS
-create_contexts(PNET_BUFFER_LIST nbl)
+create_forwarding_context(PNET_BUFFER_LIST nbl)
 {
-    NDIS_STATUS status = create_extension_context(nbl);
-
-    if (status != NDIS_STATUS_SUCCESS)
-        return status;
-
-    status = SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
-
-    if (status != NDIS_STATUS_SUCCESS)
-        delete_extension_context(nbl);
-
-    return status;
+    return SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
 }
 
 static void
-delete_contexts(PNET_BUFFER_LIST nbl)
+delete_forwarding_context(PNET_BUFFER_LIST nbl)
 {
     SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
-    delete_extension_context(nbl);
 }
 
 static PNET_BUFFER_LIST
@@ -93,7 +109,7 @@ create_nbl(unsigned int size)
 
     nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
 
-    NDIS_STATUS status = create_contexts(nbl);
+    NDIS_STATUS status = create_forwarding_context(nbl);
     if (status != NDIS_STATUS_SUCCESS)
     {
         DbgPrint("Allocate FWD CTX: %u\r\n", status);
@@ -108,11 +124,12 @@ create_nbl(unsigned int size)
 static void
 delete_nbl(PNET_BUFFER_LIST nbl)
 {
-    delete_extension_context(nbl);
+    if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
+        delete_extension_context(nbl);
 
     NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
-    SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    delete_forwarding_context(nbl);
     NdisFreeNetBufferList(nbl);
     NdisFreeMdl(mdl);
 }
@@ -204,46 +221,28 @@ win_page_free(void *address, unsigned int size)
     return;
 }
 
-void 
-win_assoc_packet_nb(PNET_BUFFER_LIST nbl, struct vr_packet* pkt)
-{
-    struct vr_packet** ctx = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
-    *ctx = pkt;
-
-    pkt->vp_net_buffer_list = nbl;
-}
-
 struct vr_packet*
 win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
 {
-    struct vr_packet** ret = (struct vr_packet**) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
-    return *ret;
+    struct vr_packet* ret = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    return ret;
 }
 
 struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
-    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
-    if (pkt == NULL)
-        return NULL;
-
-    pkt->vp_net_buffer_list = nbl;
-    pkt->vp_cpu = (unsigned char)win_get_cpu();
-
     /* Allocate NDIS context, which will store vr_packet pointer */
     if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
     {
         NDIS_STATUS status = create_extension_context(nbl);
-
         if (status != NDIS_STATUS_SUCCESS)
-        {
-            ExFreePoolWithTag(pkt, SxExtAllocationTag);
             return NULL;
-        }
     }
 
-    /* Associate NBL and allocated vr_packet */
-    win_assoc_packet_nb(nbl, pkt);
+    struct vr_packet *pkt = win_get_packet_from_nbl(nbl);
+
+    pkt->vp_net_buffer_list = nbl;
+    pkt->vp_cpu = (unsigned char)win_get_cpu();
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
@@ -288,8 +287,8 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    delete_extension_context(nbl);
-    win_pfree(pkt, VP_DROP_INVALID_PACKET);
+    if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
+        delete_extension_context(nbl);
     return NULL;
 }
 
@@ -314,10 +313,7 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
 
     if (pkt != NULL) {
         nbl = pkt->vp_net_buffer_list;
-        if (nbl == NULL)
-            return;
         cpu = pkt->vp_cpu;
-        ExFreePoolWithTag(pkt, SxExtAllocationTag);
     } else {
         cpu = win_get_cpu();
     }
@@ -425,41 +421,46 @@ win_preset(struct vr_packet *pkt)
 static struct vr_packet *
 win_pclone(struct vr_packet *pkt)
 {
-    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
-    if (npkt == NULL)
+    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, SxNBLPool, NULL, 0);
+    if (nbl == NULL)
         return NULL;
+
+    NDIS_STATUS status = create_extension_context(nbl);
+    if (status != NDIS_STATUS_SUCCESS)
+        goto cleanup_nbl;
+
+    struct vr_packet* npkt = win_get_packet_from_nbl(nbl);
     *npkt = *pkt;
 
-    npkt->vp_net_buffer_list = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, SxNBLPool, NULL, 0);
-    if (npkt->vp_net_buffer_list == NULL)
-        goto cleanup_npkt;
+    npkt->vp_net_buffer_list = nbl;
 
     npkt->vp_cpu = (unsigned char)win_get_cpu();
 
-    if (create_contexts(npkt->vp_net_buffer_list) != NDIS_STATUS_SUCCESS)
-        goto cleanup_nbl;
-
-    win_assoc_packet_nb(npkt->vp_net_buffer_list, npkt);
+    if (create_forwarding_context(npkt->vp_net_buffer_list) != NDIS_STATUS_SUCCESS)
+        goto cleanup_pkt;
 
     NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
         SxSwitchObject->NdisSwitchContext,
         npkt->vp_net_buffer_list,
         pkt->vp_net_buffer_list,
         0);
-    if (copy_status != NDIS_STATUS_SUCCESS) {
+
+    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+
+    if (copy_status != NDIS_STATUS_SUCCESS)
         goto cleanup_ctx;
-    }
 
     return npkt;
 
 cleanup_ctx:
-    delete_contexts(npkt->vp_net_buffer_list);
+    delete_forwarding_context(npkt->vp_net_buffer_list);
+
+cleanup_pkt:
+    delete_extension_context(nbl);
 
 cleanup_nbl:
-    NdisFreeCloneNetBufferList(npkt->vp_net_buffer_list, 0);
+    NdisFreeCloneNetBufferList(nbl, 0);
 
-cleanup_npkt:
-    ExFreePoolWithTag(npkt, SxExtAllocationTag);
     return NULL;
 }
 
@@ -590,10 +591,10 @@ win_pfrag_len(struct vr_packet *pkt)
     ULONG overall_len = NET_BUFFER_DATA_LENGTH(nb);
     ULONG nb_mdl_data_len = MmGetMdlByteCount(nb_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
 
-    if (overall_len < nb_mdl_data_len) {
+    if (overall_len <= nb_mdl_data_len) {
         return 0;
     } else {
-        return nb_mdl_data_len - overall_len;
+        return overall_len - nb_mdl_data_len;
     }
 }
 
@@ -1100,7 +1101,7 @@ NDIS_HANDLE
 vrouter_generate_pool()
 {
     NET_BUFFER_LIST_POOL_PARAMETERS params;
-    params.ContextSize = 0;
+    params.ContextSize = extension_context_size();
     params.DataSize = 0;
     params.fAllocateNetBuffer = TRUE;
     params.PoolTag = SxExtAllocationTag;

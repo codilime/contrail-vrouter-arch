@@ -817,9 +817,8 @@ SxExtStartNetBufferListsIngress(
 
     PNET_BUFFER_LIST extForwardedNbls = NULL;  // NBLs forwarded by extension.
     PNET_BUFFER_LIST nativeForwardedNbls = NULL;  // NBLs that require native forwarding - extension just sends them.
-    PNET_BUFFER_LIST dropNbl = NULL;
-    PNET_BUFFER_LIST *nextDropNbl = &dropNbl;
     PNET_BUFFER_LIST curNbl = NULL;
+    PNET_BUFFER_LIST nextNbl = NULL;
 
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
@@ -838,49 +837,40 @@ SxExtStartNetBufferListsIngress(
 
     vr_win_split_nbls_by_forwarding_type(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
-    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = curNbl->Next)
+    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
     {
-        //  vif := vr_interface from <source_port_id, nic_id>
+        /* Save next NBL, because after passing control to vRouter it might drop curNbl.
+        Also vRouter handles packets one-by-one, so we operate on single NBLs.
+        */
+        nextNbl = curNbl->Next;
+        curNbl->Next = NULL;
+
         PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
         NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
         NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
         struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
         struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
         if (!vif) {
-            // If no vif attached yet, then drop NBL.
-            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-            debug_print_net_buffer(nb, "StartIngress: dropped, vif == NULL");
+            /* If no vif attached yet, then drop NBL. */
+            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
             continue;
         }
 
-        //  pkt := vr_packet from PNET_BUFFER_LIST and vr_interface
         struct vr_packet *pkt = win_get_packet(curNbl, vif);
-        if (!pkt) {
-            // If creating vr_packet failed, then drop NBL.
-            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-            debug_print_net_buffer(nb, "StartIngress: dropped, couldn't get vr_packet");
+        if (pkt == NULL) {
+            /* If `win_get_packet` fails, it will drop the NBL. */
+            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
             continue;
         }
 
         if (vif->vif_rx) {
+            /* We assume that will be correctly handled by vRouter in `vif_rx` callback. */
             int rx_ret = vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
-            if (!rx_ret) {
-                // TODO: Remove packet drop when dp-core will properfly forward packets.
-                vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-                NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-                debug_print_net_buffer(nb, "StartIngress: vif_rx succeeded");
-            } else {
-                //  If vif_rx failed, then drop NBL.
-                //  TODO: Proper error logging.
-                vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-                DbgPrint("StartIngress: dropped, vif_rx failed");
-            }
-        } else {
-            vr_win_add_to_dropped_pkts(curNbl, nextDropNbl);
-            NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(curNbl);
-            debug_print_net_buffer(nb, "StartIngress: vif_rx == NULL");
+            windows_host.hos_printf("%s: vif_rx returned %d\n", __func__, rx_ret);
+        }
+        else {
+            /* If `vif_rx` is not set (unlikely in production), then drop the packet. */
+            windows_host.hos_pfree(pkt, VP_DROP_INTERFACE_DROP);
             continue;
         }
     }
@@ -888,29 +878,12 @@ SxExtStartNetBufferListsIngress(
     // Release the lock, now interfaces can disconnect, etc.
     NdisReleaseRWLock(ctx->lock, &lockState);
 
-    // Handle packet sending
-    // NOTE: Currently every received packet is dropped.
-    /*if (extForwardedNbls != NULL) {
-        DbgPrint("StartIngress: send extension forwarded NBL\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
-            extForwardedNbls,
-            SendFlags,
-            0);
-    }*/
-
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
         SxLibSendNetBufferListsIngress(Switch,
             nativeForwardedNbls,
             SendFlags,
             0);
-    }
-
-    if (dropNbl != NULL) {
-        DbgPrint("StartIngress: dropping dropped NBLs\r\n");
-        SxLibCompleteNetBufferListsIngress(Switch,
-            dropNbl,
-            sendCompleteFlags);
     }
 }
 
@@ -959,38 +932,26 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    if (NetBufferLists->SourceHandle == Switch->NdisFilterHandle)
+    PNET_BUFFER_LIST curNBL = NetBufferLists;
+
+    while (curNBL)
     {
-        DbgPrint("Completing injected NBL...\r\n");
+        PNET_BUFFER_LIST nextNBL = curNBL->Next;
+        curNBL->Next = NULL;
 
-        PNET_BUFFER_LIST iterator = NetBufferLists;
-        int count = 0;
-
-        while (iterator)
+        if (curNBL->SourceHandle == Switch->NdisFilterHandle)
         {
-            iterator = iterator->Next;
-            ++count;
-        } // This is probably almost always one
-        SxLibCompletedInjectedNetBufferLists(Switch, count);
-    }
-    else
-    {
-        DbgPrint("Completing non-injected NBL...\r\n");
-        SxLibCompleteNetBufferListsIngress(Switch,
-            NetBufferLists,
-            SendCompleteFlags);
-    }
+            DbgPrint("Completing injected NBL...\r\n");
 
-    PNET_BUFFER_LIST curNbl = NetBufferLists;
-    PNET_BUFFER_LIST nextNbl = NULL;
-
-    while (curNbl != NULL)
-    {
-        nextNbl = curNbl->Next;
-        struct vr_packet* pkt = win_get_packet_from_nbl(curNbl);
-        if (pkt != NULL)
-            windows_host.hos_pfree(pkt, VP_DROP_DISCARD);
-
-        curNbl = nextNbl;
+            SxLibCompletedInjectedNetBufferLists(Switch, 1);
+        }
+        else
+        {
+            DbgPrint("Completing non-injected NBL...\r\n");
+            SxLibCompleteNetBufferListsIngress(Switch,
+                curNBL,
+                SendCompleteFlags);
+        }
+        curNBL = nextNBL;
     }
 }
