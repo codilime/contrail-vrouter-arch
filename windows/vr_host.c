@@ -31,7 +31,7 @@ static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward
 static PNET_BUFFER_LIST
 create_nbl(unsigned int size)
 {
-    void* ptr = ExAllocatePoolWithTag(NonPagedPool, size, SxExtAllocationTag);
+    void* ptr = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag);
 
     if (ptr == NULL)
         return NULL;
@@ -98,7 +98,7 @@ win_malloc(unsigned int size, unsigned int object)
 {
     UNREFERENCED_PARAMETER(object);
 
-    void *mem = ExAllocatePoolWithTag(NonPagedPool, size, SxExtAllocationTag); // TODO: Check with paged pool
+    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag); // TODO: Check with paged pool
 
     //vr_malloc_stats(size, object);
 
@@ -110,7 +110,10 @@ win_zalloc(unsigned int size, unsigned int object)
 {
     UNREFERENCED_PARAMETER(object);
 
-    void *mem = ExAllocatePoolWithTag(NonPagedPool, size, SxExtAllocationTag); // TODO: Check with paged pool
+    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag); // TODO: Check with paged pool
+    if (!mem)
+        return NULL;
+
     NdisZeroMemory(mem, size);
 
     //vr_malloc_stats(size, object);
@@ -122,6 +125,10 @@ static void *
 win_page_alloc(unsigned int size)
 {
     void *mem = ExAllocatePoolWithTag(PagedPool, size, SxExtAllocationTag);
+    if (!mem)
+        return NULL;
+
+    NdisZeroMemory(mem, size);
 
     return mem;
 }
@@ -172,7 +179,7 @@ win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
 struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
-    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
     if (pkt == NULL)
         return NULL;
     win_assoc_packet_nb(nbl, pkt);
@@ -336,7 +343,10 @@ win_preset(struct vr_packet *pkt)
 static struct vr_packet *
 win_pclone(struct vr_packet *pkt)
 {
-    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    if (!npkt)
+        return NULL;
+
     *npkt = *pkt;
 
     npkt->vp_net_buffer_list = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, NULL, NULL, 0);
@@ -533,7 +543,8 @@ win_create_timer(struct vr_timer *vtimer)
 {
     vtimer->vt_os_arg = ExAllocateTimer(win_timer_callback, (void *)vtimer, EX_TIMER_HIGH_RESOLUTION);
 
-    ExSetTimer(vtimer->vt_os_arg, vtimer->vt_msecs * 10, vtimer->vt_msecs * 10, NULL);
+    // DueTime is negative, because it's then treated as relative time instead of absolute.
+    ExSetTimer(vtimer->vt_os_arg, (-10000LL) * vtimer->vt_msecs, 10000LL * vtimer->vt_msecs, NULL);
 
     return 0;
 }
@@ -564,11 +575,9 @@ win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
     struct scheduled_work_cb_data * cb_data;
     NDIS_HANDLE work_item;
 
-    cb_data = ExAllocatePoolWithTag(NonPagedPool, sizeof(*cb_data), SxExtAllocationTag);
-    if (!cb_data) {
-        /* TODO: in Linux it returns -ENOMEM */
-        return 1;
-    }
+    cb_data = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*cb_data), SxExtAllocationTag);
+    if (!cb_data)
+        return -ENOMEM;
 
     cb_data->user_cb = fn;
     cb_data->data = arg;

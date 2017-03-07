@@ -138,7 +138,11 @@ vr_btable_alloc(unsigned int num_entries, unsigned int entry_size)
 
     if (num_parts) {
         for (i = 0; i < num_parts; i++) {
+#ifdef _WINDOWS
+            table->vb_mem[i] = vr_zalloc(VR_SINGLE_ALLOC_LIMIT, VR_BTABLE_OBJECT);
+#else
             table->vb_mem[i] = vr_page_alloc(VR_SINGLE_ALLOC_LIMIT);
+#endif
             if (!table->vb_mem[i])
                 goto exit_alloc;
             table->vb_table_info[i].vb_mem_size = VR_SINGLE_ALLOC_LIMIT;
@@ -149,7 +153,11 @@ vr_btable_alloc(unsigned int num_entries, unsigned int entry_size)
     }
 
     if (remainder) {
+#ifdef _WINDOWS
+        table->vb_mem[i] = vr_zalloc(remainder, VR_BTABLE_OBJECT);
+#else
         table->vb_mem[i] = vr_page_alloc(remainder);
+#endif
         if (!table->vb_mem[i])
             goto exit_alloc;
         table->vb_table_info[i].vb_mem_size = remainder;
