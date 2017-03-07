@@ -36,7 +36,8 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     int ret;
     struct vr_message request, *response;
-   
+    unsigned int len;
+
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PCHAR WriteDataBuffer;
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
@@ -75,9 +76,11 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     }
 
     while ((response = vr_message_dequeue_response())) {
-        // At this moment we keep only last reponse, but this solution can be not fully correct.
-        // If dp-core will response more then one reponse, then we have to implement buffer/queue here
-        DriverObject->DeviceExtension = response;
+        len = response->vr_message_len;
+
+        memcpy(DriverObject->DeviceExtension, &response->vr_message_len, sizeof(unsigned int));
+        memcpy((char*)DriverObject->DeviceExtension + sizeof(unsigned int), response->vr_message_buf, response->vr_message_len);
+
         vr_message_free(response);
     }
     
@@ -109,18 +112,22 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
 
+    Irp->IoStatus.Information = 0;
+
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
-        len = ((struct vr_message*)(DriverObject->DeviceExtension))->vr_message_len;
+        len = *((unsigned int*)(DriverObject->DeviceExtension));
 
-        if (IoStackIrp->Parameters.Read.Length >= len)
-            RtlCopyMemory(ReadDataBuffer, DriverObject->DeviceExtension, len);
+		if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
+			RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension+sizeof(unsigned int), len);
+			*((unsigned int*)(DriverObject->DeviceExtension)) = 0;
+			Irp->IoStatus.Information = len;
+		}
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = IoStackIrp->Parameters.Write.Length;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
 
