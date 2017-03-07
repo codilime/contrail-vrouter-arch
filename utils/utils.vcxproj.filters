@@ -74,9 +74,6 @@
     <ClInclude Include="..\include\vr_platform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\sandesh.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\tools\sandesh\library\c\transport\thrift_fake_transport.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -102,6 +99,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\windows\include\vr_utils_temp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\sandesh\library\c\sandesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -4,6 +4,52 @@
 
 #define ETHER_ADDR_LEN	   6
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <stdint.h> // portable: uint64_t   MSVC: __int64 
+#include <stdio.h> 
+
+
+const char* inet_ntop(int af, const void* src, char* dst, int cnt) {
+
+	struct sockaddr_in srcaddr;
+
+	memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+	memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+
+	srcaddr.sin_family = af;
+	if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
+		DWORD rv = WSAGetLastError();
+		printf("WSAAddressToString() : %d\n", rv);
+		return NULL;
+	}
+	return dst;
+}
+
+
+int gettimeofday(struct timeval * tp, struct timezone * tzp)
+{
+    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+    // until 00:00:00 January 1, 1970 
+    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+
+    SYSTEMTIME  system_time;
+    FILETIME    file_time;
+    uint64_t    time;
+
+    GetSystemTime(&system_time);
+    SystemTimeToFileTime(&system_time, &file_time);
+    time = ((uint64_t)file_time.dwLowDateTime);
+    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+
+    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
+    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
+    return 0;
+}
+
+
+
 // TODO: JW-120 - Refactoring of vr_win_utils.c
 struct ether_addr {
 	u_char ether_addr_octet[ETHER_ADDR_LEN];
@@ -27,6 +73,18 @@ inet_aton(const char *cp, struct in_addr *addr)
 	return inet_pton(AF_INET, cp, addr);
 }
 
+char *ether_ntoa(struct ether_addr *n)
+{
+    int i;
+    static char a[18];
+
+    i = sprintf(a, "%x: %x: %x: %x: %x: %x", n->ether_addr_octet[0], n->ether_addr_octet[1], 
+                                                  n->ether_addr_octet[2], n->ether_addr_octet[3],
+                                                  n->ether_addr_octet[4], n->ether_addr_octet[5]);
+    if (i <11)
+        return (NULL);
+    return ((char *)&a);
+}
 
 struct ether_addr *
 	ether_aton_r(const char *asc, struct ether_addr * addr)
@@ -90,7 +148,6 @@ nl_client_stream_recvmsg(struct nl_client *cl)
     if (hPipe != INVALID_HANDLE_VALUE)
     {
 		if (ReadFile(hPipe, buffer, NL_MSG_DEFAULT_SIZE, &dwRead, NULL)) {
-			printf("DWREAD %d\n", dwRead);
 			memcpy(cl->cl_buf, buffer, dwRead);
 		}
 		else {
@@ -114,6 +171,7 @@ nl_client_stream_recvmsg(struct nl_client *cl)
 			ExitProcess(dw);
 		}
     }
+
     return dwRead;
 }
 
@@ -122,7 +180,6 @@ int
 nl_sendmsg(struct nl_client *cl)
 {
 	DWORD dwWritten;
-	void *rr;
 	struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
 	int d =  cl->cl_buf_offset;
 	hPipe = CreateFile(TEXT("\\\\.\\vrouterKsync"),

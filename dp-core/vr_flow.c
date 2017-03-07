@@ -18,6 +18,7 @@
 #include "vr_datapath.h"
 #include "vr_hash.h"
 #include "vr_ip_mtrie.h"
+#include "vr_htable.h"
 
 #define VR_NUM_FLOW_TABLES          1
 
@@ -27,7 +28,7 @@
 
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
-
+extern HANDLE Section;
 /*
  * host can provide its own memory . Point in case is the DPDK. In DPDK,
  * we allocate the table from hugepages and just ask the flow module to
@@ -2078,6 +2079,22 @@ vr_flow_req_get(vr_flow_req *ref_req)
     return req;
 }
 
+struct vr_htable {
+    struct vrouter *ht_router;
+    unsigned int ht_hentries;
+    unsigned int ht_oentries;
+    unsigned int ht_entry_size;
+    unsigned int ht_key_size;
+    unsigned int ht_bucket_size;
+    struct vr_btable *ht_htable;
+    struct vr_btable *ht_otable;
+    struct vr_btable *ht_dtable;
+    get_hentry_key ht_get_key;
+    vr_hentry_t *ht_free_oentry_head;
+    unsigned int ht_used_oentries;
+    unsigned int ht_used_entries;
+};
+
 /*
  * sandesh handler for vr_flow_req
  */
@@ -2331,6 +2348,30 @@ int
 vr_flow_init(struct vrouter *router)
 {
     int ret;
+
+    NTSTATUS status = STATUS_SUCCESS;
+    size_t flow_table_size;
+    UNICODE_STRING _SectionName;
+    PVOID BaseAddress = NULL;
+    SIZE_T ViewSize = 0;
+    const WCHAR SectionName[] = L"\\BaseNamedObjects\\vRouter";
+
+    RtlInitUnicodeString(&_SectionName, SectionName);
+
+    if (!vr_oflow_entries)
+        vr_oflow_entries = ((vr_flow_entries / 5) + 1023) & ~1023;
+
+    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+
+    status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
+    if (status != STATUS_SUCCESS)
+    {
+        DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
+        return 0;
+    }
+    
+    vr_flow_table = BaseAddress;
+    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
 
     if ((ret = vr_fragment_table_init(router)) < 0)
         return ret;

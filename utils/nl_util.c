@@ -71,24 +71,6 @@ vr_nexthop_req_process(void *s_req)
 #endif
 
 void
-vr_flow_req_process(void *s_req)
-{
-    return;
-}
-
-void
-vr_route_req_process(void *s_req)
-{
-    return;
-}
-
-void
-vr_interface_req_process(void *s_req)
-{
-    return;
-}
-
-void
 vr_mpls_req_process(void *s_req)
 {
     return;
@@ -116,12 +98,6 @@ vr_vrf_assign_req_process(void *s_req)
 
 void
 vr_vrf_stats_req_process(void *s_req)
-{
-    return;
-}
-
-void
-vr_drop_stats_req_process(void *s_req)
 {
     return;
 }

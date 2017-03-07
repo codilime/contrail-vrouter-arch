@@ -3,37 +3,44 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
+#include <vr_os.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include <getopt.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <time.h>
-
 #include <sys/types.h>
-#include <sys/time.h>
 #include <sys/stat.h>
+
+#if defined(__linux__)
+
+#include <unistd.h>
+#include <getopt.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/mman.h>
-#if defined(__linux__)
 #include <asm/types.h>
 
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
-#endif
-
 #include <net/if.h>
-#if defined(__linux__)
 #include <netinet/ether.h>
 #endif
+#if defined(__windows__)
+#include <stdbool.h>
+#include <wingetopt.h>
+
+#define O_SYNC 1
+#define PROT_READ 1 
+#define MAP_SHARED 1
+#define MAP_FAILED 1
 
 #include "vr_types.h"
 #include "vr_qos.h"
@@ -1180,17 +1187,15 @@ flow_dump_table(struct flow_table *ft)
     printf("-----------------------------------------------------------------");
     printf("------------------\n");
     for (i = 0; i < ft->ft_num_entries; i++) {
-        bzero(flag_string, sizeof(flag_string));
+        memset(flag_string, 0, sizeof(flag_string));
         need_flag_print = 0;
         need_drop_reason = 0;
         fe = (struct vr_flow_entry *)((char *)ft->ft_entries + (i * sizeof(*fe)));
         if (fe->fe_flags & VR_FLOW_FLAG_ACTIVE) {
-
             if ((fe->fe_flags & VR_FLOW_FLAG_EVICTED) &&
                     !show_evicted_set) {
                 continue;
             }
-
 
             if (match_vrf >= 0) {
                 if (fe->fe_vrf != match_vrf)
@@ -1473,7 +1478,7 @@ flow_stats(void)
         flow_action_drop = 0;
         flow_action_fwd = 0;
         flow_action_nat = 0;
-        usleep(500000);
+        Sleep(500); // usleep(500000)
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries +
                                           (i * sizeof(*fe)));
@@ -1584,7 +1589,7 @@ flow_rate(void)
     while (1) {
         active_entries = 0;
         total_entries = 0;
-        usleep(500000);
+        Sleep(500); // usleep(500000);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries + (i * sizeof(*fe)));
             if (fe->fe_flags & VR_FLOW_FLAG_ACTIVE) {
@@ -1618,14 +1623,37 @@ flow_rate(void)
     }
 }
 
+LPSTR GetError()
+{
+    LPSTR errorText = NULL;
+
+    FormatMessageA(
+        // use system message tables to retrieve error text
+        FORMAT_MESSAGE_FROM_SYSTEM
+        // allocate buffer on local heap for error text
+        | FORMAT_MESSAGE_ALLOCATE_BUFFER
+        // Important! will fail otherwise, since we're not 
+        // (and CANNOT) pass insertion parameters
+        | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
+        GetLastError(),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPSTR)&errorText,  // output 
+        0, // minimum size for output buffer
+        NULL);   // arguments - see not
+
+    return errorText;
+}
+
+
 static int
 flow_table_map(vr_flow_req *req)
 {
-    int ret;
+    int ret = 0;
     unsigned int i;
     struct flow_table *ft = &main_table;
     const char *flow_path;
-
+    HANDLE Handle;
     if (req->fr_ftable_dev < 0)
         exit(ENODEV);
 
@@ -1635,24 +1663,48 @@ flow_table_map(vr_flow_req *req)
         flow_path = req->fr_file_path;
     } else {
         flow_path = MEM_DEV;
+
+        Handle = OpenFileMapping(PAGE_READWRITE, FALSE, TEXT("Global\\vRouter"));
+
+        if (Handle == NULL || Handle == INVALID_HANDLE_VALUE)
+        {
+            printf("Error, bad HANDLE\n");
+            printf("Error: %s\n", GetError());// << std::endl; ")
+        }
+
+#if defined(__linux__)
         ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
                 makedev(req->fr_ftable_dev, req->fr_rid));
+#endif
         if (ret && errno != EEXIST) {
             perror(MEM_DEV);
             exit(errno);
         }
     }
 
+#if defined(__linux__)
     mem_fd = open(flow_path, O_RDONLY | O_SYNC);
+
     if (mem_fd <= 0) {
         perror(MEM_DEV);
         exit(errno);
     }
+#else
+    PVOID Section = MapViewOfFile(Handle, PAGE_READWRITE, 0, 0, 0);
+    if (Section == NULL)
+    {
+        printf("Section is null\n");
+    }
+    ft->ft_entries = Section;
+#endif
 
+
+#if defined(__linux__)
     ft->ft_entries = (struct vr_flow_entry *)mmap(NULL, req->fr_ftable_size,
             PROT_READ, MAP_SHARED, mem_fd, 0);
     /* the file descriptor is no longer needed */
     close(mem_fd);
+#endif
     if (ft->ft_entries == MAP_FAILED) {
         printf("flow table: %s\n", strerror(errno));
         exit(errno);
@@ -1716,12 +1768,20 @@ flow_make_flow_req(vr_flow_req *req)
     ret = nl_sendmsg(cl);
     if (ret <= 0)
         return ret;
-
+    cl->cl_recvmsg = nl_client_stream_recvmsg;
     if ((ret = nl_recvmsg(cl)) > 0) {
+#if defined(__linux__)
         resp = nl_parse_reply(cl);
+        
         if (resp->nl_op == SANDESH_REQUEST) {
             sandesh_decode(resp->nl_data, resp->nl_len, vr_find_sandesh_info, &ret);
         }
+#else
+        sandesh_decode(cl->cl_buf, ret,
+            vr_find_sandesh_info, &ret);
+#endif
+
+
     }
 
     if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -1743,12 +1803,12 @@ flow_table_get(void)
 static int
 flow_table_setup(void)
 {
-    int ret;
+    int ret = 1;
 
     cl = nl_register_client();
     if (!cl)
         return -ENOMEM;
-
+#if defined(__linux__)
     parse_ini_file();
     ret = nl_socket(cl, get_domain(), get_type(), get_protocol());
     if (ret <= 0)
@@ -1761,7 +1821,7 @@ flow_table_setup(void)
     ret = vrouter_get_family_id(cl);
     if (ret <= 0)
         return ret;
-
+#endif
     return ret;
 }
 
@@ -2211,6 +2271,7 @@ main(int argc, char *argv[])
 
     while ((opt = getopt_long(argc, argv, "d:f:g:i:lrs",
                     long_options, &option_index)) >= 0) {
+
         switch (opt) {
         case 'f':
         case 'g':
@@ -2240,12 +2301,14 @@ main(int argc, char *argv[])
     }
 
     validate_options();
-
+    
     ret = flow_table_setup();
     if (ret < 0)
         return ret;
 
+
     ret = flow_table_get();
+
     if (ret < 0)
         return ret;
 

@@ -8,6 +8,7 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 #define SYMLINK 1
 #define DEVICE 2
+#define QUEUE_SIZE 4096
 
 static int ToClean = 0;
 
@@ -118,11 +119,11 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
     {
         len = *((unsigned int*)(DriverObject->DeviceExtension));
 
-		if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
-			RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension+sizeof(unsigned int), len);
-			*((unsigned int*)(DriverObject->DeviceExtension)) = 0;
-			Irp->IoStatus.Information = len;
-		}
+        if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
+            RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension+sizeof(unsigned int), len);
+            *((unsigned int*)(DriverObject->DeviceExtension)) = 0;
+            Irp->IoStatus.Information = len;
+        }
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -157,7 +158,7 @@ DestroyDevice(PDRIVER_OBJECT DriverObject)
     if (ToClean & DEVICE)
     {
         IoDeleteDevice(DriverObject->DeviceObject);
-	    ToClean ^= DEVICE;
+        ToClean ^= DEVICE;
     }
 }
 
@@ -185,7 +186,7 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, sizeof(struct vr_message), &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+    Status = IoCreateDevice(DriverObject, QUEUE_SIZE, &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
 
     if (NT_SUCCESS(Status))
     {

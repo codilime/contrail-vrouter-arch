@@ -4,6 +4,7 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 #include "vr_sandesh.h"
+#include "vr_mem.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -35,6 +36,7 @@ static char hex_table[] = {
 static int
 vr_message_init(void)
 {
+    MemoryInit();
     return vr_sandesh_init();
 }
 
@@ -174,11 +176,11 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
     
     if (NT_ERROR(Status) || ret)
     {
-	    return NDIS_STATUS_DEVICE_FAILED;
+        return NDIS_STATUS_DEVICE_FAILED;
     }
     else if (!NT_SUCCESS(Status))
     {
-	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
+        DbgPrint("CreateDevice informal/warning: %d\n", Status);
     }
 
     return NDIS_STATUS_SUCCESS;
@@ -187,6 +189,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
+    MemoryExit();
     DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }
