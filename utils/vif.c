@@ -151,7 +151,6 @@ static struct vr_util_flags flag_metadata[] = {
     {VIF_FLAG_UNKNOWN_UC_FLOOD, "Uuf",  "Unknown Unicast Flood"},
     {VIF_FLAG_VLAN_OFFLOAD,     "Vof",  "VLAN insert/strip offload"},
     {VIF_FLAG_DROP_NEW_FLOWS,   "Df",   "Drop New Flows"},
-    {VIF_FLAG_MAC_PROXY,        "Proxy", "MAC Requests Proxied Always"},
 };
 
 static char *
@@ -634,13 +633,6 @@ rate_process(vr_interface_req *req, vr_interface_req *prev_req)
         temp_prev_req_ptr = prev_req->vifr_queue_ierrors_to_lcore;
         *prev_req = *req;
         prev_req->vifr_queue_ierrors_to_lcore = temp_prev_req_ptr;
-        if (!prev_req->vifr_queue_ierrors_to_lcore) {
-            prev_req->vifr_queue_ierrors_to_lcore =
-                malloc(req->vifr_queue_ierrors_to_lcore_size * sizeof(uint64_t));
-            if (!prev_req->vifr_queue_ierrors_to_lcore)
-                return;
-        }
-
         memcpy(prev_req->vifr_queue_ierrors_to_lcore,
             req->vifr_queue_ierrors_to_lcore,
             req->vifr_queue_ierrors_to_lcore_size * sizeof(uint64_t));
@@ -649,8 +641,7 @@ rate_process(vr_interface_req *req, vr_interface_req *prev_req)
     }
 
     rate_req_temp = *req;
-    rate_req_temp.vifr_queue_ierrors_to_lcore =
-        calloc(req->vifr_queue_ierrors_to_lcore_size, sizeof(uint64_t));
+    rate_req_temp.vifr_queue_ierrors_to_lcore = calloc(VR_MAX_CPUS, sizeof(uint64_t));
 
     if (!rate_req_temp.vifr_queue_ierrors_to_lcore) {
         fprintf(stderr, "Fail, memory allocation. (%s:%d).", __FILE__ , __LINE__);
@@ -1528,6 +1519,17 @@ main(int argc, char *argv[])
         vr_intf_op(cl, vr_op);
 
     } else {
+        for (i = 0; i < VR_MAX_INTERFACES; i++) {
+
+            prev_req[i].vifr_queue_ierrors_to_lcore =
+                (calloc(VR_MAX_CPUS, sizeof(uint64_t)));
+
+            if (!(prev_req[i].vifr_queue_ierrors_to_lcore)) {
+                fprintf(stderr, "Fail, memory allocation. (%s:%d).", __FILE__ , __LINE__);
+                exit(1);
+            }
+        }
+
         fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
         /*
          * tc[get/set]attr functions are for changing terminal behavior.

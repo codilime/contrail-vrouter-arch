@@ -200,10 +200,6 @@ vr_inet6_form_flow(struct vrouter *router, unsigned short vrf,
             (icmph->icmp_type == VR_ICMP6_TYPE_ECHO_REPLY)) {
             sport = icmph->icmp_eid;
             dport = ntohs(VR_ICMP6_TYPE_ECHO_REPLY);
-        } else if ((icmph->icmp_type == VR_ICMP6_TYPE_NEIGH_SOL) ||
-                (icmph->icmp_type == VR_ICMP6_TYPE_NEIGH_AD)) {
-            pkt->vp_flags |= VP_FLAG_FLOW_SET;
-            return 0;
         } else {
             sport = 0;
             dport = icmph->icmp_type;
@@ -267,9 +263,6 @@ vr_inet6_flow_lookup(struct vrouter *router, struct vr_packet *pkt,
     ret = vr_inet6_form_flow(router, fmd->fmd_dvrf, pkt, fmd->fmd_vlan, ip6, flow_p);
     if (ret < 0)
         return FLOW_CONSUMED;
-
-    if (pkt->vp_flags & VP_FLAG_FLOW_SET)
-        return FLOW_FORWARD;
 
     /*
      * if the interface is policy enabled, or if somebody else (eg:nexthop)
@@ -338,12 +331,11 @@ void
 vr_neighbor_proxy(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
         unsigned char *dmac)
 {
-    uint16_t adv_flags = 0;
-
     struct vr_eth *eth;
     struct vr_ip6 *ip6;
     struct vr_icmp *icmph;
     struct vr_neighbor_option *nopt;
+    struct vr_interface *vif = pkt->vp_if;
 
 
     icmph = (struct vr_icmp *)pkt_data(pkt);
@@ -368,11 +360,7 @@ vr_neighbor_proxy(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
 
     /* Update ICMP header and options */
     icmph->icmp_type = VR_ICMP6_TYPE_NEIGH_AD;
-    adv_flags |= VR_ICMP6_NEIGH_AD_FLAG_SOLCITED;
-    if (fmd->fmd_flags & FMD_FLAG_MAC_IS_MY_MAC)
-        adv_flags |= VR_ICMP6_NEIGH_AD_FLAG_ROUTER;
-
-    icmph->icmp_eid = htons(adv_flags);
+    icmph->icmp_eid = htons(0x4000);
 
     /* length in units of 8 octets */
     nopt->vno_type = TARGET_LINK_LAYER_ADDRESS_OPTION;
@@ -382,7 +370,11 @@ vr_neighbor_proxy(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
     icmph->icmp_csum =
         ~(vr_icmp6_checksum(ip6, icmph));
 
-    vr_mac_reply_send(pkt, fmd);
+    if (vif->vif_flags & VIF_FLAG_NO_ARP_PROXY) {
+        vif->vif_tx(vif, pkt, fmd);
+    } else {
+        vr_bridge_input(vif->vif_router, pkt, fmd);
+    }
 
     return;
 }
@@ -417,17 +409,14 @@ vm_neighbor_request(struct vr_interface *vif, struct vr_packet *pkt,
 
     vr_inet_route_lookup(fmd->fmd_dvrf, &rt);
 
-    if ((vif->vif_flags & VIF_FLAG_MAC_PROXY) ||
-            (rt.rtr_req.rtr_label_flags & VR_RT_ARP_PROXY_FLAG)) {
+    if (rt.rtr_req.rtr_label_flags & VR_RT_ARP_PROXY_FLAG)
         return vr_get_proxy_mac(pkt, fmd, &rt, dmac);
-    }
 
     return MR_FLOOD;
 }
 
 int
-vr_neighbor_input(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
-        unsigned char *eth_dmac)
+vr_neighbor_input(struct vr_packet *pkt, struct vr_forwarding_md *fmd)
 {
     int handled = 1;
     uint32_t pull_len, len;
@@ -448,6 +437,10 @@ vr_neighbor_input(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
 
     ip6 = (struct vr_ip6 *)pkt_data(pkt);
     if (ip6->ip6_nxt != VR_IP_PROTO_ICMP6)
+        return !handled;
+
+    /* Link local neighbour discovery is bridged */
+    if (vr_v6_prefix_is_ll(ip6->ip6_dst))
         return !handled;
 
     if (pkt->vp_len < pull_len + sizeof(struct vr_icmp))
@@ -471,8 +464,6 @@ vr_neighbor_input(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
 
     if (nopt->vno_type != SOURCE_LINK_LAYER_ADDRESS_OPTION)
         goto drop;
-
-    VR_MAC_COPY(dmac, eth_dmac);
 
     ndisc_result = vif->vif_mac_request(vif, pkt, fmd, dmac);
     switch (ndisc_result) {

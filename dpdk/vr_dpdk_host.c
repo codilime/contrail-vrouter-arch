@@ -154,10 +154,7 @@ dpdk_pfree(struct vr_packet *pkt, unsigned short reason)
 
     router->vr_pdrop_stats[rte_lcore_id()][reason]++;
 
-    if (pkt)
-        rte_pktmbuf_free(vr_dpdk_pkt_to_mbuf(pkt));
-
-    return;
+    rte_pktmbuf_free(vr_dpdk_pkt_to_mbuf(pkt));
 }
 
 void
@@ -505,13 +502,11 @@ dpdk_get_mono_time(unsigned int *sec, unsigned int *nsec)
 }
 
 /* Work callback called on NetLink lcore */
-static int
+static void
 dpdk_schedule_work(unsigned int cpu, void (*fn)(void *), void *arg)
 {
     /* no RCU reader lock needed, just do the work */
     fn(arg);
-
-    return 0;
 }
 
 static void
@@ -685,31 +680,9 @@ dpdk_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
 
 /* VRouter callback */
 static int
-dpdk_pcow(struct vr_packet **pktp, unsigned short head_room)
+dpdk_pcow(struct vr_packet *pkt, unsigned short head_room)
 {
-    struct vr_packet *pkt = *pktp;
     struct rte_mbuf *mbuf = vr_dpdk_pkt_to_mbuf(pkt);
-    struct rte_mbuf *m_copy;
-    struct vr_packet *p_copy;
-
-    /*
-     * If this is an indirect mbuf, allocate a new mbuf and copy
-     * its data. Then free the original mbuf.
-     */
-    if (RTE_MBUF_INDIRECT(mbuf)) {
-        m_copy = vr_dpdk_pktmbuf_copy(mbuf, mbuf->pool);
-        if (!m_copy) {
-            return -ENOMEM;
-        }
-
-        p_copy = vr_dpdk_mbuf_to_pkt(m_copy);
-        *p_copy = *pkt;
-        p_copy->vp_head = m_copy->buf_addr;
-
-        rte_pktmbuf_free(mbuf);
-        mbuf = m_copy;
-        *pktp = p_copy;
-    }
 
     if (head_room > rte_pktmbuf_headroom(mbuf)) {
         return -ENOMEM;

@@ -97,7 +97,6 @@
  * marked by vrouter agent to enforce flow-limit
  */
 #define VIF_FLAG_DROP_NEW_FLOWS     0x40000
-#define VIF_FLAG_MAC_PROXY          0x100000
 
 /* vrouter capabilities mask (cannot be changed by agent) */
 #define VIF_VR_CAP_MASK (VIF_FLAG_TX_CSUM_OFFLOAD | \
@@ -323,5 +322,4 @@ extern void vr_set_vif_ptr(struct net_device *dev, void *vif);
 #endif
 extern fat_flow_port_mask_t vif_fat_flow_lookup(struct vr_interface *,
         uint8_t, uint16_t, uint16_t);
-extern unsigned int vr_interface_req_get_size(void *);
 #endif /* __VR_INTERFACE_H__ */

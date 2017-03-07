@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include<WinSock2.h>
 #include <net/if.h>
 
 #include "vr_os.h"

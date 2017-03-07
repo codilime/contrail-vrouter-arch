@@ -23,12 +23,15 @@
 #endif
 
 #include <stdint.h>
+#include<WinSock2.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include "vr_types.h"
 #include "nl_util.h"
 #include "vr_genetlink.h"
 #include "vr_os.h"
+
+#define __attribute__(X) 
 
 #define VROUTER_GENETLINK_FAMILY_NAME "vrouter"
 #define GENL_ID_VROUTER         (NLMSG_MIN_TYPE + 0x10)
@@ -146,6 +149,7 @@ vr_fc_map_req_process(void *s_req)
 struct nl_response *
 nl_parse_gen_ctrl(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     int len;
     struct nlattr *nla;
     struct genl_ctrl_message *msg;
@@ -183,12 +187,15 @@ nl_parse_gen_ctrl(struct nl_client *cl)
     }
 
     return resp;
+#endif
+	return 0;
 }
 
 
 struct nl_response *
 nl_parse_gen(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     char *buf = cl->cl_buf + cl->cl_buf_offset;
     struct genlmsghdr *ghdr;
     struct nl_response *resp = &cl->resp;
@@ -210,11 +217,14 @@ nl_parse_gen(struct nl_client *cl)
         resp->nl_data = (uint8_t *)(cl->cl_buf + cl->cl_buf_offset);
         return resp;
     }
+#endif
+	return 0;
 }
 
 static int
 nl_build_sandesh_attr_without_attr_len(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     struct nlattr *nla = (struct nlattr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset);
 
@@ -224,13 +234,14 @@ nl_build_sandesh_attr_without_attr_len(struct nl_client *cl)
     nla->nla_len = NLA_HDRLEN;
     nla->nla_type = NL_ATTR_VR_MESSAGE_PROTOCOL;
     cl->cl_buf_offset += NLA_HDRLEN;
-
+#endif
     return 0;
 }
 
 int
 nl_build_header(struct nl_client *cl, unsigned char **buf, uint32_t *buf_len)
 {
+#if 0 //WINDOWSFIX
     int ret;
 
     if (!cl->cl_buf)
@@ -253,13 +264,14 @@ nl_build_header(struct nl_client *cl, unsigned char **buf, uint32_t *buf_len)
 
     *buf = (unsigned char *)(cl->cl_buf) + cl->cl_buf_offset;
     *buf_len = cl->cl_buf_len - cl->cl_buf_offset;
-
+#endif
     return 0;
 }
 
 void
 nl_update_header(struct nl_client *cl, int data_len)
 {
+#if 0 //WINDOWSFIX
     /* First update attribute header len for NLA_SANDESH_ATTR */
     struct nlattr *nla = (struct nlattr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset - NLA_HDRLEN);
@@ -269,17 +281,22 @@ nl_update_header(struct nl_client *cl, int data_len)
 
     cl->cl_buf_offset += data_len;
     nl_update_nlh(cl);
+#endif
 }
 
 int
 nl_family_name_attr_length(char *family)
 {
+#if 0 //WINDOWSFIX
     return NLA_HDRLEN + NLA_ALIGN(strlen(family) + 1);
+#endif
+	return 0;
 }
 
 int
 nl_build_family_name_attr(struct nl_client *cl, char *family)
 {
+#if 0 //WINDOWSFIX
     char *buf;
     int len;
     struct nlattr *nla = (struct nlattr *)
@@ -296,7 +313,7 @@ nl_build_family_name_attr(struct nl_client *cl, char *family)
     buf = (char *)cl->cl_buf + cl->cl_buf_offset;
     strcpy(buf, family);
     cl->cl_buf_offset += NLA_ALIGN(strlen(family) + 1);
-
+#endif
     return 0;
 }
 
@@ -304,6 +321,7 @@ nl_build_family_name_attr(struct nl_client *cl, char *family)
 int
 nl_build_get_family_id(struct nl_client *cl, char *family)
 {
+#if 0 //WINDOWSFIX
     int ret;
 
     if (!cl->cl_buf)
@@ -322,13 +340,14 @@ nl_build_get_family_id(struct nl_client *cl, char *family)
         return ret;
 
     nl_update_nlh(cl);
-
+#endif
     return 0;
 }
 
 int
 nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
 {
+#if 0 //WINDOWSFIX
     struct genlmsghdr *genlh = (struct genlmsghdr *)
         ((char *)cl->cl_buf + cl->cl_buf_offset);
 
@@ -340,7 +359,7 @@ nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
     genlh->reserved = 0;
 
     cl->cl_buf_offset += GENL_HDRLEN;
-
+#endif
     return 0;
 }
 
@@ -348,28 +367,32 @@ nl_build_genlh(struct nl_client *cl, uint8_t cmd, uint8_t version)
 struct nl_response *
 nl_set_resp_err(struct nl_client *cl, int error)
 {
+#if 0 //WINDOWSFIX
     struct nl_response *resp = (struct nl_response *)cl->cl_resp_buf;
 
     resp->nl_type = NL_MSG_TYPE_ERROR;
     resp->nl_op = error;
     return resp;
+#endif
 }
 
 
 void
 nl_update_nlh(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
 
     nlh->nlmsg_len = cl->cl_msg_len = cl->cl_buf_offset;
-
+#endif
     return;
 }
 
 int
 nl_get_attr_hdr_size()
 {
-    return NLA_HDRLEN;
+   //WINDOWSFIX return NLA_HDRLEN;
+	return 0;
 }
 
 uint8_t *
@@ -387,6 +410,7 @@ nl_get_buf_len(struct nl_client *cl)
 void
 nl_build_attr(struct nl_client *cl, int len, int attr)
 {
+#if 0 //WINDOWSFIX
     struct nlattr *nla;
 
     nla = (struct nlattr *)(cl->cl_buf + cl->cl_buf_offset);
@@ -395,12 +419,14 @@ nl_build_attr(struct nl_client *cl, int len, int attr)
 
     /* Adjust by attribute length */
     cl->cl_buf_offset += NLA_HDRLEN + (len);
+#endif
 }
 
 
 int
 nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
 {
+#if 0 //WINDOWSFIX
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf);
 
     if (cl->cl_buf_offset + NLMSG_HDRLEN > cl->cl_buf_len)
@@ -413,13 +439,14 @@ nl_build_nlh(struct nl_client *cl, uint32_t type, uint32_t flags)
     nlh->nlmsg_pid = cl->cl_id;
 
     cl->cl_buf_offset = NLMSG_HDRLEN;
-
+#endif
     return 0;
 }
 
 void
 nl_free(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     if (cl->cl_sock >= 0) {
         close(cl->cl_sock);
         cl->cl_sock = -1;
@@ -442,7 +469,7 @@ nl_free(struct nl_client *cl)
     cl->cl_sa = NULL;
     cl->cl_sa_len = 0;
     cl->cl_recvmsg = NULL;
-
+#endif
     return;
 }
 
@@ -481,6 +508,7 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 int
 nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 {
+#if 0 //WINDOWSFIX
     if (cl->cl_socket_domain == AF_NETLINK) {
         struct sockaddr_nl *sa = malloc(sizeof(struct sockaddr_nl));
 
@@ -512,12 +540,14 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 
         return connect(cl->cl_sock, cl->cl_sa, cl->cl_sa_len);
     }
+#endif
     return 0;
 }
 
 int
 nl_client_datagram_recvmsg(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     int ret;
     struct msghdr msg;
     struct iovec iov;
@@ -543,10 +573,13 @@ nl_client_datagram_recvmsg(struct nl_client *cl)
         return -EOPNOTSUPP;
 
     return ret;
+#endif
+	return 0;
 }
 
 int
 nl_client_stream_recvmsg(struct nl_client *cl) {
+#if 0 //WINDOWSFIX
     int ret;
     struct msghdr msg;
     struct iovec iov;
@@ -586,6 +619,7 @@ nl_client_stream_recvmsg(struct nl_client *cl) {
         return -EOPNOTSUPP;
 
     return ret;
+#endif
 }
 
 int
@@ -597,6 +631,7 @@ nl_recvmsg(struct nl_client *cl)
 int
 nl_sendmsg(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     struct msghdr msg;
     struct iovec iov;
 
@@ -615,6 +650,8 @@ nl_sendmsg(struct nl_client *cl)
     msg.msg_iovlen = 1;
 
     return sendmsg(cl->cl_sock, &msg, 0);
+#endif
+	return 0;
 }
 
 void
@@ -691,6 +728,7 @@ nl_free_client(struct nl_client *cl)
 int
 nl_init_generic_client_req(struct nl_client *cl, int family)
 {
+#if 0 //WINDOWSFIX
     memset(cl, 0, sizeof(*cl));
     cl->cl_sock_protocol = NETLINK_GENERIC;
     cl->cl_buf = malloc(NL_MSG_DEFAULT_SIZE);
@@ -702,6 +740,7 @@ nl_init_generic_client_req(struct nl_client *cl, int family)
     return 1;
 
 exit_register:
+#endif
     return 0;
 }
 
@@ -709,6 +748,7 @@ exit_register:
 struct nl_response *
 nl_parse_reply(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     struct nlmsghdr *nlh = (struct nlmsghdr *)(cl->cl_buf +
             cl->cl_buf_offset);
     struct nl_response *resp =  &cl->resp;
@@ -738,11 +778,14 @@ nl_parse_reply(struct nl_client *cl)
         return nl_set_resp_err(cl, NL_MSG_TYPE_ERROR);
     }
     return resp;
+#endif
+	return 0;
 }
 
 int
 vrouter_get_family_id(struct nl_client *cl)
 {
+#if 0 //WINDOWSFIX
     int ret;
     struct nl_response *resp;
     struct genl_ctrl_message *msg;
@@ -782,6 +825,8 @@ vrouter_get_family_id(struct nl_client *cl)
 #endif
 
     return cl->cl_genl_family_id;
+#endif
+	return 0;
 }
 
 #if defined(__linux__)

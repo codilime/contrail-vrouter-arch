@@ -13,7 +13,7 @@
 #include <linux/netlink.h>
 #include <ctype.h>
 #include <stdlib.h>
-
+#include <WinSock2.h>
 #include "ini_parser.h"
 
 #define BUF_LENGTH 256
@@ -177,7 +177,8 @@ get_domain()
         strcmp(platform, PLATFORM_NIC) == 0)) {
         return AF_INET;
     }
-    return AF_NETLINK;
+    //WINDOWSFIX return AF_NETLINK;
+	return AF_INET;
 }
 
 int
@@ -219,7 +220,8 @@ get_protocol()
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return 0;
     }
-    return NETLINK_GENERIC;
+   //WINDOWS-TEMP return NETLINK_GENERIC;
+	return 0;
 }
 
 int
@@ -243,15 +245,4 @@ const char *
 get_platform_str(void)
 {
     return read_string(DEFAULT_SECTION, PLATFORM_KEY);
-}
-
-bool
-get_offload_enabled(void)
-{
-    const char *offload_str = read_string(DEFAULT_SECTION, OFFLOAD_KEY);
-    if (offload_str) {
-        if (!strcmp(offload_str, OFFLOAD_ENABLED))
-            return true;
-    }
-    return false;
 }

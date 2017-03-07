@@ -23,11 +23,9 @@
 #include <vr_mirror.h>
 #include <vr_vxlan.h>
 #include <vr_qos.h>
-#include <vr_offloads.h>
 
 static struct vrouter router;
 struct host_os *vrouter_host;
-struct vr_offload_ops *offload_ops;
 
 extern struct host_os *vrouter_get_host(void);
 extern int vr_stats_init(struct vrouter *);
@@ -285,7 +283,7 @@ vrouter_ops_get(void)
     if (!req)
         return NULL;
 
-    req->vo_build_info = vr_zalloc(strlen(ContrailBuildInfo) + 1,
+    req->vo_build_info = vr_zalloc(strlen(ContrailBuildInfo),
             VR_BUILD_INFO_OBJECT);
     if (!req->vo_build_info) {
         vr_free(req, VR_VROUTER_REQ_OBJECT);
@@ -349,7 +347,7 @@ vrouter_ops_get_process(void *s_req)
 
     /* Build info */
     strncpy(resp->vo_build_info, ContrailBuildInfo,
-            strlen(ContrailBuildInfo) + 1);
+            strlen(ContrailBuildInfo));
 
     /* Logging entries */
     resp->vo_log_level = vr_get_log_level();
@@ -499,12 +497,8 @@ init_fail:
 static int
 vrouter_soft_reset(void)
 {
-    int ret = 0;
     vrouter_exit(true);
-    ret = vrouter_init();
-    if (!ret)
-        ret = vr_offload_soft_reset();
-    return ret;
+    return vrouter_init();
 }
 
 void

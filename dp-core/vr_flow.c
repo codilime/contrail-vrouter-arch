@@ -19,8 +19,6 @@
 #include "vr_hash.h"
 #include "vr_ip_mtrie.h"
 
-#include "vr_offloads.h"
-
 #define VR_NUM_FLOW_TABLES          1
 
 #define VR_NUM_OFLOW_TABLES         1
@@ -66,8 +64,7 @@ static bool vr_flow_is_fat_flow(struct vrouter *, struct vr_packet *,
 struct vr_flow_entry *vr_find_flow(struct vrouter *, struct vr_flow *,
         uint8_t, unsigned int *);
 unsigned int vr_trap_flow(struct vrouter *, struct vr_flow_entry *,
-        struct vr_packet *, unsigned int, struct vr_flow_stats *,
-        struct vr_packet_node *);
+        struct vr_packet *, unsigned int, struct vr_flow_stats *);
 
 void get_random_bytes(void *buf, int nbytes);
 
@@ -184,7 +181,6 @@ vr_flow_reset_mirror(struct vrouter *router, struct vr_flow_entry *fe,
         if (fe->fe_mme) {
             vr_mirror_meta_entry_del(router, fe->fe_mme);
             fe->fe_mme = NULL;
-            vr_offload_flow_meta_data_set(index, 0, 0, 0);
         }
     }
     fe->fe_flags &= ~VR_FLOW_FLAG_MIRROR;
@@ -215,8 +211,6 @@ __vr_flow_reset_entry(struct vrouter *router, struct vr_flow_entry *fe)
     }
     fe->fe_hold_list = NULL;
     fe->fe_key.flow_key_len = 0;
-
-    (void)vr_offload_flow_del(fe);
 
     vr_flow_reset_mirror(router, fe, fe->fe_hentry.hentry_index);
     fe->fe_ecmp_nh_index = -1;
@@ -307,6 +301,22 @@ void *
 vr_flow_get_va(struct vrouter *router, uint64_t offset)
 {
     return vr_htable_get_address(router->vr_flow_table, offset);
+}
+
+static struct vr_flow_entry *
+__vr_flow_get_entry(struct vrouter *router, int index)
+{
+    struct vr_flow_entry *fe;
+
+    if (index < 0)
+        return NULL;
+
+    fe = (struct vr_flow_entry *)
+            __vr_htable_get_hentry_by_index(router->vr_flow_table, index);
+    if (fe && (fe->fe_flags & VR_FLOW_FLAG_ACTIVE))
+        return fe;
+
+    return NULL;
 }
 
 struct vr_flow_entry *
@@ -609,7 +619,6 @@ vr_enqueue_flow(struct vrouter *router, struct vr_flow_entry *fe,
         struct vr_packet *pkt, unsigned int index,
         struct vr_flow_stats *stats, struct vr_forwarding_md *fmd)
 {
-    int ret = 0;
     unsigned int i;
     unsigned short drop_reason = 0;
     struct vr_flow_queue *vfq = fe->fe_hold_list;
@@ -629,9 +638,9 @@ vr_enqueue_flow(struct vrouter *router, struct vr_flow_entry *fe,
     pnode = &vfq->vfq_pnodes[i];
     vr_flow_fill_pnode(pnode, pkt, fmd);
     if (!i)
-        ret = vr_trap_flow(router, fe, pkt, index, stats, pnode);
+        vr_trap_flow(router, fe, pkt, index, stats);
 
-    return ret;
+    return 0;
 drop:
     vr_pfree(pkt, drop_reason);
     return 0;
@@ -801,7 +810,7 @@ vr_flow_action(struct vrouter *router, struct vr_flow_entry *fe,
             pkt_clone = vr_pclone(pkt);
             if (pkt_clone) {
                 vr_preset(pkt_clone);
-                if (vr_pcow(&pkt_clone, sizeof(struct vr_eth) +
+                if (vr_pcow(pkt_clone, sizeof(struct vr_eth) +
                             sizeof(struct agent_hdr))) {
                     vr_pfree(pkt_clone, VP_DROP_PCOW_FAIL);
                 } else {
@@ -881,20 +890,15 @@ vr_flow_action(struct vrouter *router, struct vr_flow_entry *fe,
 unsigned int
 vr_trap_flow(struct vrouter *router, struct vr_flow_entry *fe,
         struct vr_packet *pkt, unsigned int index,
-        struct vr_flow_stats *stats, struct vr_packet_node *pnode)
+        struct vr_flow_stats *stats)
 {
     unsigned int trap_reason;
-
     struct vr_packet *npkt;
     struct vr_flow_trap_arg ta;
 
     npkt = vr_pclone(pkt);
-    if (!npkt) {
-        vr_pfree(NULL, VP_DROP_TRAP_ORIGINAL);
-        if (pnode)
-            pnode->pl_packet = NULL;
-        npkt = pkt;
-    }
+    if (!npkt)
+        return -ENOMEM;
 
     vr_preset(npkt);
 
@@ -1370,41 +1374,6 @@ vr_flow_fat_flow_lookup(struct vrouter *router, struct vr_packet *pkt,
     return vif_fat_flow_lookup(vif_l, l4_proto, sport, dport);
 }
 
-/*
- * Called by offload module to update flow stats with packets which have been
- * offloaded.  over_flow_bytes accounts for overflows which happen in firmware
- * between updates using this function.
- */
-int
-vr_flow_incr_stats(int fe_index, uint32_t flow_bytes, uint16_t over_flow_bytes,
-                   uint32_t flow_packets)
-{
-    struct vrouter *router = vrouter_get(0);
-    struct vr_flow_entry *fe;
-    uint32_t new_stats;
-
-    if (router == NULL)
-        return -EINVAL;
-
-    fe = vr_flow_get_entry(router, fe_index);
-    if (fe == NULL)
-        return -ENOENT;
-
-    if (!(fe->fe_flags & VR_FLOW_FLAG_ACTIVE))
-        return -ENOENT;
-
-    new_stats = __sync_add_and_fetch(&fe->fe_stats.flow_bytes, flow_bytes);
-    if (new_stats < flow_bytes)
-        ++fe->fe_stats.flow_bytes_oflow;
-    fe->fe_stats.flow_bytes_oflow += over_flow_bytes;
-
-    new_stats = __sync_add_and_fetch(&fe->fe_stats.flow_packets, flow_packets);
-    if (new_stats < flow_packets)
-        ++fe->fe_stats.flow_packets_oflow;
-
-    return 0;
-}
-
 static flow_result_t
 vr_do_flow_lookup(struct vrouter *router, struct vr_packet *pkt,
                 struct vr_forwarding_md *fmd)
@@ -1646,13 +1615,6 @@ vr_flow_set_mirror(struct vrouter *router, vr_flow_req *req,
                 req->fr_mir_sip, req->fr_mir_sport,
                 req->fr_pcap_meta_data, req->fr_pcap_meta_data_size,
                 req->fr_mir_vrf);
-
-        if (fe->fe_mme) {
-            vr_offload_flow_meta_data_set(req->fr_index,
-                                          req->fr_pcap_meta_data_size,
-                                          req->fr_pcap_meta_data,
-                                          req->fr_mir_vrf);
-        }
     }
 
     return;
@@ -1817,7 +1779,8 @@ __vr_flow_schedule_transition(struct vrouter *router, struct vr_flow_entry *fe,
     }
     flmd->flmd_defer_data = defer;
 
-    return vr_schedule_work(vr_get_cpu(), vr_flow_work, (void *)flmd);
+    vr_schedule_work(vr_get_cpu(), vr_flow_work, (void *)flmd);
+    return 0;
 }
 
 static int
@@ -1928,7 +1891,6 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
     if (fe) {
         if (!(modified = vr_flow_start_modify(router, fe)))
             return -EBUSY;
-        fe_index = (unsigned int)(req->fr_index);
     }
 
     if ((ret = vr_flow_set_req_is_invalid(router, req, fe)))
@@ -1947,8 +1909,7 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
      */
     if (!(req->fr_flags & VR_FLOW_FLAG_ACTIVE)) {
         if (!fe)
-            return -ENOENT;
-
+            return -EINVAL;
         return vr_flow_delete(router, req, fe);
     }
 
@@ -2050,14 +2011,6 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
         fe->fe_flags &= ~VR_FLOW_FLAG_NEW_FLOW;
 
     ret = vr_flow_schedule_transition(router, req, fe);
-
-    /*
-     * offload, no need to differentiate between add and modify. Pass the
-     * reverse flow as well if present.
-     */
-    if (!ret) {
-        vr_offload_flow_set(fe, fe_index, rfe);
-    }
 
 exit_set:
     if (modified && fe) {
@@ -2261,37 +2214,31 @@ vr_flow_table_destroy(struct vrouter *router)
 }
 
 static void
-vr_flow_invalidate_entry(vr_htable_t htable, vr_hentry_t *ent,
-                                unsigned int index, void *data)
+vr_flow_table_reset(struct vrouter *router)
 {
+    unsigned int start, end, i;
     struct vr_flow_entry *fe;
     struct vr_forwarding_md fmd;
     struct vr_flow_md flmd;
-    struct vrouter *router = (struct vrouter *)data;
 
-    if (!ent || !data)
-        return;
+    start = end = 0;
+    end = vr_flow_entries + vr_oflow_entries;
 
-    fe = CONTAINER_OF(fe_hentry, struct vr_flow_entry, ent);
-    if (!(fe->fe_flags & VR_FLOW_FLAG_ACTIVE))
-        return;
+    if (end) {
+        flmd.flmd_defer_data = NULL;
+        vr_init_forwarding_md(&fmd);
+        for (i = start; i < end; i++) {
+            fe = __vr_flow_get_entry(router, i);
+            if (fe) {
+                flmd.flmd_index = i;
+                flmd.flmd_flags = fe->fe_flags;
+                fe->fe_action = VR_FLOW_ACTION_DROP;
+                vr_flush_entry(router, fe, &flmd, &fmd);
+                vr_flow_reset_entry(router, fe);
+            }
+        }
+    }
 
-    flmd.flmd_defer_data = NULL;
-    flmd.flmd_index = index;
-    flmd.flmd_flags = fe->fe_flags;
-
-    vr_init_forwarding_md(&fmd);
-
-    fe->fe_action = VR_FLOW_ACTION_DROP;
-    vr_flush_entry(router, fe, &flmd, &fmd);
-    vr_flow_reset_entry(router, fe);
-}
-
-static void
-vr_flow_table_reset(struct vrouter *router)
-{
-    vr_htable_reset(router->vr_flow_table,
-            vr_flow_invalidate_entry, router);
     vr_flow_table_info_reset(router);
 
     return;

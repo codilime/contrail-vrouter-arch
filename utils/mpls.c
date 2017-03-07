@@ -14,6 +14,7 @@
 
 #include <sys/types.h>
 
+#include<WinSock2.h>
 #include <net/if.h>
 
 #include "vr_types.h"

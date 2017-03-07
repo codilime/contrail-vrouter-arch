@@ -13,9 +13,6 @@
 #include "vr_htable.h"
 #include "vr_datapath.h"
 #include "vr_bridge.h"
-#include "vr_offloads.h"
-
-unsigned int vr_interfaces = VR_MAX_INTERFACES;
 
 volatile bool agent_alive = false;
 
@@ -234,38 +231,6 @@ free_pkt:
     return 0;
 }
 
-static inline void
-vif_mirror(struct vr_interface *vif, struct vr_packet *pkt,
-        struct vr_forwarding_md *fmd, unsigned int txrx_mirror)
-{
-    unsigned int mirror_type;
-    struct vr_forwarding_md mfmd;
-
-    if (!txrx_mirror)
-        return;
-
-    if (txrx_mirror & VIF_FLAG_MIRROR_TX)
-        mirror_type = MIRROR_TYPE_PORT_TX;
-    else
-        mirror_type = MIRROR_TYPE_PORT_RX;
-
-    if (!fmd) {
-        vr_init_forwarding_md(&mfmd);
-    } else {
-        mfmd = *fmd;
-    }
-
-    mfmd.fmd_dvrf = vif->vif_vrf;
-
-    if (pkt->vp_type == VP_TYPE_NULL)
-        vr_pkt_type(pkt, 0, &mfmd);
-
-    vr_mirror(vif->vif_router, vif->vif_mirror_id, pkt, &mfmd, mirror_type);
-
-    return;
-}
-
-/* agent driver */
 static unsigned char *
 agent_set_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
@@ -643,8 +608,6 @@ vhost_rx(struct vr_interface *vif, struct vr_packet *pkt,
     if (vif_mode_xconnect(vif))
         return vif_xconnect(vif, pkt, &fmd);
 
-    vif_mirror(vif, pkt, &fmd, vif->vif_flags & VIF_FLAG_MIRROR_RX);
-
     return vr_fabric_input(vif, pkt, vlan_id);
 }
 
@@ -711,8 +674,6 @@ vhost_tx(struct vr_interface *vif, struct vr_packet *pkt,
         }
     }
 
-    vif_mirror(vif, pkt, fmd, vif->vif_flags & VIF_FLAG_MIRROR_TX);
-
     ret = hif_ops->hif_rx(vif, pkt);
     if (ret < 0) {
         ret = 0;
@@ -776,8 +737,6 @@ vlan_rx(struct vr_interface *vif, struct vr_packet *pkt,
     stats->vis_ibytes += pkt_len(pkt);
     stats->vis_ipackets++;
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
-
     tos = vr_vlan_get_tos(pkt_data(pkt));
     if (tos >= 0)
         pkt->vp_priority = tos;
@@ -820,8 +779,6 @@ vlan_tx(struct vr_interface *vif, struct vr_packet *pkt,
             vr_vlan_set_priority(pkt);
         }
     }
-
-    vif_mirror(vif, pkt, fmd, vif->vif_flags & VIF_FLAG_MIRROR_TX);
 
     pvif = vif->vif_parent;
     if (!pvif)
@@ -929,8 +886,6 @@ vm_srx(struct vr_interface *vif, struct vr_packet *pkt,
     else
         vrf = vif->vif_vrf_table[vlan_id].va_vrf;
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
-
     return vr_virtual_input(vrf, vif, pkt, vlan_id);
 }
 
@@ -954,8 +909,6 @@ vm_rx(struct vr_interface *vif, struct vr_packet *pkt,
     struct vr_interface *sub_vif = NULL;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
     struct vr_eth *eth = (struct vr_eth *)pkt_data(pkt);
-
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
 
     if (vlan_id != VLAN_ID_INVALID && vlan_id < VLAN_ID_MAX) {
         if (vif->vif_btable) {
@@ -1020,8 +973,6 @@ tun_rx(struct vr_interface *vif, struct vr_packet *pkt,
 
     pkt_set_network_header(pkt, pkt->vp_data);
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
-
     vr_init_forwarding_md(&fmd);
     fmd.fmd_vlan = vlan_id;
     fmd.fmd_dvrf = vif->vif_vrf;
@@ -1085,8 +1036,6 @@ eth_rx(struct vr_interface *vif, struct vr_packet *pkt,
     stats->vis_ibytes += pkt_len(pkt);
     stats->vis_ipackets++;
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
-
     /*
      * please see the text on xconnect mode
      *
@@ -1125,9 +1074,8 @@ eth_tx(struct vr_interface *vif, struct vr_packet *pkt,
     int ret, handled;
     bool stats_count = true, from_subvif = false;
 
+    struct vr_forwarding_md m_fmd;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
-
-    vif_mirror(vif, pkt, fmd, vif->vif_flags & VIF_FLAG_MIRROR_TX);
 
     if (vif_is_virtual(vif)) {
         handled = vif_plug_mac_request(vif, pkt, fmd);
@@ -1158,6 +1106,13 @@ eth_tx(struct vr_interface *vif, struct vr_packet *pkt,
     if (stats_count) {
         stats->vis_obytes += pkt_len(pkt);
         stats->vis_opackets++;
+    }
+
+    if (vif->vif_flags & VIF_FLAG_MIRROR_TX) {
+        vr_init_forwarding_md(&m_fmd);
+        m_fmd.fmd_dvrf = vif->vif_vrf;
+        vr_mirror(vif->vif_router, vif->vif_mirror_id, pkt, &m_fmd,
+                MIRROR_TYPE_PORT_TX);
     }
 
     ret = hif_ops->hif_tx(vif, pkt);
@@ -1264,6 +1219,7 @@ eth_drv_add(struct vr_interface *vif,
         if (vif->vif_type == VIF_TYPE_PHYSICAL)
             vif->vif_mtu = 1514;
     }
+
 
     if (vif->vif_type != VIF_TYPE_STATS) {
         vif->vif_tx = eth_tx;
@@ -1740,8 +1696,6 @@ vr_interface_delete(vr_interface_req *req, bool need_response)
     if (!vif && (ret = -ENODEV))
         goto del_fail;
 
-    vr_offload_interface_del(vif);
-
     vif_delete(vif);
 
 del_fail:
@@ -1843,10 +1797,6 @@ vr_interface_add(vr_interface_req *req, bool need_response)
     vif = __vrouter_get_interface(router, req->vifr_idx);
     if (vif) {
         ret = vr_interface_change(vif, req);
-        /* notify hw offload of change, if enabled */
-        if (!ret)
-            ret = vr_offload_interface_add(vif);
-
         goto generate_resp;
     }
 
@@ -1935,14 +1885,6 @@ vr_interface_add(vr_interface_req *req, bool need_response)
     if (!ret)
         vrouter_setup_vif(vif);
 
-    /* notify hw offload of change, if enabled */
-    if (!ret) {
-        ret = vr_offload_interface_add(vif);
-        if (ret) {
-            vif_delete(vif);
-            vif = NULL;
-        }
-    }
 generate_resp:
     if (need_response)
         vr_send_response(ret);
@@ -2010,7 +1952,6 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
     req->vifr_transport = intf->vif_transport;
     req->vifr_os_idx = intf->vif_os_idx;
     req->vifr_mtu = intf->vif_mtu;
-    req->vifr_nh_id = intf->vif_nh_id;
     if (req->vifr_mac_size && req->vifr_mac)
         memcpy(req->vifr_mac, intf->vif_mac,
                 MINIMUM(req->vifr_mac_size, sizeof(intf->vif_mac)));
@@ -2055,7 +1996,7 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
     req->vifr_oerrors = 0;
     /* queue counters */
     req->vifr_queue_ipackets = 0;
-    for (i = 0; i < vr_num_cpus; i++)
+    for (i = 0; i < VR_MAX_CPUS; i++)
         req->vifr_queue_ierrors_to_lcore[i] = 0;
     req->vifr_queue_ierrors = 0;
     req->vifr_queue_opackets = 0;
@@ -2140,18 +2081,6 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
     return;
 }
 
-unsigned int
-vr_interface_req_get_size(void *req_p)
-{
-    unsigned int size = 4 * sizeof(vr_interface_req);
-    vr_interface_req *req = (vr_interface_req *)req_p;
-
-    if (req->vifr_queue_ierrors_to_lcore)
-        size += (vr_num_cpus * sizeof(int64_t));
-
-    return size;
-}
-
 static int
 vr_interface_make_req(vr_interface_req *req, struct vr_interface *vif,
         unsigned int core)
@@ -2196,7 +2125,7 @@ vr_interface_req_get(void)
     req->vifr_name = vr_zalloc(VR_INTERFACE_NAME_LEN,
             VR_INTERFACE_REQ_NAME_OBJECT);
 
-    req->vifr_queue_ierrors_to_lcore = vr_zalloc(vr_num_cpus * sizeof(uint64_t),
+    req->vifr_queue_ierrors_to_lcore = vr_zalloc(VR_MAX_CPUS * sizeof(uint64_t),
             VR_INTERFACE_REQ_TO_LCORE_ERRORS_OBJECT);
     if (req->vifr_queue_ierrors_to_lcore)
         req->vifr_queue_ierrors_to_lcore_size = 0;
@@ -2279,13 +2208,8 @@ vr_interface_get(vr_interface_req *req)
 
         /* zero vifr_core means to sum up all the per-core stats */
         vr_interface_make_req(resp, vif, (unsigned)(req->vifr_core - 1));
-        /* adds in stats for pkts which were offloaded on NIC and does debug
-           comparison to check if matching entry is programmed on NIC */
-        vr_offload_interface_get(resp);
-
     } else
         ret = -ENOENT;
-
 
 generate_response:
     vr_message_response(VR_INTERFACE_OBJECT_ID, ret ? NULL : resp, ret);
@@ -2329,10 +2253,6 @@ vr_interface_dump(vr_interface_req *r)
         if (vif) {
             /* zero vifr_core means to sum up all the per-core stats */
             vr_interface_make_req(resp, vif, (unsigned)(r->vifr_core - 1));
-
-            /* let hw offload fill in relevant fields */
-            vr_offload_interface_get(resp);
-
             ret = vr_message_dump_object(dumper, VR_INTERFACE_OBJECT_ID, resp);
             if (ret <= 0)
                 break;
@@ -2940,7 +2860,7 @@ vr_interface_init(struct vrouter *router)
     unsigned int table_memory = 0;
 
     if (!router->vr_interfaces) {
-        router->vr_max_interfaces = vr_interfaces;
+        router->vr_max_interfaces = VR_MAX_INTERFACES;
         table_memory = router->vr_max_interfaces *
             sizeof(struct vr_interface *);
         router->vr_interfaces = vr_zalloc(table_memory,

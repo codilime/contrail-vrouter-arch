@@ -15,26 +15,30 @@
 #define VR_QOS_MAP_ENTRY_SIZE       (VR_DSCP_QOS_ENTRIES + \
         VR_MPLS_QOS_ENTRIES + \
         VR_DOTONEP_QOS_ENTRIES)
-
+#include "winutils.h"
 /*
  * We split the structure this way because flow structure has only
  * 3 bytes of space between hash entry and key. Adding any other
  * fields here should mean change in the location of the entry in
  * the flow structure
  */
-struct vr_forwarding_class_qos {
+#pragma pack(push,1)
+	struct vr_forwarding_class_qos {
     uint8_t     vfcq_dscp;
     uint8_t     vfcq_mpls_qos:3,
                 vfcq_dotonep_qos:3,
                 vfcq_untrusted:1,
                 vfcq_valid:1;
     uint8_t     vfcq_queue_id;
-} __attribute__((packed));
+	};
 
-struct vr_forwarding_class {
+
+
+	struct vr_forwarding_class {
     uint8_t vfc_id;
-    struct vr_forwarding_class_qos vfc_qos;
-} __attribute__((packed));
+     struct vr_forwarding_class_qos vfc_qos;
+	};
+#pragma pack(pop)
 
 /* for easy access */
 #define vfc_dscp        vfc_qos.vfcq_dscp

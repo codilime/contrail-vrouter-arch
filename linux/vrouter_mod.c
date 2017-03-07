@@ -39,7 +39,6 @@ extern unsigned int vr_mpls_labels;
 extern unsigned int vr_nexthops;
 extern unsigned int vr_vrfs;
 extern unsigned int vr_flow_hold_limit;
-extern unsigned int vr_interfaces;
 
 extern char *ContrailBuildInfo;
 
@@ -79,7 +78,6 @@ extern void vhost_exit(void);
 extern int lh_gro_process(struct vr_packet *, struct vr_interface *, bool);
 
 static void lh_reset_skb_fields(struct vr_packet *pkt);
-static unsigned int lh_get_cpu(void);
 
 static int
 lh_printk(const char *format, ...)
@@ -304,26 +302,17 @@ lh_pgso_size(struct vr_packet *pkt)
 static void
 lh_pfree(struct vr_packet *pkt, unsigned short reason)
 {
-    unsigned int cpu;
-
     struct vrouter *router = vrouter_get(0);
-    struct sk_buff *skb = NULL;
+    struct sk_buff *skb;
 
-    if (pkt) {
-        skb = vp_os_packet(pkt);
-        if (!skb)
-            return;
-        cpu = pkt->vp_cpu;
-    } else {
-        cpu = lh_get_cpu();
-    }
+    skb = vp_os_packet(pkt);
+    if (!skb)
+        return;
 
     if (router)
-        ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
+        ((uint64_t *)(router->vr_pdrop_stats[pkt->vp_cpu]))[reason]++;
 
-    if (skb)
-        kfree_skb(skb);
-
+    kfree_skb(skb);
     return;
 }
 
@@ -427,28 +416,20 @@ lh_work(struct work_struct *work)
     return;
 }
 
-static int
+static void
 lh_schedule_work(unsigned int cpu, void (*fn)(void *), void *arg)
 {
-    unsigned int alloc_flag;
-    struct work_arg *wa;
+    struct work_arg *wa = kzalloc(sizeof(*wa), GFP_KERNEL);
 
-    if (in_softirq()) {
-        alloc_flag = GFP_ATOMIC;
-    } else {
-        alloc_flag = GFP_KERNEL;
-    }
-
-    wa = kzalloc(sizeof(*wa), alloc_flag);
     if (!wa)
-        return -ENOMEM;
+        return;
 
     wa->fn = fn;
     wa->wa_arg = arg;
     INIT_WORK(&wa->wa_work, lh_work);
     schedule_work_on(cpu, &wa->wa_work);
 
-    return 0;
+    return;
 }
 
 static void
@@ -553,11 +534,10 @@ lh_put_defer_data(void *data)
 }
 
 static int
-lh_pcow(struct vr_packet **pktp, unsigned short head_room)
+lh_pcow(struct vr_packet *pkt, unsigned short head_room)
 {
     unsigned int old_off, new_off;
     int data_off = 0;
-    struct vr_packet *pkt = *pktp;
 
     struct sk_buff *skb = vp_os_packet(pkt);
 
@@ -972,13 +952,10 @@ lh_csum_verify_fast(struct vr_ip *iph, void *transport_hdr, unsigned
 static int
 lh_csum_verify(struct sk_buff *skb, struct vr_ip *iph)
 {
-    uint32_t size;
-
-    size = ntohs(iph->ip_len) - (iph->ip_hl * 4);
     skb->csum = csum_tcpudp_nofold(iph->ip_saddr, iph->ip_daddr,
-                                   size,
+                                   ntohs(iph->ip_len) - (iph->ip_hl * 4), 
                                    iph->ip_proto, 0);
-    if (__skb_checksum_complete_head(skb, size)) {
+    if (__skb_checksum_complete(skb)) {
         return -1;
     }
 
@@ -1005,19 +982,21 @@ lh_handle_checksum_complete_skb(struct sk_buff *skb)
 static int
 lh_csum_verify_udp(struct sk_buff *skb, struct vr_ip *iph)
 {
-    uint32_t size;
-
-    size = ntohs(iph->ip_len) - (iph->ip_hl * 4);
-
     if (skb->ip_summed == CHECKSUM_COMPLETE) {
         if (!csum_tcpudp_magic(iph->ip_saddr, iph->ip_daddr,
-                               size, IPPROTO_UDP, skb->csum)) {
+                               skb->len, IPPROTO_UDP, skb->csum)) {
             skb->ip_summed = CHECKSUM_UNNECESSARY;
             return 0;
         }
     }
 
-    return lh_csum_verify(skb, iph);
+    skb->csum = csum_tcpudp_nofold(iph->ip_saddr, iph->ip_daddr,
+                                   skb->len, IPPROTO_UDP, 0);
+    if (__skb_checksum_complete(skb)) {
+        return -1;
+    }
+
+    return 0;
 }
 
 /*
@@ -2422,7 +2401,6 @@ module_param(vr_mpls_labels, uint, 0);
 module_param(vr_nexthops, uint, 0);
 module_param(vr_vrfs, uint, 0);
 module_param(vr_flow_hold_limit, uint, 0);
-module_param(vr_interfaces, uint, 0);
 
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,32))
 module_param(vr_use_linux_br, int, 0);

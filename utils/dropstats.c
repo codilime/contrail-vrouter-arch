@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include<WinSock2.h>
 #include <net/if.h>
 
 #include "ini_parser.h"
@@ -27,7 +28,7 @@
 #include "ini_parser.h"
 
 static struct nl_client *cl;
-static int help_set, core_set, offload_set;
+static int help_set, core_set;
 static unsigned int core = (unsigned)-1;
 
 void
@@ -35,9 +36,8 @@ vr_drop_stats_req_process(void *s_req)
 {
     vr_drop_stats_req *stats = (vr_drop_stats_req *)s_req;
     int platform = get_platform();
-    if (core == (unsigned)-2)
-        printf("Statistics for NIC offloads\n\n");
-    else if (core != (unsigned)-1)
+
+   if (core != (unsigned)-1)
         printf("Statistics for core %u\n\n", core);
 
     printf("GARP                          %" PRIu64 "\n",
@@ -80,10 +80,6 @@ vr_drop_stats_req_process(void *s_req)
             stats->vds_drop_new_flow);
     printf("Flow Unusable (Eviction)      %" PRIu64 "\n",
             stats->vds_flow_evict);
-    printf("\n");
-
-    printf("Original Packet Trapped       %" PRIu64 "\n",
-            stats->vds_trap_original);
     printf("\n");
 
     printf("Discards                      %" PRIu64 "\n",
@@ -181,11 +177,6 @@ vr_get_drop_stats(struct nl_client *cl)
      * conversion between those enumerating systems. The dropstats utility
      * increments by 1 the core number user asked for. Then it is
      * decremented back in vRouter.
-     *
-     * vRouter will return only the offloaded dropstats if the "core"
-     * is passed in as -2.  This allows returning of only dropstats offloaded
-     * on NIC using this same mechanism.  If all CPUs are requested, the
-     * offloaded dropstats are included.
      */
     ret = vr_send_drop_stats_get(cl, 0, core + 1);
     if (ret < 0)
@@ -201,14 +192,12 @@ vr_get_drop_stats(struct nl_client *cl)
 enum opt_index {
     HELP_OPT_INDEX,
     CORE_OPT_INDEX,
-    OFFL_OPT_INDEX,
     MAX_OPT_INDEX,
 };
 
 static struct option long_options[] = {
     [HELP_OPT_INDEX]    =   {"help",    no_argument,        &help_set,      1},
     [CORE_OPT_INDEX]    =   {"core",    required_argument,  &core_set,      1},
-    [OFFL_OPT_INDEX]    =   {"offload", no_argument,        &offload_set,   1},
     [MAX_OPT_INDEX]     =   {"NULL",    0,                  0,              0},
 };
 
@@ -216,13 +205,8 @@ static void
 Usage()
 {
     printf("Usage: dropstats [--help]\n");
-    printf("Usage: dropstats [--core|-c] <core number> %s\n\n",
-            get_offload_enabled()?"[--offload|-o]":"");
+    printf("Usage: dropstats [--core|-c] <core number>\n\n");
     printf("--core <core number>\t Show statistics for a specified CPU core\n");
-    if (get_offload_enabled()) {
-        printf("--offload\t\t Show statistics for pkts offloaded on NIC\n");
-        printf("\t\t\t (offload stats included if no flags given)\n");
-    }
     exit(-EINVAL);
 }
 
@@ -240,13 +224,7 @@ parse_long_opts(int opt_index, char *opt_arg)
             Usage();
         }
         break;
-    case OFFL_OPT_INDEX:
-        if (!get_offload_enabled()) {
-            printf("Error: hardware offloads not enabled\n");
-            Usage();
-        }
-        core = -2;
-        break;
+
     case HELP_OPT_INDEX:
     default:
         Usage();
@@ -261,19 +239,12 @@ main(int argc, char *argv[])
     char opt;
     int ret, option_index;
 
-    parse_ini_file();
-
-    while (((opt = getopt_long(argc, argv, "h:c:o",
+    while (((opt = getopt_long(argc, argv, "h:c:",
                         long_options, &option_index)) >= 0)) {
         switch (opt) {
         case 'c':
             core_set = 1;
             parse_long_opts(CORE_OPT_INDEX, optarg);
-            break;
-
-        case 'o':
-            offload_set = 1;
-            parse_long_opts(OFFL_OPT_INDEX, optarg);
             break;
 
         case 0:

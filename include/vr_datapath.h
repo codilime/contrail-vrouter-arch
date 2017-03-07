@@ -27,11 +27,10 @@ unsigned int vr_fabric_input(struct vr_interface *, struct vr_packet *,
 
 int vr_l3_input(struct vr_packet *, struct vr_forwarding_md *);
 int vr_l2_input(struct vr_packet *, struct vr_forwarding_md *);
-int vr_arp_input(struct vr_packet *, struct vr_forwarding_md *, unsigned char *);
+int vr_arp_input(struct vr_packet *, struct vr_forwarding_md *);
 int vr_ip_input(struct vrouter *, struct vr_packet *,
                 struct vr_forwarding_md *);
-int vr_neighbor_input(struct vr_packet *, struct vr_forwarding_md *,
-        unsigned char *);
+int vr_neighbor_input(struct vr_packet *, struct vr_forwarding_md *);
 int vr_ip6_input(struct vrouter *, struct vr_packet *,
                  struct vr_forwarding_md *);
 extern void vr_ip_update_csum(struct vr_packet *, unsigned int, unsigned int);
@@ -61,7 +60,6 @@ mac_response_t vm_neighbor_request(struct vr_interface *, struct vr_packet *,
 extern int vif_plug_mac_request(struct vr_interface *, struct vr_packet *,
         struct vr_forwarding_md *);
 int vr_gro_input(struct vr_packet *, struct vr_nexthop *);
-void vr_mac_reply_send(struct vr_packet *, struct vr_forwarding_md *);
 
 
 

@@ -221,6 +221,8 @@ dpdk_set_addr_vlan_filter_strip(uint32_t port_id, struct vr_interface *vif)
         {
             if (vif->vif_flags & VIF_FLAG_VLAN_OFFLOAD) {
                 rte_eth_dev_set_vlan_strip_on_queue(*port_id_ptr, i, 1);
+            } else {
+                rte_eth_dev_set_vlan_strip_on_queue(*port_id_ptr, i, 0);
             }
         }
         port_num++;
@@ -249,10 +251,7 @@ dpdk_vif_attach_ethdev(struct vr_interface *vif,
 
     if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT
         && dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP) {
-        /*
-         * Enabling vlan offload causes performance degradation, possibly
-         * dut to a DPDK library issue, so don't set VIF_FLAG_VLAN_OFFLOAD
-         */
+        vif->vif_flags |= VIF_FLAG_VLAN_OFFLOAD;
     } else {
         vif->vif_flags &= ~VIF_FLAG_VLAN_OFFLOAD;
     }

@@ -883,10 +883,8 @@ dpdk_mbuf_parse_and_hash_packets(struct rte_mbuf *mbuf)
              */
             udp_hdr = (struct vr_udp *)((uintptr_t)ipv4_hdr + ipv4_len);
 
-            if (likely(vr_ip_transport_header_valid(ipv4_hdr))) {
-                if (unlikely(mbuf_data_len < pull_len + sizeof(struct vr_udp)))
-                    return -1;
-            }
+            if (unlikely(mbuf_data_len < pull_len + sizeof(struct vr_udp)))
+                return -1;
 
             /*
              * If it is a packet from VM, it for sure will not be MPLS-over-UDP,

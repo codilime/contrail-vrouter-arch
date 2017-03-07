@@ -6,16 +6,17 @@
 #define __VR_HTABLE_H__
 
 #define VR_INVALID_HENTRY_INDEX ((unsigned int)-1)
-
+#include "winutils.h"
 struct vrouter;
 
+PACK(
 typedef struct vr_hentry {
     struct vr_hentry *hentry_next;
     unsigned int hentry_index;
     unsigned int hentry_bucket_index;
     unsigned int hentry_next_index;
     uint8_t hentry_flags;
-} __attribute__((packed)) vr_hentry_t;
+} vr_hentry_t );
 
 typedef void *vr_hentry_key;
 typedef struct vr_htable_opaque *vr_htable_t;
@@ -39,8 +40,7 @@ int vr_htable_find_duplicate_hentry_index(vr_htable_t , vr_hentry_t *);
 vr_hentry_t *vr_htable_get_hentry_by_index(vr_htable_t , unsigned int );
 vr_hentry_t *__vr_htable_get_hentry_by_index(vr_htable_t , unsigned int );
 vr_hentry_t *vr_htable_find_free_hentry(vr_htable_t , void *, unsigned int );
-void vr_htable_trav(vr_htable_t, unsigned int , htable_trav_cb , void *);
-void vr_htable_reset(vr_htable_t, htable_trav_cb , void *);
+void vr_htable_trav(vr_htable_t , unsigned int , htable_trav_cb , void *);
 void vr_htable_release_hentry(vr_htable_t, vr_hentry_t *);
 unsigned int vr_htable_size(vr_htable_t);
 void *vr_htable_get_address(vr_htable_t, uint64_t);

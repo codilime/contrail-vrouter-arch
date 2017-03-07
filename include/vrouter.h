@@ -14,7 +14,6 @@ extern "C" {
 #include "vr_types.h"
 #include "vr_qos.h"
 #include "vr_flow.h"
-#include "vr_interface.h"
 #include "vr_nexthop.h"
 #include "vr_route.h"
 #include "vr_response.h"
@@ -140,8 +139,8 @@ struct vr_timer {
 };
 
 struct host_os {
-    int (*hos_printf)(const char *, ...)
-            __attribute__((format(printf, 1, 2)));
+	int(*hos_printf)(const char *, ...);
+         //WINDOWS-TEMP   __attribute__((format(printf, 1, 2)));
     void *(*hos_malloc)(unsigned int, unsigned int);
     void *(*hos_zalloc)(unsigned int, unsigned int);
     void (*hos_free)(void *, unsigned int);
@@ -163,7 +162,7 @@ struct host_os {
     unsigned int (*hos_pgso_size)(struct vr_packet *);
 
     unsigned int (*hos_get_cpu)(void);
-    int (*hos_schedule_work)(unsigned int, void (*)(void *), void *);
+    void (*hos_schedule_work)(unsigned int, void (*)(void *), void *);
     void (*hos_delay_op)(void);
     void (*hos_defer)(struct vrouter *, vr_defer_cb, void *);
     void *(*hos_get_defer_data)(unsigned int);
@@ -182,7 +181,7 @@ struct host_os {
                                    unsigned short, unsigned short *,
                                    int (*is_label_l2)(unsigned int,
                                        unsigned int, unsigned short *));
-    int  (*hos_pcow)(struct vr_packet **, unsigned short);
+    int  (*hos_pcow)(struct vr_packet *, unsigned short);
     uint16_t (*hos_get_udp_src_port)(struct vr_packet *,
                                      struct vr_forwarding_md *,
                                      unsigned short);

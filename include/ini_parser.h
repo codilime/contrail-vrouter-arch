@@ -18,8 +18,6 @@ extern "C" {
 #define PLATFORM_KEY    "platform"
 #define PLATFORM_DPDK   "dpdk"
 #define PLATFORM_NIC    "nic"
-#define OFFLOAD_KEY     "offload"
-#define OFFLOAD_ENABLED "enabled"
 
 extern int read_int(const char *section, const char *key);
 extern const char *read_string(const char *section, const char *key);
@@ -34,7 +32,6 @@ extern int get_socket_type(void);
 extern int get_vrouter_ip(void);
 extern int get_platform(void);
 extern const char *get_platform_str(void);
-extern bool get_offload_enabled(void);
 extern int get_protocol(void);
 
 extern int parse_ini_file(void);

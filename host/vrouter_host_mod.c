@@ -225,10 +225,10 @@ vr_lib_get_cpu(void)
     return 0;
 }
 
-static int
+static void
 vr_lib_schedule_work(unsigned int cpu, void (*fn)(void *), void *arg)
 {
-    return -EOPNOTSUPP;
+    return;
 }
 
 static void

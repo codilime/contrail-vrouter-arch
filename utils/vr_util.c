@@ -4,12 +4,15 @@
  * Copyright (c) 2015, Juniper Networks, Inc.
  * All rights reserved
  */
+#include "winutils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+#define AF_BRIDGE       7       /* Multiprotocol bridge         */
 
 #include <sys/socket.h>
 #if defined(__linux__)
@@ -19,7 +22,7 @@
 #elif defined(__FreeBSD__)
 #include <net/ethernet.h>
 #endif
-
+#include<WinSock2.h>
 #include <net/if.h>
 #include <netinet/in.h>
 
@@ -196,7 +199,7 @@ vr_recvmsg(struct nl_client *cl, bool dump)
     bool pending = true;
     struct nl_response *resp;
     struct nlmsghdr *nlh;
-
+#if 0 //WINDOWSFIX
     while (pending) {
         if ((ret = nl_recvmsg(cl)) > 0) {
             if (dump) {
@@ -220,7 +223,7 @@ vr_recvmsg(struct nl_client *cl, bool dump)
         if (!nlh || !nlh->nlmsg_flags)
             break;
     }
-
+#endif
     return ret;
 }
 
@@ -229,7 +232,7 @@ vr_sendmsg(struct nl_client *cl, void *request,
         char *request_string)
 {
     int ret, error, attr_len;
-
+#if 0 //WINDOWSFIX
     /* nlmsg header */
     ret = nl_build_nlh(cl, cl->cl_genl_family_id, NLM_F_REQUEST);
     if (ret)
@@ -252,6 +255,8 @@ vr_sendmsg(struct nl_client *cl, void *request,
     nl_update_nlh(cl);
 
     return nl_sendmsg(cl);
+#endif
+	return 0;
 }
 
 struct nl_client *
@@ -368,7 +373,6 @@ vr_sum_drop_stats(vr_drop_stats_req *req)
     sum += req->vds_vlan_fwd_tx;
     sum += req->vds_vlan_fwd_enq;
     sum += req->vds_drop_new_flow;
-    sum += req->vds_trap_original;
 
     return sum;
 }
@@ -579,7 +583,7 @@ vr_send_interface_delete(struct nl_client *cl, unsigned int router_id,
 
     memset(&req, 0, sizeof(req));
 
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.vifr_rid = router_id;
     req.vifr_name = vif_name;
     req.vifr_idx = vif_index;
@@ -699,7 +703,7 @@ vr_send_mirror_delete(struct nl_client *cl, unsigned int router_id,
 {
     vr_mirror_req req;
 
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.mirr_rid = router_id;
     req.mirr_index = mirror_index;
 
@@ -733,7 +737,7 @@ vr_send_mpls_delete(struct nl_client *cl, unsigned int router_id,
     vr_mpls_req req;
 
     memset(&req, 0, sizeof(req));
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.mr_rid = router_id;
     req.mr_label = label;
 
@@ -974,7 +978,7 @@ vr_send_nexthop_delete(struct nl_client *cl, unsigned int router_id,
     vr_nexthop_req req;
 
     memset(&req, 0, sizeof(req));
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.nhr_rid = router_id;
     req.nhr_id = nh_index;
 
@@ -1306,7 +1310,7 @@ vr_send_route_delete(struct nl_client *cl,
         uint8_t *prefix, unsigned int prefix_len, unsigned int nh_index,
         int label, uint8_t *mac, uint32_t replace_len, unsigned int flags)
 {
-    return vr_send_route_common(cl, SANDESH_OP_DELETE, router_id, vrf,
+    return vr_send_route_common(cl, SANDESH_OP_DEL, router_id, vrf,
             family, prefix, prefix_len, nh_index, label,
             mac, replace_len, flags);
 }
@@ -1492,7 +1496,7 @@ vr_send_vxlan_delete(struct nl_client *cl, unsigned int router_id,
     vr_vxlan_req req;
 
     memset(&req, 0, sizeof(req));
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.vxlanr_vnid = vnid;
 
     return vr_sendmsg(cl, &req, "vr_vxlan_req");
@@ -1576,7 +1580,7 @@ vr_send_fc_map_delete(struct nl_client *cl, unsigned int router_id,
     int16_t id = fc_id;
 
     memset(&req, 0, sizeof(req));
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.fmr_rid = router_id;
     req.fmr_id = &id;
     req.fmr_id_size = 1;
@@ -1644,7 +1648,7 @@ vr_send_qos_map_delete(struct nl_client *cl, unsigned int router_id,
     vr_qos_map_req req;
 
     memset(&req, 0, sizeof(req));
-    req.h_op = SANDESH_OP_DELETE;
+    req.h_op = SANDESH_OP_DEL;
     req.qmr_rid = router_id;
     req.qmr_id = qos_map_id;
 

@@ -1104,10 +1104,8 @@ vm_arp_request(struct vr_interface *vif, struct vr_packet *pkt,
         return MR_FLOOD;
     }
 
-    if ((vif->vif_flags & VIF_FLAG_MAC_PROXY) ||
-            (rt.rtr_req.rtr_label_flags & VR_RT_ARP_PROXY_FLAG)) {
+    if (rt.rtr_req.rtr_label_flags & VR_RT_ARP_PROXY_FLAG)
         return vr_get_proxy_mac(pkt, fmd, &rt, dmac);
-    }
 
     if (stats)
         stats->vrf_arp_virtual_flood++;

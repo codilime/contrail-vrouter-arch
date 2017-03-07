@@ -28,6 +28,7 @@
 #include <linux/if_ether.h>
 #endif
 
+#include<WinSock2.h>
 #include <net/if.h>
 #if defined(__linux__)
 #include <netinet/ether.h>

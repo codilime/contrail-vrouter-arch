@@ -9,7 +9,6 @@
 #include <vr_route.h>
 #include "vr_message.h"
 #include "vr_sandesh.h"
-#include "vr_offloads.h"
 
 unsigned int vr_vrfs = VR_DEF_VRFS;
 
@@ -81,10 +80,6 @@ vr_route_delete(vr_route_req *req)
         ret = fs->route_del(fs, &vr_req);
     }
 
-    /* notify hw offload of change, if enabled */
-    if (!ret)
-        vr_offload_route_del(req);
-
 error:
     vr_send_response(ret);
 
@@ -114,13 +109,6 @@ vr_route_add(vr_route_req *req)
         }
 
         ret = fs->route_add(fs, &vr_req);
-    }
-
-    /* notify hw offload of change, if enabled */
-    if (!ret) {
-        ret = vr_offload_route_add(req);
-        if (ret)
-            fs->route_del(fs, &vr_req);
     }
 
     vr_send_response(ret);
@@ -176,9 +164,7 @@ vr_route_get(vr_route_req *req)
 
         ret = rtable->algo_get(vr_req.rtr_req.rtr_vrf_id, &vr_req);
     }
-    /* Allow for debug comparison to check if matching entry is programmed on NIC */
-    if (!ret)
-        vr_offload_route_get(req);
+
 generate_response:
     vr_message_response(VR_ROUTE_OBJECT_ID, ret ? NULL : &vr_req, ret);
     if (mac_mem_free && vr_req.rtr_req.rtr_mac) {
@@ -235,10 +221,6 @@ vr_route_dump(vr_route_req *req)
 
         ret = rtable->algo_dump(NULL, &vr_req);
     }
-    /* Allow for debug comparison to check if matching entry is programmed on NIC */
-    if (!ret)
-        vr_offload_route_dump(&vr_req);
-
     return ret;
 
 generate_error:
@@ -382,9 +364,10 @@ vr_vrf_stats_req_process(void *s_req)
 int
 inet_route_add(struct rtable_fspec *fs, struct vr_route_req *req)
 {
-    unsigned char pmask, pmask_byte;
+    int i;
     struct vr_rtable *rtable;
     struct vrouter *router;
+    unsigned int pmask, pmask_byte;
 
     router = vrouter_get(req->rtr_req.rtr_rid);
     if (!router)
@@ -403,31 +386,27 @@ inet_route_add(struct rtable_fspec *fs, struct vr_route_req *req)
     rtable = router->vr_inet_rtable;
     if (!rtable ||
             ((unsigned int)req->rtr_req.rtr_vrf_id >= fs->rtb_max_vrfs) ||
-            ((unsigned int)(req->rtr_req.rtr_prefix_len) >
+            ((unsigned int)(req->rtr_req.rtr_prefix_len) > 
                             (RT_IP_ADDR_SIZE(req->rtr_req.rtr_family)*8)))
         return -EINVAL;
 
-    /* Zero the bits in prefix, which are set beyond the mask len */
     if (req->rtr_req.rtr_prefix) {
 
-        pmask = req->rtr_req.rtr_prefix_len % 8;
-        pmask_byte = req->rtr_req.rtr_prefix_len / 8;
-        /*
-         * pmask_byte identifies the byte bumber from which we need to
-         * reset prefix till the end of prefix. If mask len is not 8 bit
-         * boundary, we calculate that in pmask
-         */
-        if (pmask) {
-            pmask = ~((1 << (8 - pmask)) - 1);
-            req->rtr_req.rtr_prefix[pmask_byte] =
-                         req->rtr_req.rtr_prefix[pmask_byte] & pmask;
-            pmask_byte++;
+        if (req->rtr_req.rtr_family == AF_INET)
+            pmask = ~((1 << (32 - req->rtr_req.rtr_prefix_len)) - 1);
+        else
+            pmask = 0; /* TBD: Assume V6 prefix length will be multiple of 8 */
+            
+        pmask_byte = req->rtr_req.rtr_prefix_len/8;
+        if (pmask_byte < (RT_IP_ADDR_SIZE(req->rtr_req.rtr_family)-1)) {
+            for (i=pmask_byte+1; i<RT_IP_ADDR_SIZE(req->rtr_req.rtr_family); i++) {
+                req->rtr_req.rtr_prefix[i] = 0;
+                pmask = pmask >> 8;
+            }
+            req->rtr_req.rtr_prefix[pmask_byte] = 
+                         req->rtr_req.rtr_prefix[pmask_byte] & (pmask & 0xff);
         }
-        for (; pmask_byte < RT_IP_ADDR_SIZE(req->rtr_req.rtr_family);
-                                                            pmask_byte++) {
-            req->rtr_req.rtr_prefix[pmask_byte] = 0;
-        }
-    }
+    } 
 
     if (rtable) {
         if (rtable->algo_add)

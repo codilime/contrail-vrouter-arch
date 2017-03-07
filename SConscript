@@ -14,7 +14,7 @@ AddOption('--kernel-dir', dest = 'kernel-dir', action='store',
 AddOption('--system-header-path', dest = 'system-header-path', action='store',
           help='Linux kernel headers for applications')
 
-env = DefaultEnvironment().Clone()
+env = DefaultEnvironment(TARGET_ARCH='x86').Clone()
 VRouterEnv = env
 dpdk_exists = os.path.isdir('../third_party/dpdk')
 
@@ -33,7 +33,7 @@ env.Append(CPPPATH = ['#tools/sandesh/library/c'])
 
 # Make Sandesh quiet for production
 if 'production' in env['OPT']:
-    DefaultEnvironment().Append(CPPDEFINES='SANDESH_QUIET')
+    DefaultEnvironment(TARGET_ARCH='x86').Append(CPPDEFINES='SANDESH_QUIET')
 
 vr_root = './'
 makefile = vr_root + 'Makefile'
@@ -79,12 +79,12 @@ default_kernel_ver = shellCommand("uname -r").strip()
 kernel_build_dir = None
 if re.search('^4\.', default_kernel_ver):
     print "Warn: kernel version %s not supported for vrouter and dpdk" % default_kernel_ver
-    kernel_build_dir = '/lib/modules/3.13.0-106-generic/build'
+    kernel_build_dir = '/lib/modules/3.13.0-85-generic/build'
     if os.path.isdir(kernel_build_dir):
-        default_kernel_ver = "3.13.0-106-generic"
+        default_kernel_ver = "3.13.0-85-generic"
         print "info: libdpdk will be built against kernel version %s" % default_kernel_ver
     else:
-        print "*** Error: Cannot find kernel v3.13.0-106, build of vrouter will likely fail"
+        print "*** Error: Cannot find kernel v3.13.0-85, build of vrouter will likely fail"
         kernel_build_dir = '/lib/modules/%s/build' % default_kernel_ver
 
 kernel_dir = GetOption('kernel-dir')

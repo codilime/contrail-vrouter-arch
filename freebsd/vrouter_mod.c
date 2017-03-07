@@ -331,12 +331,11 @@ fh_get_cpu(void)
 	return (cpuid);
 }
 
-static int
+static void
 fh_schedule_work(unsigned int cpu, void (*fn)(void *), void *arg)
 {
-	vr_log(VR_ERR, "%s: not implemented\n", __func__);
 
-    return -EOPNOTSUPP;
+	vr_log(VR_ERR, "%s: not implemented\n", __func__);
 }
 
 static void
@@ -481,7 +480,7 @@ fh_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
 }
 
 static int
-fh_pcow(struct vr_packet **pkt, unsigned short head_room)
+fh_pcow(struct vr_packet *pkt, unsigned short head_room)
 {
 
 	vr_log(VR_ERR, "%s: not implemented\n", __func__);

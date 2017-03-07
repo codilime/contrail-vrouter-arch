@@ -28,9 +28,10 @@
 #include <netinet/in.h>
 #include <net/ethernet.h>
 #endif
-
+#include <netinet/udp.h>
 #include "udp_util.h"
-
+#include<WinSock2.h>
+#include<sys/socket.h>
 #include "host/vr_host.h"
 #include "host/vr_host_interface.h"
 
