@@ -47,7 +47,7 @@ static int extension_context_size()
 
 struct vr_packet* win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
 
-static NDIS_STATUS
+NDIS_STATUS
 create_extension_context(PNET_BUFFER_LIST nbl)
 {
     NDIS_STATUS status = NdisAllocateNetBufferListContext(
@@ -64,7 +64,7 @@ create_extension_context(PNET_BUFFER_LIST nbl)
 
 }
 
-static void
+void
 delete_extension_context(PNET_BUFFER_LIST nbl)
 {
     NdisFreeNetBufferListContext(nbl, extension_context_size());
@@ -421,7 +421,8 @@ win_preset(struct vr_packet *pkt)
 static struct vr_packet *
 win_pclone(struct vr_packet *pkt)
 {
-    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList((PNET_BUFFER_LIST)pkt->vp_net_buffer_list, SxNBLPool, NULL, 0);
+    PNET_BUFFER_LIST original_nbl = pkt->vp_net_buffer_list;
+    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, NULL, NULL, 0);
     if (nbl == NULL)
         return NULL;
 
@@ -436,16 +437,18 @@ win_pclone(struct vr_packet *pkt)
 
     npkt->vp_cpu = (unsigned char)win_get_cpu();
 
-    if (create_forwarding_context(npkt->vp_net_buffer_list) != NDIS_STATUS_SUCCESS)
+    if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
         goto cleanup_pkt;
 
     NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
         SxSwitchObject->NdisSwitchContext,
-        npkt->vp_net_buffer_list,
-        pkt->vp_net_buffer_list,
+        nbl,
+        original_nbl,
         0);
 
     nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+    nbl->ParentNetBufferList = original_nbl;
+    original_nbl->ChildRefCount++;
 
     if (copy_status != NDIS_STATUS_SUCCESS)
         goto cleanup_ctx;
@@ -453,7 +456,7 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 
 cleanup_ctx:
-    delete_forwarding_context(npkt->vp_net_buffer_list);
+    delete_forwarding_context(nbl);
 
 cleanup_pkt:
     delete_extension_context(nbl);

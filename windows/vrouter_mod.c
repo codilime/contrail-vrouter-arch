@@ -932,26 +932,13 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    PNET_BUFFER_LIST curNBL = NetBufferLists;
-
-    while (curNBL)
+    //TODO: If non-cloned NBLS are ever sent, add some branching to properly free them
+    while (NetBufferLists->ChildRefCount != 0)
     {
-        PNET_BUFFER_LIST nextNBL = curNBL->Next;
-        curNBL->Next = NULL;
 
-        if (curNBL->SourceHandle == Switch->NdisFilterHandle)
-        {
-            DbgPrint("Completing injected NBL...\r\n");
-
-            SxLibCompletedInjectedNetBufferLists(Switch, 1);
-        }
-        else
-        {
-            DbgPrint("Completing non-injected NBL...\r\n");
-            SxLibCompleteNetBufferListsIngress(Switch,
-                curNBL,
-                SendCompleteFlags);
-        }
-        curNBL = nextNBL;
     }
+    PNET_BUFFER_LIST parent = NetBufferLists->ParentNetBufferList;
+    NdisFreeCloneNetBufferList(NetBufferLists, 0);
+    if (parent)
+        parent->ChildRefCount--;
 }

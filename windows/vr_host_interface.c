@@ -81,6 +81,7 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 
     SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisSwitchContext, nbl, dest);
 
+    delete_extension_context(nbl);
     // We are sure there is only 1 packet so all packets have a single source. Same is true for destinations.
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
