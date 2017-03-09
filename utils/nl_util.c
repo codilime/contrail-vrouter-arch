@@ -56,6 +56,31 @@ extern void vr_mem_stats_req_process(void *s_req) __attribute__((weak));
 extern void vr_fc_map_req_process(void *s_req) __attribute__((weak));
 extern void vr_qos_map_req_process(void *s_req) __attribute__((weak));
 
+#if defined(_NH)
+void 
+vr_interface_req_process(void *s_req)
+{
+    return;
+}
+
+void 
+vr_route_req_process(void *s_req)
+{
+    return;
+}
+
+void 
+vr_flow_req_process(void *s_req)
+{
+    return;
+}
+
+void 
+vr_drop_stats_req_process(void *s_req)
+{
+    return;
+}
+#endif
 void
 vrouter_ops_process(void *s_req)
 {
