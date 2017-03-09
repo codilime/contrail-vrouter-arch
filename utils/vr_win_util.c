@@ -187,7 +187,7 @@ nl_client_stream_recvmsg(struct nl_client *cl)
 				ExitProcess(dw);
 			}
 
-			printf("%s\n", buffer);
+			printf("Error: Problem with ksync communicaton: %s\n", buffer);
 
 			ExitProcess(dw);
 		}
