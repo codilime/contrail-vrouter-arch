@@ -1,37 +1,12 @@
-/*-
- * Copyright (c) 2014 Semihalf
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- * $FreeBSD$
- */
-
 #include "vrouter.h"
 #include "vr_flow.h"
 
 const WCHAR SectionName[] = L"\\BaseNamedObjects\\vRouter";
+extern void *vr_flow_table;
+extern void *vr_oflow_table;
 
 HANDLE Section;
+
 void
 MemoryExit(void)
 {
@@ -42,6 +17,41 @@ MemoryExit(void)
         DbgPrint("Failed closing a section, error code: %lx\r\n", status);
     }
 }
+
+VOID
+UnmapSectionAddress(void)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    status = ZwUnmapViewOfSection(Section, vr_flow_table);
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Failed closing a section, error code: %lx\r\n", status);
+    }
+}
+
+VOID
+SetSectionAddress(void)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    size_t flow_table_size;
+    UNICODE_STRING _SectionName;
+    PVOID BaseAddress = NULL;
+    SIZE_T ViewSize = 0;
+
+    RtlInitUnicodeString(&_SectionName, SectionName);
+
+    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+
+    status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
+    if (status != STATUS_SUCCESS)
+    {
+        DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
+    }
+
+    vr_flow_table = BaseAddress;
+    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
+}
+
 
 PVOID
 MemoryInit(void)

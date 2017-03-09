@@ -18,7 +18,8 @@
 #include "vr_datapath.h"
 #include "vr_hash.h"
 #include "vr_ip_mtrie.h"
-#include "vr_htable.h"
+
+#include "vr_mem.h"
 
 #define VR_NUM_FLOW_TABLES          1
 
@@ -2340,7 +2341,9 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
         vr_fragment_table_exit(router);
         vr_link_local_ports_exit(router);
     }
-
+#if defined(_WINDOWS)
+    UnmapSectionAddress();
+#endif
     return;
 }
 
@@ -2348,31 +2351,9 @@ int
 vr_flow_init(struct vrouter *router)
 {
     int ret;
-
-    NTSTATUS status = STATUS_SUCCESS;
-    size_t flow_table_size;
-    UNICODE_STRING _SectionName;
-    PVOID BaseAddress = NULL;
-    SIZE_T ViewSize = 0;
-    const WCHAR SectionName[] = L"\\BaseNamedObjects\\vRouter";
-
-    RtlInitUnicodeString(&_SectionName, SectionName);
-
-    if (!vr_oflow_entries)
-        vr_oflow_entries = ((vr_flow_entries / 5) + 1023) & ~1023;
-
-    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
-
-    status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
-    if (status != STATUS_SUCCESS)
-    {
-        DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
-        return 0;
-    }
-    
-    vr_flow_table = BaseAddress;
-    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
-
+#if defined(_WINDOWS)
+    SetSectionAddress();
+#endif
     if ((ret = vr_fragment_table_init(router)) < 0)
         return ret;
 

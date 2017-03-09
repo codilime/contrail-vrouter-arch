@@ -33,7 +33,7 @@
 #include <net/if.h>
 #include <netinet/ether.h>
 #endif
-#if defined(__windows__)
+//#if defined(__windows__)
 #include <stdbool.h>
 #include <wingetopt.h>
 
@@ -1445,6 +1445,15 @@ flow_list(void)
     return;
 }
 
+static void TimeWait(int miliseconds)
+{
+#if defined(_WINDOWS)
+    Sleep(miliseconds);
+#else   
+    usleep(miliseconds * 1000);
+#endif
+}
+
 static void
 flow_stats(void)
 {
@@ -1478,7 +1487,7 @@ flow_stats(void)
         flow_action_drop = 0;
         flow_action_fwd = 0;
         flow_action_nat = 0;
-        Sleep(500); // usleep(500000)
+        TimeWait(500);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries +
                                           (i * sizeof(*fe)));
@@ -1589,7 +1598,7 @@ flow_rate(void)
     while (1) {
         active_entries = 0;
         total_entries = 0;
-        Sleep(500); // usleep(500000);
+        TimeWait(500);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries + (i * sizeof(*fe)));
             if (fe->fe_flags & VR_FLOW_FLAG_ACTIVE) {
@@ -1623,29 +1632,6 @@ flow_rate(void)
     }
 }
 
-LPSTR GetError()
-{
-    LPSTR errorText = NULL;
-
-    FormatMessageA(
-        // use system message tables to retrieve error text
-        FORMAT_MESSAGE_FROM_SYSTEM
-        // allocate buffer on local heap for error text
-        | FORMAT_MESSAGE_ALLOCATE_BUFFER
-        // Important! will fail otherwise, since we're not 
-        // (and CANNOT) pass insertion parameters
-        | FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
-        GetLastError(),
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPSTR)&errorText,  // output 
-        0, // minimum size for output buffer
-        NULL);   // arguments - see not
-
-    return errorText;
-}
-
-
 static int
 flow_table_map(vr_flow_req *req)
 {
@@ -1653,7 +1639,7 @@ flow_table_map(vr_flow_req *req)
     unsigned int i;
     struct flow_table *ft = &main_table;
     const char *flow_path;
-    HANDLE Handle;
+
     if (req->fr_ftable_dev < 0)
         exit(ENODEV);
 
@@ -1661,45 +1647,42 @@ flow_table_map(vr_flow_req *req)
     if (platform && ((strcmp(platform, PLATFORM_DPDK) == 0) ||
                 (strcmp(platform, PLATFORM_NIC) == 0))) {
         flow_path = req->fr_file_path;
-    } else {
+    }
+    else {
         flow_path = MEM_DEV;
-
-        Handle = OpenFileMapping(PAGE_READWRITE, FALSE, TEXT("Global\\vRouter"));
+#if defined(_WINDOWS)
+        HANDLE Handle = OpenFileMapping(PAGE_READWRITE, FALSE, TEXT("Global\\vRouter"));
 
         if (Handle == NULL || Handle == INVALID_HANDLE_VALUE)
         {
             printf("Error, bad HANDLE\n");
-            printf("Error: %s\n", GetError());// << std::endl; ")
+            printf("Error: %s\n", GetError());
         }
 
-#if defined(__linux__)
+        PVOID Section = MapViewOfFile(Handle, PAGE_READWRITE, 0, 0, 0);
+        if (Section == NULL)
+        {
+            printf("Section is null\n");
+        }
+        ft->ft_entries = Section;
+    }
+#else
         ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
                 makedev(req->fr_ftable_dev, req->fr_rid));
-#endif
+
         if (ret && errno != EEXIST) {
             perror(MEM_DEV);
             exit(errno);
         }
     }
 
-#if defined(__linux__)
     mem_fd = open(flow_path, O_RDONLY | O_SYNC);
 
     if (mem_fd <= 0) {
         perror(MEM_DEV);
         exit(errno);
     }
-#else
-    PVOID Section = MapViewOfFile(Handle, PAGE_READWRITE, 0, 0, 0);
-    if (Section == NULL)
-    {
-        printf("Section is null\n");
-    }
-    ft->ft_entries = Section;
-#endif
 
-
-#if defined(__linux__)
     ft->ft_entries = (struct vr_flow_entry *)mmap(NULL, req->fr_ftable_size,
             PROT_READ, MAP_SHARED, mem_fd, 0);
     /* the file descriptor is no longer needed */
@@ -1808,7 +1791,7 @@ flow_table_setup(void)
     cl = nl_register_client();
     if (!cl)
         return -ENOMEM;
-#if defined(__linux__)
+#if not defined(_WINDOWS)
     parse_ini_file();
     ret = nl_socket(cl, get_domain(), get_type(), get_protocol());
     if (ret <= 0)
@@ -2301,7 +2284,7 @@ main(int argc, char *argv[])
     }
 
     validate_options();
-    
+
     ret = flow_table_setup();
     if (ret < 0)
         return ret;

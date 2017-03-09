@@ -1,21 +1,21 @@
 #include <strsafe.h>
 #include <stdbool.h>
 #include "nl_util.h"
-
-#define ETHER_ADDR_LEN	   6
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
 #include <stdint.h> // portable: uint64_t   MSVC: __int64 
 #include <stdio.h> 
+#include <Windows.h>
+#define vRouterKsync "\\\\.\\vrouterKsync"
+#define ETHER_ADDR_LEN	   6
+#define WIN32_LEAN_AND_MEAN
 
+static char ether_ntoa_data[18];
 
 const char* inet_ntop(int af, const void* src, char* dst, int cnt) {
 
 	struct sockaddr_in srcaddr;
 
-	memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-	memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+    RtlZeroMemory(&srcaddr, 0, sizeof(struct sockaddr_in));
+    RtlCopyMemory(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
 
 	srcaddr.sin_family = af;
 	if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
@@ -76,14 +76,13 @@ inet_aton(const char *cp, struct in_addr *addr)
 char *ether_ntoa(struct ether_addr *n)
 {
     int i;
-    static char a[18];
 
-    i = sprintf(a, "%x: %x: %x: %x: %x: %x", n->ether_addr_octet[0], n->ether_addr_octet[1], 
+    i = sprintf(ether_ntoa_data, "%02x:%02x:%02x:%02x:%02x:%02x", n->ether_addr_octet[0], n->ether_addr_octet[1],
                                                   n->ether_addr_octet[2], n->ether_addr_octet[3],
                                                   n->ether_addr_octet[4], n->ether_addr_octet[5]);
     if (i <11)
         return (NULL);
-    return ((char *)&a);
+    return &ether_ntoa_data;
 }
 
 struct ether_addr *
@@ -136,6 +135,28 @@ nl_client_datagram_recvmsg(struct nl_client *cl)
     return nl_client_stream_recvmsg(cl);
 }
 
+LPSTR GetError()
+{
+    LPSTR errorText = NULL;
+
+    FormatMessageA(
+        // use system message tables to retrieve error text
+        FORMAT_MESSAGE_FROM_SYSTEM
+        // allocate buffer on local heap for error text
+        | FORMAT_MESSAGE_ALLOCATE_BUFFER
+        // Important! will fail otherwise, since we're not 
+        // (and CANNOT) pass insertion parameters
+        | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
+        GetLastError(),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPSTR)&errorText,  // output 
+        0, // minimum size for output buffer
+        NULL);   // arguments - see not
+
+    return errorText;
+}
+
 int
 nl_client_stream_recvmsg(struct nl_client *cl) 
 {
@@ -148,7 +169,7 @@ nl_client_stream_recvmsg(struct nl_client *cl)
     if (hPipe != INVALID_HANDLE_VALUE)
     {
 		if (ReadFile(hPipe, buffer, NL_MSG_DEFAULT_SIZE, &dwRead, NULL)) {
-			memcpy(cl->cl_buf, buffer, dwRead);
+            RtlCopyMemory(cl->cl_buf, buffer, dwRead);
 		}
 		else {
 			DWORD dw = GetLastError();
@@ -182,7 +203,9 @@ nl_sendmsg(struct nl_client *cl)
 	DWORD dwWritten;
 	struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
 	int d =  cl->cl_buf_offset;
-	hPipe = CreateFile(TEXT("\\\\.\\vrouterKsync"),
+    int r;
+
+	hPipe = CreateFile(TEXT(vRouterKsync),
 		GENERIC_READ | GENERIC_WRITE,
 		0,
 		NULL,
@@ -190,7 +213,6 @@ nl_sendmsg(struct nl_client *cl)
 		0,
 		NULL);
 
-	int r;
 	if (hPipe != INVALID_HANDLE_VALUE)
 	{
 		r = WriteFile(hPipe,
@@ -198,7 +220,6 @@ nl_sendmsg(struct nl_client *cl)
 			4096,   // = length of string + terminating '\0' !!!
 			&dwWritten,
 			NULL);
-
 	}
 
 	return r;
