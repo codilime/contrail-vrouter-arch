@@ -79,7 +79,11 @@ NDIS_STATUS vr_get_name_from_friendly_name(
 
     PCHAR src = friendly_ansi_str.Buffer + i + 1;
     size_t src_max_bytes = friendly_ansi_str.Length - i - 1;
-    status = RtlStringCbCopyNA(name, name_buffer_size, src, src_max_bytes);
+    size_t dst_max_bytes = VR_ASSOC_STRING_SIZE;
+    if (dst_max_bytes > name_buffer_size) {
+        dst_max_bytes = name_buffer_size;
+    }
+    status = RtlStringCbCopyNA(name, dst_max_bytes, src, src_max_bytes);
     if (status != STATUS_SUCCESS) {
         return NDIS_STATUS_FAILURE;
     }
@@ -89,18 +93,14 @@ NDIS_STATUS vr_get_name_from_friendly_name(
     return NDIS_STATUS_SUCCESS;
 }
 
-NDIS_STATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string)
+NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string)
 {
     if (entry == NULL || new_assoc_string == NULL) {
         return NDIS_STATUS_FAILURE;
     }
 
     NTSTATUS copy_status = RtlStringCbCopyA(entry->string, sizeof(entry->string), new_assoc_string);
-    if (NT_SUCCESS(copy_status)) {
-        return NDIS_STATUS_SUCCESS;
-    } else {
-        return NDIS_STATUS_FAILURE;
-    }
+    return copy_status;
 }
 
 struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc hash, compareFunc cmp, const struct criteria* params)
@@ -110,7 +110,7 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
         return NULL;
     }
 
-    struct vr_assoc** field = map + hash(params);
+    struct vr_assoc** field = map + calculated_hash;
 
     while (*field != NULL)
     {
@@ -180,21 +180,7 @@ static unsigned int hash_name(const struct criteria* params)
 
 static BOOLEAN cmp_name(struct vr_assoc* entry, const struct criteria* params)
 {
-    NTSTATUS status;
-
-    size_t entry_string_length;
-    status = RtlStringCbLengthA(entry->string, VR_ASSOC_STRING_SIZE, &entry_string_length);
-    if (!NT_SUCCESS(status)) {
-        return FALSE;
-    }
-
-    size_t params_name_length;
-    status = RtlStringCbLengthA(params->name, VR_ASSOC_STRING_SIZE, &params_name_length);
-    if (!NT_SUCCESS(status)) {
-        return FALSE;
-    }
-
-    return entry_string_length == params_name_length && !strncmp(entry->string, params->name, VR_ASSOC_STRING_MAX_LEN);
+    return !strncmp(entry->string, params->name, VR_ASSOC_STRING_MAX_LEN);
 }
 
 struct vr_assoc* vr_get_assoc_by_name(const char *interface_name)

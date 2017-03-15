@@ -76,7 +76,7 @@ struct genlmsghdr {
     UINT16   reserved;
 };
 
-NDIS_STATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string);
+NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string);
 
 struct vr_assoc* vr_get_assoc_by_name(const char *interface_name);
 void vr_set_assoc_by_name(const char *interface_name, struct vr_interface* interface);

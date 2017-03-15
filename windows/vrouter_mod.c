@@ -143,11 +143,15 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
         struct vr_assoc* assoc_by_name = vr_get_assoc_by_name(nic_name);
         struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(nic->port_id, nic->nic_index);
         if (assoc_by_name != NULL && assoc_by_ids != NULL) {
+            NTSTATUS status_set = vr_assoc_set_string(assoc_by_ids, nic_name);
+            if (!NT_SUCCESS(status_set)) {
+                return NDIS_STATUS_FAILURE;
+            }
+
+            struct vr_interface* interface = assoc_by_name->interface;
             assoc_by_name->port_id = nic->port_id;
             assoc_by_name->nic_index = nic->nic_index;
-            struct vr_interface* interface = assoc_by_name->interface;
 
-            vr_assoc_set_string(assoc_by_ids, nic_name);
             assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
         } else {
             return NDIS_STATUS_RESOURCES;
