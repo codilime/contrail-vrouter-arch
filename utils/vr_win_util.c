@@ -11,18 +11,18 @@
 static char ether_ntoa_data[18];
 
 const char* inet_ntopR(int af, const void* src, char* dst, int cnt) {
-	struct sockaddr_in srcaddr;
+    struct sockaddr_in srcaddr;
 
     RtlZeroMemory(&srcaddr, 0, sizeof(struct sockaddr_in));
     RtlCopyMemory(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
 
-	srcaddr.sin_family = af;
-	if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
-		DWORD rv = WSAGetLastError();
-		//printf("%d\n", rv);
-		return NULL;
-	}
-	return dst;
+    srcaddr.sin_family = af;
+    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
+        DWORD rv = WSAGetLastError();
+        //printf("%d\n", rv);
+        return NULL;
+    }
+    return dst;
 }
 
 
@@ -51,25 +51,25 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 // TODO: JW-120 - Refactoring of vr_win_utils.c
 struct ether_addr {
-	u_char ether_addr_octet[ETHER_ADDR_LEN];
+    u_char ether_addr_octet[ETHER_ADDR_LEN];
 };
 
 static inline int
 xdigit(char c) {
-	unsigned d;
-	d = (unsigned)(c - '0');
-	if (d < 10) return (int)d;
-	d = (unsigned)(c - 'a');
-	if (d < 6) return (int)(10 + d);
-	d = (unsigned)(c - 'A');
-	if (d < 6) return (int)(10 + d);
-	return -1;
+    unsigned d;
+    d = (unsigned)(c - '0');
+    if (d < 10) return (int)d;
+    d = (unsigned)(c - 'a');
+    if (d < 6) return (int)(10 + d);
+    d = (unsigned)(c - 'A');
+    if (d < 6) return (int)(10 + d);
+    return -1;
 }
 
 int
 inet_aton(const char *cp, struct in_addr *addr)
 {
-	return inet_pton(AF_INET, cp, addr);
+    return inet_pton(AF_INET, cp, addr);
 }
 
 char *ether_ntoa(struct ether_addr *n)
@@ -79,37 +79,37 @@ char *ether_ntoa(struct ether_addr *n)
     i = sprintf(ether_ntoa_data, "%02x:%02x:%02x:%02x:%02x:%02x", n->ether_addr_octet[0], n->ether_addr_octet[1],
                                                   n->ether_addr_octet[2], n->ether_addr_octet[3],
                                                   n->ether_addr_octet[4], n->ether_addr_octet[5]);
-    if (i <11)
+    if (i < 0)
         return (NULL);
     return &ether_ntoa_data;
 }
 
 struct ether_addr *
-	ether_aton_r(const char *asc, struct ether_addr * addr)
+    ether_aton_r(const char *asc, struct ether_addr * addr)
 {
-	int i, val0, val1;
-	for (i = 0; i < ETHER_ADDR_LEN; ++i) {
-		val0 = xdigit(*asc);
-		asc++;
-		if (val0 < 0)
-			return NULL;
+    int i, val0, val1;
+    for (i = 0; i < ETHER_ADDR_LEN; ++i) {
+        val0 = xdigit(*asc);
+        asc++;
+        if (val0 < 0)
+            return NULL;
 
-		val1 = xdigit(*asc);
-		asc++;
-		if (val1 < 0)
-			return NULL;
+        val1 = xdigit(*asc);
+        asc++;
+        if (val1 < 0)
+            return NULL;
 
-		addr->ether_addr_octet[i] = (u_int8_t)((val0 << 4) + val1);
+        addr->ether_addr_octet[i] = (u_int8_t)((val0 << 4) + val1);
 
-		if (i < ETHER_ADDR_LEN - 1) {
-			if (*asc != ':')
-				return NULL;
-			asc++;
-		}
-	}
-	if (*asc != '\0')
-		return NULL;
-	return addr;
+        if (i < ETHER_ADDR_LEN - 1) {
+            if (*asc != ':')
+                return NULL;
+            asc++;
+        }
+    }
+    if (*asc != '\0')
+        return NULL;
+    return addr;
 }
 
 /*
@@ -119,10 +119,10 @@ struct ether_addr *
 */
 
 struct ether_addr *
-	ether_aton(const char *asc)
+    ether_aton(const char *asc)
 {
-	static struct ether_addr addr;
-	return ether_aton_r(asc, &addr);
+    static struct ether_addr addr;
+    return ether_aton_r(asc, &addr);
 }
 HANDLE hPipe;
 
@@ -167,29 +167,29 @@ nl_client_stream_recvmsg(struct nl_client *cl)
 
     if (hPipe != INVALID_HANDLE_VALUE)
     {
-		if (ReadFile(hPipe, buffer, NL_MSG_DEFAULT_SIZE, &dwRead, NULL)) {
+        if (ReadFile(hPipe, buffer, NL_MSG_DEFAULT_SIZE, &dwRead, NULL)) {
             RtlCopyMemory(cl->cl_buf, buffer, dwRead);
-		}
-		else {
-			DWORD dw = GetLastError();
+        }
+        else {
+            DWORD dw = GetLastError();
 
-			if (!FormatMessage(
-				FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL,
-				dw,
-				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				buffer,
-				0, NULL)) {
-				printf("Format message failed with 0x%x\n", GetLastError());
-				ExitProcess(dw);
-			}
+            if (!FormatMessage(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                FORMAT_MESSAGE_FROM_SYSTEM |
+                FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL,
+                dw,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                buffer,
+                0, NULL)) {
+                printf("Format message failed with 0x%x\n", GetLastError());
+                ExitProcess(dw);
+            }
 
-			printf("Error: Problem with ksync communicaton: %s\n", buffer);
+            printf("Error: Problem with ksync communicaton: %s\n", buffer);
 
-			ExitProcess(dw);
-		}
+            ExitProcess(dw);
+        }
     }
 
     return dwRead;
@@ -199,27 +199,27 @@ nl_client_stream_recvmsg(struct nl_client *cl)
 int
 nl_sendmsg(struct nl_client *cl)
 {
-	DWORD dwWritten;
-	struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
-	int d =  cl->cl_buf_offset;
+    DWORD dwWritten;
+    struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
+    int d =  cl->cl_buf_offset;
     int r;
 
-	hPipe = CreateFile(TEXT(vRouterKsync),
-		GENERIC_READ | GENERIC_WRITE,
-		0,
-		NULL,
-		OPEN_EXISTING,
-		0,
-		NULL);
+    hPipe = CreateFile(TEXT(vRouterKsync),
+        GENERIC_READ | GENERIC_WRITE,
+        0,
+        NULL,
+        OPEN_EXISTING,
+        0,
+        NULL);
 
-	if (hPipe != INVALID_HANDLE_VALUE)
-	{
-		r = WriteFile(hPipe,
-			cl->cl_buf,
-			4096,   // = length of string + terminating '\0' !!!
-			&dwWritten,
-			NULL);
-	}
+    if (hPipe != INVALID_HANDLE_VALUE)
+    {
+        r = WriteFile(hPipe,
+            cl->cl_buf,
+            4096,   // = length of string + terminating '\0' !!!
+            &dwWritten,
+            NULL);
+    }
 
-	return r;
+    return r;
 }

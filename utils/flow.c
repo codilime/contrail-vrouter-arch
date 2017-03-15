@@ -33,7 +33,7 @@
 #include <net/if.h>
 #include <netinet/ether.h>
 #endif
-//#if defined(__windows__)
+
 #include <stdbool.h>
 #include <wingetopt.h>
 
@@ -1448,7 +1448,7 @@ flow_list(void)
     return;
 }
 
-static void TimeWait(int miliseconds)
+static void time_wait(int miliseconds)
 {
 #if defined(_WINDOWS)
     Sleep(miliseconds);
@@ -1490,7 +1490,7 @@ flow_stats(void)
         flow_action_drop = 0;
         flow_action_fwd = 0;
         flow_action_nat = 0;
-        TimeWait(500);
+        time_wait(500);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries +
                                           (i * sizeof(*fe)));
@@ -1601,7 +1601,7 @@ flow_rate(void)
     while (1) {
         active_entries = 0;
         total_entries = 0;
-        TimeWait(500);
+        time_wait(500);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries + (i * sizeof(*fe)));
             if (fe->fe_flags & VR_FLOW_FLAG_ACTIVE) {
@@ -1754,7 +1754,11 @@ flow_make_flow_req(vr_flow_req *req)
     ret = nl_sendmsg(cl);
     if (ret <= 0)
         return ret;
+
+#if defined(_WINDOWS)  
     cl->cl_recvmsg = nl_client_stream_recvmsg;
+#endif
+
     if ((ret = nl_recvmsg(cl)) > 0) {
 #if defined(__linux__)
         resp = nl_parse_reply(cl);
@@ -1950,19 +1954,27 @@ flow_make_flow_req_perf(vr_flow_req *req)
     if (bunch != count && more)
         return 0;
 
-//    struct msghdr msg;
-//    memset(&msg, 0, sizeof(msg));
+#if not defined(_WINDOWS)
+    struct msghdr msg;
+    memset(&msg, 0, sizeof(msg));
+#endif
+
 #if defined (__linux__)
     msg.msg_name = cl->cl_sa;
     msg.msg_namelen = cl->cl_sa_len;
 #endif
 
-//    msg.msg_iov = iov;
-//    msg.msg_iovlen = count;
+#if not defined(_WINDOWS)
+    msg.msg_iov = iov;
+    msg.msg_iovlen = count;
+
+    ret = sendmsg(cl->cl_sock, &msg, 0);
+    if (ret <= 0)
+        return ret;
+#else
     nl_sendmsg(cl);
-    //ret = sendmsg(cl->cl_sock, &msg, 0);
-    //if (ret <= 0)
-      //  return ret;
+#endif
+
 
     cl->cl_buf_offset = 0;
     count = 0;
@@ -2014,12 +2026,8 @@ void run_perf(void) {
         i--;
         cl->cl_buf_offset = 0;
         if ((ret = nl_recvmsg(cl)) > 0) {
-            printf("Ret %d\n", ret);
-    //        resp = nl_parse_reply(cl);
-    //        if (resp->nl_op == SANDESH_REQUEST) {
                 sandesh_decode(cl->cl_buf, ret,
                                 vr_find_sandesh_info, &ret);
-      //      }
         }
     }
     cl->cl_buf_offset = 0;
@@ -2081,13 +2089,8 @@ void run_perf(void) {
         i--;
         cl->cl_buf_offset = 0;
         if ((ret = nl_recvmsg(cl)) > 0) {
-
-    //        resp = nl_parse_reply(cl);
-    //        if (resp->nl_op == SANDESH_REQUEST) {
                 sandesh_decode(cl->cl_buf, ret,
                                 vr_find_sandesh_info, &ret);
-
-    //        }
         }
     }
     cl->cl_buf_offset = 0;
