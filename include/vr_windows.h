@@ -19,6 +19,9 @@ extern "C" {
 #define VR_INIT_ASSOC_OK        0
 #define VR_INIT_ASSOC_FAILED    1
 
+#define VR_ASSOC_STRING_MAX_LEN 63
+#define VR_ASSOC_STRING_SIZE    (VR_ASSOC_STRING_MAX_LEN + 1)
+
 struct vr_interface; // Forward declaration
 
 struct vr_packet;
@@ -44,14 +47,15 @@ struct vr_assoc {
     struct vr_interface* interface;
     struct vr_assoc* next;
 
-    NDIS_IF_COUNTED_STRING string;
+    char string[VR_ASSOC_STRING_SIZE];
     struct {
         NDIS_SWITCH_PORT_ID port_id;
         NDIS_SWITCH_NIC_INDEX nic_index;
     };
 };
 
-NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRING friendly);
+/* Extracts interface name from provided friendly name and stores it in provided `name` buffer. */
+NDIS_STATUS vr_get_name_from_friendly_name(NDIS_IF_COUNTED_STRING friendly, char *name, size_t name_buffer_size);
 
 struct nlattr {
     UINT16           nla_len;
@@ -72,9 +76,11 @@ struct genlmsghdr {
     UINT16   reserved;
 };
 
-struct vr_assoc* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING string);
-void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct vr_interface* interface);
-void vr_delete_assoc_name(const NDIS_IF_COUNTED_STRING interface_name);
+NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string);
+
+struct vr_assoc* vr_get_assoc_by_name(const char *interface_name);
+void vr_set_assoc_by_name(const char *interface_name, struct vr_interface* interface);
+void vr_delete_assoc_by_name(const char *interface_name);
 
 struct vr_assoc* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index);
 void vr_set_assoc_oid_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index, struct vr_interface* interface);

@@ -133,19 +133,25 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
     }
     ctx->nics[ctx->num_nics++] = *nic;
 
-    NDIS_IF_COUNTED_STRING _name = vr_get_name_from_friendly_name(name);
+    if (nic->nic_type == NdisSwitchNicTypeInternal) {
+        char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
+        NDIS_STATUS status = vr_get_name_from_friendly_name(name, nic_name, sizeof(nic_name));
+        if (status != NDIS_STATUS_SUCCESS) {
+            return NDIS_STATUS_FAILURE;
+        }
 
-    if (nic->nic_type == NdisSwitchNicTypeInternal &&
-        name.Length != 0) // We've got a container, because vr_get_name_from_friendly_name returned us the container name
-    {
-        struct vr_assoc* assoc_by_name = vr_get_assoc_name(_name);
+        struct vr_assoc* assoc_by_name = vr_get_assoc_by_name(nic_name);
         struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(nic->port_id, nic->nic_index);
         if (assoc_by_name != NULL && assoc_by_ids != NULL) {
+            NTSTATUS status_set = vr_assoc_set_string(assoc_by_ids, nic_name);
+            if (!NT_SUCCESS(status_set)) {
+                return NDIS_STATUS_FAILURE;
+            }
+
+            struct vr_interface* interface = assoc_by_name->interface;
             assoc_by_name->port_id = nic->port_id;
             assoc_by_name->nic_index = nic->nic_index;
-            struct vr_interface* interface = assoc_by_name->interface;
 
-            assoc_by_ids->string = _name;
             assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
         } else {
             return NDIS_STATUS_RESOURCES;
@@ -445,8 +451,15 @@ SxExtDisconnectNic(
         }
     }
 
-    vr_delete_assoc_name(Nic->NicFriendlyName);
+    /* Delete vr_assoc entry referring to this NIC in ids_map */
     vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
+
+    /* Delete vr_assoc entry referring to this NIC in name_map */
+    char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
+    NDIS_STATUS status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
+    if (status == NDIS_STATUS_SUCCESS) {
+        vr_delete_assoc_by_name(nic_name);
+    }
 }
 
 VOID
