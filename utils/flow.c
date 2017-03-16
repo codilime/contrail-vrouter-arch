@@ -2039,7 +2039,7 @@ void run_perf(void) {
     diff_ms += (now.tv_usec - last_time.tv_usec) / 1000;
     printf("Created %d HOLD entries in %d msec\n", perf, diff_ms);
     
-    int flow_index[50000];
+    int *flow_index = (int*)malloc(perf * sizeof(int));
 
     for (i = 0; i < perf; i++)
         flow_index[i] = -1;
@@ -2109,6 +2109,9 @@ void run_perf(void) {
             continue;
         flow_do_op(i, 'i');
     }
+
+    free(flow_index);
+
 }
 
 void run_flush(void) {
