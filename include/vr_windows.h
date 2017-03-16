@@ -90,10 +90,8 @@ struct host_os * vrouter_get_host(void);
 NDIS_HANDLE vrouter_generate_pool(void);
 void vrouter_free_pool(NDIS_HANDLE pool);
 struct vr_packet *win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif);
-struct vr_packet *win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
 int win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER src, unsigned int offset, unsigned int len);
-NDIS_STATUS create_extension_context(PNET_BUFFER_LIST nbl);
-void delete_extension_context(PNET_BUFFER_LIST nbl);
+void delete_unbound_nbl(NET_BUFFER_LIST* nbl, unsigned long flags);
 
 extern struct host_os windows_host;
 

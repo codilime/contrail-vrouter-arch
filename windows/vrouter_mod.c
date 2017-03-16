@@ -307,7 +307,7 @@ SxExtRestartSwitch(
         nic.nic_type = entry->NicType;
         nic.port_id = entry->PortId;
 
-        AddNicToArray(ctx, &nic, entry->NicFriendlyName);
+        //AddNicToArray(ctx, &nic, entry->NicFriendlyName);
     }
 
     ctx->restart = FALSE;
@@ -436,7 +436,7 @@ SxExtDisconnectNic(
     UNREFERENCED_PARAMETER(Switch);
     UNREFERENCED_PARAMETER(Nic);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+    /*struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
 
     while (ctx->restart)
     {
@@ -456,7 +456,7 @@ SxExtDisconnectNic(
     }
 
     vr_delete_assoc_name(Nic->NicFriendlyName);
-    vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
+    vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);*/
 }
 
 VOID
@@ -848,27 +848,39 @@ SxExtStartNetBufferListsIngress(
         PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
         NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
         NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
+        windows_host.hos_printf("%s: port %d and interface id %d\n", __func__, source_port, source_nic);
         struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
         struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
+
         if (!vif) {
             /* If no vif attached yet, then drop NBL. */
+            windows_host.hos_printf("%s: No vif found\n", __func__);
             SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
             continue;
         }
 
+        windows_host.hos_printf("%s: VIF has port %d and interface id %d\n", __func__, vif->vif_port, vif->vif_nic);
+
         struct vr_packet *pkt = win_get_packet(curNbl, vif);
+        pkt->vp_win_flags |= VP_WIN_RECEIVED;
+
+        windows_host.hos_printf("%s: Got pkt\n", __func__);
+
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
+            windows_host.hos_printf("%s: pkt is NULL\n", __func__);
             SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
             continue;
         }
 
         if (vif->vif_rx) {
-            /* We assume that will be correctly handled by vRouter in `vif_rx` callback. */
+            windows_host.hos_printf("%s: Calling vif_rx", __func__);
             int rx_ret = vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
+
             windows_host.hos_printf("%s: vif_rx returned %d\n", __func__, rx_ret);
         }
         else {
+            windows_host.hos_printf("%s: vif_rx is NULL\n", __func__);
             /* If `vif_rx` is not set (unlikely in production), then drop the packet. */
             windows_host.hos_pfree(pkt, VP_DROP_INTERFACE_DROP);
             continue;
@@ -932,13 +944,19 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    //TODO: If non-cloned NBLS are ever sent, add some branching to properly free them
-    while (NetBufferLists->ChildRefCount != 0)
+    if (NetBufferLists->NdisPoolHandle == SxNBLPool)
     {
-
+        if (NetBufferLists->ParentNetBufferList == NULL)
+        {
+            NdisFreeNetBufferList(NetBufferLists);
+        }
+        else
+        {
+            NdisFreeCloneNetBufferList(NetBufferLists, 0);
+        }
     }
-    PNET_BUFFER_LIST parent = NetBufferLists->ParentNetBufferList;
-    NdisFreeCloneNetBufferList(NetBufferLists, 0);
-    if (parent)
-        parent->ChildRefCount--;
+    else
+    {
+        delete_unbound_nbl( NetBufferLists, SendCompleteFlags);
+    }
 }

@@ -30,46 +30,6 @@ NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
 
 static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward declaration
 
-static int extension_context_size()
-{
-    // It's to make sure vr_packet fits into the context. This is effectively constexpr, so let's disable the warning.
-#pragma warning(push)
-#pragma warning(disable:4127)
-    int size = sizeof(struct vr_packet) + sizeof(NET_BUFFER_LIST_CONTEXT);
-    int units = size / MEMORY_ALLOCATION_ALIGNMENT;
-    if (size % MEMORY_ALLOCATION_ALIGNMENT == 0)
-        size = units * MEMORY_ALLOCATION_ALIGNMENT;
-    else
-        size = (units + 1) * MEMORY_ALLOCATION_ALIGNMENT;
-#pragma warning(pop)
-    return size;
-}
-
-struct vr_packet* win_get_packet_from_nbl(PNET_BUFFER_LIST nbl);
-
-NDIS_STATUS
-create_extension_context(PNET_BUFFER_LIST nbl)
-{
-    NDIS_STATUS status = NdisAllocateNetBufferListContext(
-        nbl, extension_context_size(), 0, SxExtAllocationTag);
-
-    if (status != NDIS_STATUS_SUCCESS)
-        return status;
-
-    void* ptr = win_get_packet_from_nbl(nbl);
-
-    RtlZeroMemory(ptr, extension_context_size());
-
-    return NDIS_STATUS_SUCCESS;
-
-}
-
-void
-delete_extension_context(PNET_BUFFER_LIST nbl)
-{
-    NdisFreeNetBufferListContext(nbl, extension_context_size());
-}
-
 static NDIS_STATUS
 create_forwarding_context(PNET_BUFFER_LIST nbl)
 {
@@ -82,7 +42,7 @@ delete_forwarding_context(PNET_BUFFER_LIST nbl)
     SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
 }
 
-static PNET_BUFFER_LIST
+static NET_BUFFER_LIST*
 create_nbl(unsigned int size)
 {
     void* ptr = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag);
@@ -102,36 +62,72 @@ create_nbl(unsigned int size)
     PNET_BUFFER_LIST nbl = NdisAllocateNetBufferAndNetBufferList(SxNBLPool, 0, 0, mdl, 0, size);
 
     if (nbl == NULL)
-    {
-        NdisFreeMdl(mdl); // Don't call ExFreePoolWithTag after creating an MDL
-        return NULL;
-    }
+        goto free_mdl;
 
     nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
 
     NDIS_STATUS status = create_forwarding_context(nbl);
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("Allocate FWD CTX: %u\r\n", status);
-        NdisFreeNetBufferList(nbl);
-        NdisFreeMdl(mdl);
-        return NULL;
-    }
+    if (!NT_SUCCESS(status))
+        goto free_nbl;
 
     return nbl;
+
+free_nbl:
+    NdisFreeNetBufferList(nbl);
+
+free_mdl:
+    NdisFreeMdl(mdl);
+
+    return NULL;
 }
 
 static void
-delete_nbl(PNET_BUFFER_LIST nbl)
+delete_cloned_nbl(PNET_BUFFER_LIST nbl)
 {
-    if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
-        delete_extension_context(nbl);
-
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    MDL* mdl = NET_BUFFER_FIRST_MDL(nb);
     delete_forwarding_context(nbl);
+    
+    NdisFreeCloneNetBufferList(nbl, 0);
+}
+
+static void
+delete_created_nbl(PNET_BUFFER_LIST nbl)
+{
+    delete_forwarding_context(nbl);
+
     NdisFreeNetBufferList(nbl);
-    NdisFreeMdl(mdl);
+}
+
+static void
+complete_received_nbl(PNET_BUFFER_LIST nbl)
+{
+    /* Flag SINGLE_SOURCE is used, because of singular NBLS */
+    NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
+        nbl,
+        NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE);
+}
+
+static void
+free_nbl(struct vr_packet* pkt)
+{
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+
+    if (pkt->vp_win_flags & VP_WIN_RECEIVED)
+        complete_received_nbl(nbl);
+    else if (pkt->vp_win_flags & VP_WIN_CLONED)
+        delete_cloned_nbl(nbl);
+    else if (pkt->vp_win_flags & VP_WIN_CREATED)
+        delete_created_nbl(nbl);
+    else
+        DbgPrint("%s: Didn't get NBL source\n", __func__);
+    DbgPrint("%s: Exiting...", __func__);
+}
+
+void
+delete_unbound_nbl(NET_BUFFER_LIST* nbl, unsigned long flags)
+{
+    NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
+        nbl,
+        flags);
 }
 
 static int
@@ -221,25 +217,12 @@ win_page_free(void *address, unsigned int size)
     return;
 }
 
-struct vr_packet*
-win_get_packet_from_nbl(PNET_BUFFER_LIST nbl)
-{
-    struct vr_packet* ret = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
-    return ret;
-}
-
 struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
+    DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
-    {
-        NDIS_STATUS status = create_extension_context(nbl);
-        if (status != NDIS_STATUS_SUCCESS)
-            return NULL;
-    }
-
-    struct vr_packet *pkt = win_get_packet_from_nbl(nbl);
+    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
 
     pkt->vp_net_buffer_list = nbl;
     pkt->vp_cpu = (unsigned char)win_get_cpu();
@@ -287,20 +270,23 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    if (nbl->SourceHandle != SxSwitchObject->NdisFilterHandle)
-        delete_extension_context(nbl);
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
     return NULL;
 }
 
 static struct vr_packet *
 win_palloc(unsigned int size)
 {
+    DbgPrint("%s()\n", __func__);
     PNET_BUFFER_LIST nbl = create_nbl(size);
 
     if (nbl == NULL)
         return NULL;
 
-    return win_get_packet(nbl, NULL);
+    struct vr_packet* pkt = win_get_packet(nbl, NULL);
+    pkt->vp_win_flags |= VP_WIN_CREATED;
+
+    return pkt;
 }
 
 static void
@@ -321,21 +307,9 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
     if (router)
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
 
-    if (nbl)
-    {
-        // We are only allowed to delete stuff created by our extension
-        if (nbl->SourceHandle == SxSwitchObject->NdisFilterHandle)
-            delete_nbl(nbl);
-        else
-        {
-            /* Flag SINGLE_SOURCE is used, because of singular NBLS */
-            delete_extension_context(nbl);
-            SxLibCompleteNetBufferListsIngress(
-                SxSwitchObject,
-                nbl,
-                NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE);
-        }
-    }
+    free_nbl(pkt);
+
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
     return;
 }
@@ -357,9 +331,11 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
-        delete_nbl(nb_head);
+        delete_created_nbl(nb_head);
         return NULL;
     }
+
+    npkt->vp_win_flags = VP_WIN_CREATED;
 
     npkt->vp_ttl = pkt->vp_ttl;
     npkt->vp_flags = pkt->vp_flags;
@@ -421,24 +397,26 @@ win_preset(struct vr_packet *pkt)
 static struct vr_packet *
 win_pclone(struct vr_packet *pkt)
 {
+    DbgPrint("%s()\n", __func__);
     PNET_BUFFER_LIST original_nbl = pkt->vp_net_buffer_list;
-    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, NULL, NULL, 0);
+    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, SxNBLPool, NULL, 0);
     if (nbl == NULL)
         return NULL;
 
-    NDIS_STATUS status = create_extension_context(nbl);
-    if (status != NDIS_STATUS_SUCCESS)
+    if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
         goto cleanup_nbl;
 
-    struct vr_packet* npkt = win_get_packet_from_nbl(nbl);
+    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    if (npkt == NULL)
+        goto cleanup_ctx;
     *npkt = *pkt;
+
+    npkt->vp_win_flags &= ~(VP_WIN_CREATED | VP_WIN_RECEIVED);
+    npkt->vp_win_flags |= VP_WIN_CLONED;
 
     npkt->vp_net_buffer_list = nbl;
 
     npkt->vp_cpu = (unsigned char)win_get_cpu();
-
-    if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
-        goto cleanup_pkt;
 
     NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
         SxSwitchObject->NdisSwitchContext,
@@ -446,20 +424,20 @@ win_pclone(struct vr_packet *pkt)
         original_nbl,
         0);
 
+    if (copy_status != NDIS_STATUS_SUCCESS)
+        goto cleanup_pkt;
+
     nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
     nbl->ParentNetBufferList = original_nbl;
     original_nbl->ChildRefCount++;
 
-    if (copy_status != NDIS_STATUS_SUCCESS)
-        goto cleanup_ctx;
-
     return npkt;
+
+cleanup_pkt:
+    ExFreePoolWithTag(npkt, SxExtAllocationTag);
 
 cleanup_ctx:
     delete_forwarding_context(nbl);
-
-cleanup_pkt:
-    delete_extension_context(nbl);
 
 cleanup_nbl:
     NdisFreeCloneNetBufferList(nbl, 0);
@@ -1104,7 +1082,7 @@ NDIS_HANDLE
 vrouter_generate_pool()
 {
     NET_BUFFER_LIST_POOL_PARAMETERS params;
-    params.ContextSize = extension_context_size();
+    params.ContextSize = 0;
     params.DataSize = 0;
     params.fAllocateNetBuffer = TRUE;
     params.PoolTag = SxExtAllocationTag;
@@ -1114,7 +1092,7 @@ vrouter_generate_pool()
     params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
 
     NDIS_HANDLE pool = NdisAllocateNetBufferListPool(SxSwitchObject->NdisFilterHandle, &params);
-    // This is NULL if allocating failed
+
     return pool;
 }
 

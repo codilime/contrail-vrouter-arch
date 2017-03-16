@@ -67,26 +67,29 @@ win_if_del_tap(struct vr_interface *vif)
 static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
+    windows_host.hos_printf("%s: Got pkt\n", __func__);
     if (vif == NULL)
         return 0; // Sent into /dev/null
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
-    PNDIS_SWITCH_PORT_DESTINATION dest = ExAllocatePoolWithTag(NonPagedPool, sizeof(NDIS_SWITCH_PORT_DESTINATION), SxExtAllocationTag);
-    dest->IsExcluded = 0;
-    dest->NicIndex = vif->vif_nic;
-    dest->PortId = vif->vif_port;
-    dest->PreservePriority = true;
-    dest->PreserveVLAN = true;
+    NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
 
-    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisSwitchContext, nbl, dest);
+    newDestination.PortId = vif->vif_port;
+    newDestination.NicIndex = vif->vif_nic;
+    DbgPrint("Adding target, PID: %u, NID: %u\r\n", newDestination.PortId, newDestination.NicIndex);
 
-    delete_extension_context(nbl);
-    // We are sure there is only 1 packet so all packets have a single source. Same is true for destinations.
+    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisSwitchContext, nbl, &newDestination);
+
+    PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(nbl);
+    fwd->IsPacketDataSafe = TRUE;
+
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_DEFAULT_PORT_NUMBER,
-        NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP);
+        0);
+
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
     return 0;
 }
