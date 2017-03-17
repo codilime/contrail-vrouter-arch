@@ -37,12 +37,13 @@
 #if defined(_WINDOWS)
 #include <stdbool.h>
 #include <wingetopt.h>
-#endif
 
 #define O_SYNC 1
 #define PROT_READ 1 
 #define MAP_SHARED 1
 #define MAP_FAILED 1
+
+#endif
 
 #include "vr_types.h"
 #include "vr_qos.h"
