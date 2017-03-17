@@ -29,7 +29,10 @@
 
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
+
+#if defined(_WINDOWS)
 extern HANDLE Section;
+#endif
 
 struct vr_htable {
     struct vrouter *ht_router;
