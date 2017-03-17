@@ -2108,7 +2108,7 @@ void
 vr_flow_req_process(void *s_req)
 {
 #if defined(_WINDOWS)
-    SetSectionAddress();
+    set_section_address();
 #endif
 
     int ret = 0;
@@ -2174,7 +2174,7 @@ send_response:
         vr_flow_req_destroy(resp);
     }
 #if defined(_WINDOWS)
-    UnmapSectionAddress();
+    unmap_section_address();
 #endif
     return;
 }
@@ -2370,7 +2370,7 @@ vr_flow_init(struct vrouter *router)
 {
     int ret;
 #if defined(_WINDOWS)
-    SetSectionAddress();
+    set_section_address();
 #endif
     if ((ret = vr_fragment_table_init(router)) < 0)
         return ret;
@@ -2381,7 +2381,7 @@ vr_flow_init(struct vrouter *router)
     if ((ret = vr_link_local_ports_init(router)))
         return ret;
 #if defined(_WINDOWS)
-    UnmapSectionAddress();
+    unmap_section_address();
 #endif
     return 0;
 }

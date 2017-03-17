@@ -1,13 +1,13 @@
 #pragma once
 
-PVOID
-MemoryInit(void);
+int
+memory_init(void);
 
 PVOID
-MemoryExit(void);
+memory_exit(void);
 
 VOID
-SetSectionAddress(void);
+set_section_address(void);
 
 VOID
-UnmapSectionAddress(void);
+unmap_section_address(void);

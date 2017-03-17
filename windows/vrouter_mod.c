@@ -36,7 +36,7 @@ static char hex_table[] = {
 static int
 vr_message_init(void)
 {
-    MemoryInit();
+    memory_init();
     return vr_sandesh_init();
 }
 
@@ -189,7 +189,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
-    MemoryExit();
+    memory_exit();
     DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }

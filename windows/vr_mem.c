@@ -8,7 +8,7 @@ extern void *vr_oflow_table;
 HANDLE Section;
 
 void
-MemoryExit(void)
+memory_exit(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
     status = ZwClose(Section);
@@ -19,7 +19,7 @@ MemoryExit(void)
 }
 
 VOID
-UnmapSectionAddress(void)
+unmap_section_address(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
     status = ZwUnmapViewOfSection(Section, vr_flow_table);
@@ -30,7 +30,7 @@ UnmapSectionAddress(void)
 }
 
 VOID
-SetSectionAddress(void)
+set_section_address(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
     size_t flow_table_size;
@@ -53,8 +53,8 @@ SetSectionAddress(void)
 }
 
 
-PVOID
-MemoryInit(void)
+int
+memory_init(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
