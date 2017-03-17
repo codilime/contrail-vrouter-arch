@@ -107,7 +107,7 @@ complete_received_nbl(PNET_BUFFER_LIST nbl)
 }
 
 static void
-free_nbl(struct vr_packet* pkt)
+free_associated_nbl(struct vr_packet* pkt)
 {
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
@@ -119,7 +119,8 @@ free_nbl(struct vr_packet* pkt)
         delete_created_nbl(nbl);
     else
         DbgPrint("%s: Didn't get NBL source\n", __func__);
-    DbgPrint("%s: Exiting...", __func__);
+
+    pkt->vp_net_buffer_list = NULL;
 }
 
 void
@@ -218,11 +219,14 @@ win_page_free(void *address, unsigned int size)
 }
 
 struct vr_packet *
-win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
+win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char flags)
 {
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
     struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    RtlZeroMemory(pkt, sizeof(struct vr_packet));
+
+    pkt->vp_win_flags = flags;
 
     pkt->vp_net_buffer_list = nbl;
     pkt->vp_cpu = (unsigned char)win_get_cpu();
@@ -283,8 +287,7 @@ win_palloc(unsigned int size)
     if (nbl == NULL)
         return NULL;
 
-    struct vr_packet* pkt = win_get_packet(nbl, NULL);
-    pkt->vp_win_flags |= VP_WIN_CREATED;
+    struct vr_packet* pkt = win_get_packet(nbl, NULL, VP_WIN_CREATED);
 
     return pkt;
 }
@@ -294,7 +297,7 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
     unsigned int cpu;
 
-    struct vrouter *router = NULL;// TODO after vRouter gets ported: vrouter_get(0);
+    struct vrouter *router = vrouter_get(0);
     PNET_BUFFER_LIST nbl = NULL;
 
     if (pkt != NULL) {
@@ -307,7 +310,10 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
     if (router)
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
 
-    free_nbl(pkt);
+    if (pkt == NULL)
+        return;
+
+    free_associated_nbl(pkt);
 
     ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
@@ -328,14 +334,12 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     if (nb_head == NULL)
         return NULL;
 
-    struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
+    struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if, VP_WIN_CREATED);
     if (npkt == NULL)
     {
         delete_created_nbl(nb_head);
         return NULL;
     }
-
-    npkt->vp_win_flags = VP_WIN_CREATED;
 
     npkt->vp_ttl = pkt->vp_ttl;
     npkt->vp_flags = pkt->vp_flags;

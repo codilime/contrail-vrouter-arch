@@ -291,28 +291,7 @@ SxExtRestartSwitch(
 
     struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
 
-    PNDIS_SWITCH_NIC_ARRAY nics;
-    if (SxLibGetNicArrayUnsafe(Switch, &nics) != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("Failed to fetch port array!\r\n");
-        return NDIS_STATUS_FAILURE;
-    }
-
-    for (unsigned int i = 0; i < nics->NumElements; i++)
-    {
-        struct vr_nic nic = { 0 };
-        PNDIS_SWITCH_NIC_PARAMETERS entry = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(nics, i);
-        RtlCopyMemory(nic.mac, entry->PermanentMacAddress, sizeof(nic.mac));
-        nic.nic_index = entry->NicIndex;
-        nic.nic_type = entry->NicType;
-        nic.port_id = entry->PortId;
-
-        //AddNicToArray(ctx, &nic, entry->NicFriendlyName);
-    }
-
     ctx->restart = FALSE;
-
-    ExFreePoolWithTag(nics, SxExtAllocationTag);
 
     return 0;
 }
@@ -436,27 +415,15 @@ SxExtDisconnectNic(
     UNREFERENCED_PARAMETER(Switch);
     UNREFERENCED_PARAMETER(Nic);
 
-    /*struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
+    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
 
     while (ctx->restart)
     {
         NdisMSleep(100);
     }
 
-    for (unsigned int i = 0; i < ctx->num_nics; i++)
-    {
-        if (ctx->nics[i].port_id == Nic->PortId && ctx->nics[i].nic_index == Nic->NicIndex)
-        {
-            if (i != ctx->num_nics - 1)
-            {
-                ctx->nics[i] = ctx->nics[ctx->num_nics - 1];
-            }
-            ctx->num_nics--;
-        }
-    }
-
     vr_delete_assoc_name(Nic->NicFriendlyName);
-    vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);*/
+    vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
 }
 
 VOID
@@ -861,7 +828,7 @@ SxExtStartNetBufferListsIngress(
 
         windows_host.hos_printf("%s: VIF has port %d and interface id %d\n", __func__, vif->vif_port, vif->vif_nic);
 
-        struct vr_packet *pkt = win_get_packet(curNbl, vif);
+        struct vr_packet *pkt = win_get_packet(curNbl, vif, VP_WIN_RECEIVED);
         pkt->vp_win_flags |= VP_WIN_RECEIVED;
 
         windows_host.hos_printf("%s: Got pkt\n", __func__);
