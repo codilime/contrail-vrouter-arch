@@ -5,16 +5,17 @@ NDIS_RW_LOCK_EX* name_lock;
 NDIS_RW_LOCK_EX* ids_lock;
 
 #define MAP_SIZE 512
+#define HASH_ERROR ((unsigned int)(-1))
 
 struct criteria {
-    NDIS_IF_COUNTED_STRING name;
+    const char *name;
     NDIS_SWITCH_PORT_ID port_id;
     NDIS_SWITCH_NIC_INDEX nic_index;
 };
 
 typedef void (*setterFunc)(struct vr_assoc*, const struct criteria*);
 typedef BOOLEAN (*compareFunc)(struct vr_assoc*, const struct criteria*);
-typedef int (*hashFunc)(const struct criteria*);
+typedef unsigned int (*hashFunc)(const struct criteria*);
 
 /*
  * A generated map of chars.
@@ -44,29 +45,72 @@ const static unsigned char char_map[256] = {
 static struct vr_assoc* name_map[MAP_SIZE];
 static struct vr_assoc* ids_map[MAP_SIZE];
 
-NDIS_IF_COUNTED_STRING vr_get_name_from_friendly_name(const NDIS_IF_COUNTED_STRING friendly)
+NDIS_STATUS vr_get_name_from_friendly_name(
+    NDIS_IF_COUNTED_STRING friendly,
+    char *name,
+    size_t name_buffer_size)
 {
-    NDIS_IF_COUNTED_STRING ret;
+    // Ensure that string in `friendly` is null-terminated
+    unsigned int pos_past_end = friendly.Length;
+    if (pos_past_end >= IF_MAX_STRING_SIZE + 1) {
+        return NDIS_STATUS_FAILURE;
+    }
+    friendly.String[pos_past_end] = '\0';
 
-    int i = friendly.Length;
+    UNICODE_STRING friendly_unicode_str;
+    ANSI_STRING friendly_ansi_str;
+    NTSTATUS status;
+
+    RtlUnicodeStringInit(&friendly_unicode_str, friendly.String);
+    status = RtlUnicodeStringToAnsiString(&friendly_ansi_str, &friendly_unicode_str, TRUE);
+    if (status != STATUS_SUCCESS) {
+        return NDIS_STATUS_FAILURE;
+    }
+
+    int i = friendly_ansi_str.Length;
     // The names are in format of "Container Port a30f213f"
     // To be the most accurate, get the last "word", speparated by a space
-    while (friendly.String[--i] != L' ')
-        if (i == 0) // Name is not conforming to our standards, must be not a container port
-        {
-            ret.Length = 0;
-            return ret;
+    while (friendly_ansi_str.Buffer[--i] != ' ') {
+        if (i == 0) {
+            // Name is not conforming to our standards, must be not a container port
+            return NDIS_STATUS_FAILURE;
         }
+    }
 
-    wcscpy_s(ret.String, friendly.Length - i + 1, friendly.String + i + 1);
-    ret.Length = (USHORT)(friendly.Length - i + 1);
+    PCHAR src = friendly_ansi_str.Buffer + i + 1;
+    size_t src_max_bytes = friendly_ansi_str.Length - i - 1;
+    size_t dst_max_bytes = VR_ASSOC_STRING_SIZE;
+    if (dst_max_bytes > name_buffer_size) {
+        dst_max_bytes = name_buffer_size;
+    }
+    status = RtlStringCbCopyNA(name, dst_max_bytes, src, src_max_bytes);
+    if (status != STATUS_SUCCESS) {
+        return NDIS_STATUS_FAILURE;
+    }
 
-    return ret;
+    RtlFreeAnsiString(&friendly_ansi_str);
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string)
+{
+    if (entry == NULL || new_assoc_string == NULL) {
+        return NDIS_STATUS_FAILURE;
+    }
+
+    NTSTATUS copy_status = RtlStringCbCopyA(entry->string, sizeof(entry->string), new_assoc_string);
+    return copy_status;
 }
 
 struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc hash, compareFunc cmp, const struct criteria* params)
 {
-    struct vr_assoc** field = map + hash(params);
+    unsigned int calculated_hash = hash(params);
+    if (calculated_hash >= MAP_SIZE) {
+        return NULL;
+    }
+
+    struct vr_assoc** field = map + calculated_hash;
 
     while (*field != NULL)
     {
@@ -111,21 +155,24 @@ void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, cons
 static void setter_name(struct vr_assoc* entry, const struct criteria* params)
 {
     if (entry) {
-        entry->string = params->name;
+        vr_assoc_set_string(entry, params->name);
         entry->nic_index = 0;
         entry->port_id = 0;
     }
 }
 
-static int hash_name(const struct criteria* params)
+static unsigned int hash_name(const struct criteria* params)
 {
-    int hash = 0;
-    int i = params->name.Length;
-    const WCHAR* str = params->name.String;
+    size_t name_length;
+    NTSTATUS name_length_status = RtlStringCbLengthA(params->name, VR_ASSOC_STRING_SIZE, &name_length);
+    if (!NT_SUCCESS(name_length_status)) {
+        return HASH_ERROR;
+    }
 
-    while (i-- != 0)
-    {
-        hash ^= char_map[(*str++) % 256] * 5;
+    int hash = 0;
+    int i = 0;
+    for (i = 0; i < name_length; ++i) {
+        hash ^= char_map[(params->name[i]) % 256] * 5;
     }
 
     return hash;
@@ -133,10 +180,10 @@ static int hash_name(const struct criteria* params)
 
 static BOOLEAN cmp_name(struct vr_assoc* entry, const struct criteria* params)
 {
-    return (entry->string.Length == params->name.Length && wcsncmp(entry->string.String, params->name.String, params->name.Length) == 0);
+    return !strncmp(entry->string, params->name, VR_ASSOC_STRING_MAX_LEN);
 }
 
-struct vr_assoc* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
+struct vr_assoc* vr_get_assoc_by_name(const char *interface_name)
 {
     struct criteria params;
     params.name = interface_name;
@@ -145,15 +192,13 @@ struct vr_assoc* vr_get_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
 
     // This is because the requested element can be lazy-created
     NdisAcquireRWLockWrite(name_lock, &lock, 0);
-
     struct vr_assoc* ret = vr_get_assoc(name_map, setter_name, hash_name, cmp_name, &params);
-
     NdisReleaseRWLock(name_lock, &lock);
 
     return ret;
 }
 
-void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct vr_interface* interface)
+void vr_set_assoc_by_name(const char *interface_name, struct vr_interface* interface)
 {
     struct criteria params;
     params.name = interface_name;
@@ -174,7 +219,7 @@ void vr_set_assoc_oid_name(const NDIS_IF_COUNTED_STRING interface_name, struct v
     return;
 }
 
-void vr_delete_assoc_name(const NDIS_IF_COUNTED_STRING interface_name)
+void vr_delete_assoc_by_name(const char *interface_name)
 {
     struct criteria params;
     params.name = interface_name;
@@ -193,10 +238,11 @@ static void setter_ids(struct vr_assoc* entry, const struct criteria* params)
     if (entry) {
         entry->nic_index = params->nic_index;
         entry->port_id = params->port_id;
+        entry->interface = NULL;
     }
 }
 
-static int hash_ids(const struct criteria* params)
+static unsigned int hash_ids(const struct criteria* params)
 {
     int hash = (params->port_id + params->nic_index) % MAP_SIZE; //NIC is almost always 0 and port grows incrementally, so this should be a pretty good hash
 

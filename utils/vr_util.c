@@ -206,21 +206,27 @@ vr_recvmsg(struct nl_client *cl, bool dump)
             } else {
                 pending = false;
             }
-
-            resp = nl_parse_reply(cl);
-            if (resp->nl_op == SANDESH_REQUEST) {
-                sandesh_decode(resp->nl_data, resp->nl_len,
-                        vr_find_sandesh_info, &ret);
-            } else if (resp->nl_type == NL_MSG_TYPE_DONE) {
-                pending = false;
-            }
+#ifdef _WINDOWS
+			sandesh_decode(cl->cl_buf, ret,
+				vr_find_sandesh_info, &ret);
+#else
+			resp = nl_parse_reply(cl);
+			if (resp->nl_op == SANDESH_REQUEST) {
+				sandesh_decode(resp->nl_data, resp->nl_len,
+					vr_find_sandesh_info, &ret);
+			}
+			else if (resp->nl_type == NL_MSG_TYPE_DONE) {
+				pending = false;
+			}
+#endif
         } else {
             return ret;
         }
-
+#ifndef _WINDOWS
         nlh = (struct nlmsghdr *)cl->cl_buf;
         if (!nlh || !nlh->nlmsg_flags)
             break;
+#endif
     }
 
     return ret;
