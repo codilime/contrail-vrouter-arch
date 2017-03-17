@@ -86,7 +86,7 @@ memory_init(void)
         if (status != STATUS_SUCCESS)
         {
             DbgPrint("Failed open a section, error code: %lx\r\n", status);
-            return 0;
+            return -1;
         }
     }
 

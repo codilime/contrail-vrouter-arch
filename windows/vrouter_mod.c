@@ -36,7 +36,9 @@ static char hex_table[] = {
 static int
 vr_message_init(void)
 {
-    memory_init();
+    if (!memory_init())
+        return -1;
+
     return vr_sandesh_init();
 }
 

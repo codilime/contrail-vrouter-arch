@@ -1,6 +1,6 @@
 #pragma once
 
-int
+NTSTATUS
 memory_init(void);
 
 PVOID
