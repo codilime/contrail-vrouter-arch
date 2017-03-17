@@ -300,18 +300,11 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
     struct vrouter *router = vrouter_get(0);
     PNET_BUFFER_LIST nbl = NULL;
 
-    if (pkt != NULL) {
-        nbl = pkt->vp_net_buffer_list;
-        cpu = pkt->vp_cpu;
-    } else {
-        cpu = win_get_cpu();
-    }
+    nbl = pkt->vp_net_buffer_list;
+    cpu = pkt->vp_cpu;
 
     if (router)
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
-
-    if (pkt == NULL)
-        return;
 
     free_associated_nbl(pkt);
 

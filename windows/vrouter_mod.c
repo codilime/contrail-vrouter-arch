@@ -829,7 +829,6 @@ SxExtStartNetBufferListsIngress(
         windows_host.hos_printf("%s: VIF has port %d and interface id %d\n", __func__, vif->vif_port, vif->vif_nic);
 
         struct vr_packet *pkt = win_get_packet(curNbl, vif, VP_WIN_RECEIVED);
-        pkt->vp_win_flags |= VP_WIN_RECEIVED;
 
         windows_host.hos_printf("%s: Got pkt\n", __func__);
 
