@@ -428,7 +428,6 @@ SxExtDisconnectNic(
         NdisMSleep(100);
     }
 
-    vr_delete_assoc_name(Nic->NicFriendlyName);
     vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
 
     /* Delete vr_assoc entry referring to this NIC in name_map */
