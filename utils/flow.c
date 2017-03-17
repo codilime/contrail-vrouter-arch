@@ -34,8 +34,10 @@
 #include <netinet/ether.h>
 #endif
 
+#if defined(_WINDOWS)
 #include <stdbool.h>
 #include <wingetopt.h>
+#endif
 
 #define O_SYNC 1
 #define PROT_READ 1 

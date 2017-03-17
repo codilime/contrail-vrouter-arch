@@ -10,22 +10,6 @@
 
 static char ether_ntoa_data[18];
 
-const char* inet_ntopR(int af, const void* src, char* dst, int cnt) {
-    struct sockaddr_in srcaddr;
-
-    RtlZeroMemory(&srcaddr, 0, sizeof(struct sockaddr_in));
-    RtlCopyMemory(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
-
-    srcaddr.sin_family = af;
-    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
-        DWORD rv = WSAGetLastError();
-        //printf("%d\n", rv);
-        return NULL;
-    }
-    return dst;
-}
-
-
 int gettimeofday(struct timeval * tp, struct timezone * tzp)
 {
     // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
@@ -56,13 +40,19 @@ struct ether_addr {
 
 static inline int
 xdigit(char c) {
-    unsigned d;
-    d = (unsigned)(c - '0');
-    if (d < 10) return (int)d;
-    d = (unsigned)(c - 'a');
-    if (d < 6) return (int)(10 + d);
-    d = (unsigned)(c - 'A');
-    if (d < 6) return (int)(10 + d);
+
+    if ('0' <= c && c <= '9') {
+        return (int)(c - '0');
+    }
+
+    if ('a' <= c && c <= 'f') {
+        return (int)(10 + c - 'a');
+    }
+
+    if ('A' <= c && c <= 'F') {
+        return (int)(10 + c - 'A');
+    }
+
     return -1;
 }
 
