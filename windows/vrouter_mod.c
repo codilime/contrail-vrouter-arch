@@ -6,6 +6,7 @@
 #include "vr_sandesh.h"
 
 extern void vif_attach(struct vr_interface *vif);
+extern void vif_detach(struct vr_interface *vif);
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -25,7 +26,7 @@ NDIS_HANDLE SxNBLPool = NULL;
 // This is exported by SxLibrary
 extern PDRIVER_OBJECT SxDriverObject;
 
-unsigned int vr_num_cpus = 1;
+unsigned int vr_num_cpus;
 
 /* Read/write lock which must be acquired by deferred callbacks. Used in functions from
 * `host_os` struct.
@@ -125,61 +126,45 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 #endif
 }
 
-NDIS_STATUS
-AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED_STRING name)
+static NDIS_STATUS
+UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
 {
-    if (nic->nic_type != NdisSwitchNicTypeExternal)
-    {
-        DbgPrint("Internal NIC, Index: %u, Type: %u, PortId: %u\r\n", nic->nic_index, nic->nic_type, nic->port_id);
-    }
-    else
-    {
-        DbgPrint("External NIC, Index: %u, Type: %u, PortId: %u\r\n", nic->nic_index, nic->nic_type, nic->port_id);
+    char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
+    NDIS_STATUS status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
+    if (status != NDIS_STATUS_SUCCESS) {
+        return status;
     }
 
-    if (ctx->num_nics == MAX_NIC_NUMBER - 1)
-    {
-        DbgPrint("All slots filled\r\n");
-        return NDIS_STATUS_RESOURCES;
-    }
-    ctx->nics[ctx->num_nics++] = *nic;
-
-    if (nic->nic_type == NdisSwitchNicTypeInternal) {
-        char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
-        NDIS_STATUS status = vr_get_name_from_friendly_name(name, nic_name, sizeof(nic_name));
-        if (status != NDIS_STATUS_SUCCESS) {
-            return NDIS_STATUS_FAILURE;
+    struct vr_assoc* assoc_by_name = vr_get_assoc_by_name(nic_name);
+    struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(Nic->PortId, Nic->NicIndex);
+    if (assoc_by_name != NULL && assoc_by_ids != NULL) {
+        NTSTATUS status_set = vr_assoc_set_string(assoc_by_ids, nic_name);
+        if (!NT_SUCCESS(status_set)) {
+            return status_set;
         }
 
-        struct vr_assoc* assoc_by_name = vr_get_assoc_by_name(nic_name);
-        struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(nic->port_id, nic->nic_index);
-        if (assoc_by_name != NULL && assoc_by_ids != NULL) {
-            NTSTATUS status_set = vr_assoc_set_string(assoc_by_ids, nic_name);
-            if (!NT_SUCCESS(status_set)) {
-                return NDIS_STATUS_FAILURE;
-            }
+        struct vr_interface* interface = assoc_by_name->interface;
+        assoc_by_name->port_id = Nic->PortId;
+        assoc_by_name->nic_index = Nic->NicIndex;
 
-            struct vr_interface* interface = assoc_by_name->interface;
-            assoc_by_name->port_id = nic->port_id;
-            assoc_by_name->nic_index = nic->nic_index;
+        assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
 
-            assoc_by_ids->interface = interface; // This will do nothing if dp-core didn't create an interface yet, because it will be NULL
+        if (interface != NULL)
+        {
+            interface->vif_port = Nic->PortId;
+            interface->vif_nic = Nic->NicIndex;
 
-            if (interface != NULL)
-            {
-                interface->vif_port = nic->port_id;
-                interface->vif_nic = nic->nic_index;
-
+            if (connect)
                 vif_attach(interface);
-            }
-        } else {
+            else
+                vif_detach(interface);
+        }
+        else {
             return NDIS_STATUS_RESOURCES;
         }
     }
-
     return NDIS_STATUS_SUCCESS;
 }
-
 
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
@@ -475,13 +460,11 @@ SxExtConnectNic(
         NdisMSleep(100);
     }
 
-    struct vr_nic nic = { 0 };
-    RtlCopyMemory(nic.mac, Nic->PermanentMacAddress, sizeof(nic.mac));
-    nic.nic_index = Nic->NicIndex;
-    nic.nic_type = Nic->NicType;
-    nic.port_id = Nic->PortId;
+    if (Nic->NicType == NdisSwitchNicTypeInternal) {
+        NDIS_STATUS status = UpdateNics(Nic, TRUE);
 
-    AddNicToArray(ctx, &nic, Nic->NicFriendlyName);
+        ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
+    }
 }
 
 VOID
@@ -521,13 +504,17 @@ SxExtDisconnectNic(
         NdisMSleep(100);
     }
 
-    vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
+    if (Nic->NicType == NdisSwitchNicTypeInternal) {
+        NDIS_STATUS status = UpdateNics(Nic, FALSE);
+        ASSERTMSG("Disconnecting a NIC failed", status == NDIS_STATUS_SUCCESS);
 
-    /* Delete vr_assoc entry referring to this NIC in name_map */
-    char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
-    NDIS_STATUS status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
-    if (status == NDIS_STATUS_SUCCESS) {
-        vr_delete_assoc_by_name(nic_name);
+        vr_delete_assoc_ids(Nic->PortId, Nic->NicIndex);
+
+        /* Delete vr_assoc entry referring to this NIC in name_map */
+        char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
+        status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
+        if (status == NDIS_STATUS_SUCCESS)
+            vr_delete_assoc_by_name(nic_name);
     }
 }
 
@@ -865,13 +852,6 @@ vr_win_split_nbls_by_forwarding_type(
     }
 }
 
-static void
-vr_win_add_to_dropped_pkts(PNET_BUFFER_LIST nbl, PNET_BUFFER_LIST *dropped)
-{
-    *dropped = nbl;
-    dropped = &nbl->Next;
-}
-
 VOID
 SxExtStartNetBufferListsIngress(
     _In_ PSX_SWITCH_OBJECT Switch,
@@ -936,6 +916,7 @@ SxExtStartNetBufferListsIngress(
         struct vr_packet *pkt = win_get_packet(curNbl, vif, VP_WIN_RECEIVED);
 
         windows_host.hos_printf("%s: Got pkt\n", __func__);
+        ASSERTMSG("win_get_packed failed!", pkt != NULL);
 
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
@@ -943,6 +924,8 @@ SxExtStartNetBufferListsIngress(
             SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
             continue;
         }
+
+        ASSERTMSG("VIF doesn't have a vif_rx method set!", vif->vif_rx != NULL);
 
         if (vif->vif_rx) {
             windows_host.hos_printf("%s: Calling vif_rx", __func__);
@@ -958,9 +941,6 @@ SxExtStartNetBufferListsIngress(
         }
     }
 
-    // Release the lock, now interfaces can disconnect, etc.
-    NdisReleaseRWLock(ctx->lock, &lockState);
-
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
         SxLibSendNetBufferListsIngress(Switch,
@@ -968,6 +948,9 @@ SxExtStartNetBufferListsIngress(
             SendFlags,
             0);
     }
+
+    // Release the lock, now interfaces can disconnect, etc.
+    NdisReleaseRWLock(ctx->lock, &lockState);
 }
 
 VOID
@@ -1028,6 +1011,6 @@ SxExtStartCompleteNetBufferListsIngress(
     }
     else
     {
-        delete_unbound_nbl( NetBufferLists, SendCompleteFlags);
+        delete_unbound_nbl(NetBufferLists, SendCompleteFlags);
     }
 }

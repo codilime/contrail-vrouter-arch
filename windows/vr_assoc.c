@@ -106,6 +106,9 @@ NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_strin
 struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc hash, compareFunc cmp, const struct criteria* params)
 {
     unsigned int calculated_hash = hash(params);
+
+    ASSERTMSG("calculated hash out of bounds", calculated_hash < MAP_SIZE);
+
     if (calculated_hash >= MAP_SIZE) {
         return NULL;
     }

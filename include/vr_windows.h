@@ -26,17 +26,7 @@ struct vr_interface; // Forward declaration
 
 struct vr_packet;
 
-struct vr_nic {
-    UCHAR                   mac[NDIS_MAX_PHYS_ADDRESS_LENGTH];
-    NDIS_SWITCH_PORT_ID     port_id;
-    NDIS_SWITCH_NIC_INDEX   nic_index;
-    NDIS_SWITCH_NIC_TYPE    nic_type;
-};
-
 struct vr_switch_context {
-    struct vr_nic           nics[MAX_NIC_NUMBER];
-    UINT32                  num_nics;
-
     PNDIS_RW_LOCK_EX        lock;
     BOOLEAN                 restart;
 
