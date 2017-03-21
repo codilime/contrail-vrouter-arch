@@ -187,7 +187,7 @@ nl_sendmsg(struct nl_client *cl)
     DWORD dwWritten;
     struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
     int d =  cl->cl_buf_offset;
-    int r;
+    int r = -1;
 
     hPipe = CreateFile(TEXT(vRouterKsync),
 
