@@ -40,7 +40,6 @@ struct ether_addr {
 
 static inline int
 xdigit(char c) {
-
     if ('0' <= c && c <= '9') {
         return (int)(c - '0');
     }
@@ -52,7 +51,6 @@ xdigit(char c) {
     if ('A' <= c && c <= 'F') {
         return (int)(10 + c - 'A');
     }
-
     return -1;
 }
 
@@ -168,6 +166,7 @@ nl_client_stream_recvmsg(struct nl_client *cl)
                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                 buffer,
                 0, NULL)) {
+
                 printf("Format message failed with 0x%x\n", GetLastError());
                 ExitProcess(dw);
             }
@@ -191,6 +190,7 @@ nl_sendmsg(struct nl_client *cl)
     int r;
 
     hPipe = CreateFile(TEXT(vRouterKsync),
+
         GENERIC_READ | GENERIC_WRITE,
         0,
         NULL,

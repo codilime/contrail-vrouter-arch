@@ -67,11 +67,29 @@ win_if_del_tap(struct vr_interface *vif)
 static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
-    UNREFERENCED_PARAMETER(vif);
-    UNREFERENCED_PARAMETER(pkt);
+    windows_host.hos_printf("%s: Got pkt\n", __func__);
+    if (vif == NULL)
+        return 0; // Sent into /dev/null
 
-    /* TODO: Implement (JW-141) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+
+    NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
+
+    newDestination.PortId = vif->vif_port;
+    newDestination.NicIndex = vif->vif_nic;
+    DbgPrint("Adding target, PID: %u, NID: %u\r\n", newDestination.PortId, newDestination.NicIndex);
+
+    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisSwitchContext, nbl, &newDestination);
+
+    PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(nbl);
+    fwd->IsPacketDataSafe = TRUE;
+
+    NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
+        nbl,
+        NDIS_DEFAULT_PORT_NUMBER,
+        0);
+
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
     return 0;
 }
@@ -82,8 +100,8 @@ win_if_rx(struct vr_interface *vif, struct vr_packet* pkt)
     UNREFERENCED_PARAMETER(vif);
     UNREFERENCED_PARAMETER(pkt);
 
-    /* TODO: Implement (JW-140) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
+    DbgPrint("%s: This should not happen. Please inform devs.\r\n", __func__);
+    /* NOOP ATM. Only used in vhosts, which are not supported */
 
     return 0;
 }

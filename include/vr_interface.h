@@ -251,6 +251,9 @@ struct vr_interface {
     struct mbuf;
     void (*saved_if_input) (struct ifnet *, struct mbuf *);
 #endif
+#elif defined(_NTKERNEL)
+    NDIS_SWITCH_PORT_ID vif_port;
+    NDIS_SWITCH_NIC_INDEX vif_nic;
 #endif
     /* Big and less frequently used fields. */
     struct vr_interface *vif_parent;

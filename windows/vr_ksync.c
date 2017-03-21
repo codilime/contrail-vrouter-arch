@@ -89,7 +89,7 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
         RtlCopyMemory(&(ksync_resp->len), &response->vr_message_len, sizeof(unsigned int));
         RtlCopyMemory(ksync_resp->data, response->vr_message_buf, response->vr_message_len);
-
+      
         vr_message_free(response);
     }
     
@@ -125,6 +125,7 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
+
         struct ksync_response *resp = (struct ksync_response*)DriverObject->DeviceExtension;
 
         if (IoStackIrp->Parameters.Read.Length >= resp->len && resp->len > 0) {
@@ -137,7 +138,6 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
     Irp->IoStatus.Status = STATUS_SUCCESS;
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
     return STATUS_SUCCESS;
 }
 
