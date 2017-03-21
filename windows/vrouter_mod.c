@@ -4,6 +4,7 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 #include "vr_sandesh.h"
+#include "vr_mem.h"
 
 extern void vif_attach(struct vr_interface *vif);
 
@@ -37,6 +38,9 @@ static char hex_table[] = {
 static int
 vr_message_init(void)
 {
+    if (!memory_init())
+        return -1;
+
     return vr_sandesh_init();
 }
 
@@ -190,11 +194,11 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
     
     if (NT_ERROR(Status) || ret)
     {
-	    return NDIS_STATUS_DEVICE_FAILED;
+        return NDIS_STATUS_DEVICE_FAILED;
     }
     else if (!NT_SUCCESS(Status))
     {
-	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
+        DbgPrint("CreateDevice informal/warning: %d\n", Status);
     }
 
     return NDIS_STATUS_SUCCESS;
@@ -203,6 +207,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
+    memory_exit();
     DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }

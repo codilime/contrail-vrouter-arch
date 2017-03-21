@@ -5,7 +5,11 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vRouter", "vRouter.vcxproj", "{127F464E-61D0-4815-8D07-6600177A534C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "utils", "utils\utils.vcxproj", "{E7006D0D-A698-4F3D-B1F0-2D23578847CB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nh", "utils\utils.vcxproj", "{E7006D0D-A698-4F3D-B1F0-2D23578847CB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "utils", "utils", "{468EB7A4-7A11-4490-849B-BDDD034A2191}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "flow", "utils\win\flow\flow.vcxproj", "{EDE20768-F823-430E-89C8-7885E3E54D80}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "atomic-test", "test\atomic-test\atomic-test.vcxproj", "{621A6695-3A8D-4F94-942B-D8745888E768}"
 EndProject
@@ -69,8 +73,24 @@ Global
 		{621A6695-3A8D-4F94-942B-D8745888E768}.Release|x64.Build.0 = Release|x64
 		{621A6695-3A8D-4F94-942B-D8745888E768}.Release|x86.ActiveCfg = Release|Win32
 		{621A6695-3A8D-4F94-942B-D8745888E768}.Release|x86.Build.0 = Release|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Debug|ARM.ActiveCfg = Debug|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Debug|x64.ActiveCfg = Debug|x64
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Debug|x64.Build.0 = Debug|x64
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Debug|x86.ActiveCfg = Debug|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Debug|x86.Build.0 = Debug|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Release|ARM.ActiveCfg = Release|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Release|ARM64.ActiveCfg = Release|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Release|x64.ActiveCfg = Release|x64
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Release|x64.Build.0 = Release|x64
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Release|x86.ActiveCfg = Release|Win32
+		{EDE20768-F823-430E-89C8-7885E3E54D80}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E7006D0D-A698-4F3D-B1F0-2D23578847CB} = {468EB7A4-7A11-4490-849B-BDDD034A2191}
+		{EDE20768-F823-430E-89C8-7885E3E54D80} = {468EB7A4-7A11-4490-849B-BDDD034A2191}
 	EndGlobalSection
 EndGlobal

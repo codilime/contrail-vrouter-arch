@@ -56,6 +56,31 @@ extern void vr_mem_stats_req_process(void *s_req) __attribute__((weak));
 extern void vr_fc_map_req_process(void *s_req) __attribute__((weak));
 extern void vr_qos_map_req_process(void *s_req) __attribute__((weak));
 
+#if defined(_NH)
+void 
+vr_interface_req_process(void *s_req)
+{
+    return;
+}
+
+void 
+vr_route_req_process(void *s_req)
+{
+    return;
+}
+
+void 
+vr_flow_req_process(void *s_req)
+{
+    return;
+}
+
+void 
+vr_drop_stats_req_process(void *s_req)
+{
+    return;
+}
+#endif
 void
 vrouter_ops_process(void *s_req)
 {
@@ -69,24 +94,6 @@ vr_nexthop_req_process(void *s_req)
     return;
 }
 #endif
-
-void
-vr_flow_req_process(void *s_req)
-{
-    return;
-}
-
-void
-vr_route_req_process(void *s_req)
-{
-    return;
-}
-
-void
-vr_interface_req_process(void *s_req)
-{
-    return;
-}
 
 void
 vr_mpls_req_process(void *s_req)
@@ -116,12 +123,6 @@ vr_vrf_assign_req_process(void *s_req)
 
 void
 vr_vrf_stats_req_process(void *s_req)
-{
-    return;
-}
-
-void
-vr_drop_stats_req_process(void *s_req)
 {
     return;
 }
@@ -390,11 +391,23 @@ nl_get_buf_len(struct nl_client *cl)
 }
 
 void
+nl_update_attr_len(struct nl_client *cl, int len)
+{
+    struct nlattr *nla;
+
+    nla = (struct nlattr *)cl->cl_attr;
+    nla->nla_len += len;
+    cl->cl_buf_offset += len;
+    return;
+}
+
+void
 nl_build_attr(struct nl_client *cl, int len, int attr)
 {
     struct nlattr *nla;
 
     nla = (struct nlattr *)(cl->cl_buf + cl->cl_buf_offset);
+    cl->cl_attr = (uint8_t *)nla;
     nla->nla_len = NLA_HDRLEN + (len);
     nla->nla_type = attr;
     /* Adjust by attribute length */
