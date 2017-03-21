@@ -2,9 +2,11 @@
 # Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
 #
 
+import sys
+
 Import('VRouterEnv')
 
-env = VRouterEnv.Clone()
+env = VRouterEnv.Clone(TARGET_ARCH='x86')
 VRutilsEnv = env;
 
 vr_root = '../'
@@ -28,13 +30,11 @@ for sdir in  subdirs:
 # Build libvrutil
 libvrutil = 'vrutil'
 
+libvrutil_objs = [env.Object('nl_util.lo', 'nl_util.c'), env.Object('udp_util.lo', 'udp_util.c'),
+                  env.Object('ini_parser.lo', 'ini_parser.c'), env.Object('vr_util.lo', 'vr_util.c')]
+
 if sys.platform.startswith('win'):
-    libvrutil_objs = [env.Object('nl_util.lo', 'nl_util.c'), env.Object('udp_util.lo', 'udp_util.c'),
-                      env.Object('ini_parser.lo', 'ini_parser.c'), env.Object('vr_util.lo', 'vr_util.c'),
-                      env.Object('vr_win_util.lo', 'vr_win_util.c')]
-else:
-    libvrutil_objs = [env.Object('nl_util.lo', 'nl_util.c'), env.Object('udp_util.lo', 'udp_util.c'),
-                      env.Object('ini_parser.lo', 'ini_parser.c'), env.Object('vr_util.lo', 'vr_util.c')]
+    libvrutil_objs.append(env.Object('vr_win_util.lo', 'vr_win_util.c'))
 
 env.StaticLibrary(libvrutil, libvrutil_objs)
 
