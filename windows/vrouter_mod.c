@@ -21,6 +21,7 @@ ULONG  SxExtOidRequestId = 'RVCO';
 
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
+extern PDRIVER_OBJECT SxDriverObject;
 
 unsigned int vr_num_cpus = 1;
 
@@ -38,6 +39,12 @@ static int
 vr_message_init(void)
 {
     return vr_sandesh_init();
+}
+
+static void
+vr_message_exit(void)
+{
+    vr_sandesh_exit();
 }
 
 /*  Dumps packet contents to the debug buffer. Packet contents will be formatted in
@@ -175,27 +182,7 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-    int ret;
     DbgPrint("SxExtInitialize\r\n");
-    
-    vr_num_cpus = KeQueryActiveProcessorCount(NULL);
-    if (!vr_num_cpus) {
-        DbgPrint("%s: Failed to get processor count\n", __func__);
-        return NDIS_STATUS_FAILURE;
-    }
-    
-    NTSTATUS Status = CreateDevice(DriverObject);
-
-    ret = vr_message_init();
-    
-    if (NT_ERROR(Status) || ret)
-    {
-	    return NDIS_STATUS_DEVICE_FAILED;
-    }
-    else if (!NT_SUCCESS(Status))
-    {
-	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
-    }
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -203,7 +190,6 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
-    DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }
 
@@ -215,43 +201,78 @@ SxExtCreateSwitch(
 {
     DbgPrint("SxExtCreateSwitch\r\n");
 
-    struct vr_switch_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
-    if (!ctx) {
-        DbgPrint("%s: Allocating vr_switch_context failed\n", __func__);
+    if (SxSwitchObject != NULL)
+        return NDIS_STATUS_FAILURE;
+
+    vr_num_cpus = KeQueryActiveProcessorCount(NULL);
+    if (!vr_num_cpus) {
+        DbgPrint("%s: Failed to get processor count\n", __func__);
         return NDIS_STATUS_FAILURE;
     }
+
+    SxSwitchObject = Switch;
+
+    NDIS_STATUS status = CreateDevice(SxDriverObject);
+    if (!NT_SUCCESS(status)) {
+        goto cleanup_device;
+    }
+
+    if (vr_message_init()) {
+        goto cleanup_message;
+    }
+
+    if (vrouter_init()) {
+        goto cleanup_init;
+    }
+
+    if (vr_init_assoc()) {
+        goto cleanup_assoc;
+    }
+
+    struct vr_switch_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
+    if (!ctx) {
+        goto cleanup_ctx;
+    }
+
     RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
     ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+
+    if (ctx->lock == NULL) {
+        goto cleanup_lock1;
+    }
+
     ctx->restart = TRUE;
 
     *ExtensionContext = (NDIS_HANDLE)ctx;
 
-    SxSwitchObject = Switch;
-
     AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
     if (AsyncWorkRWLock == NULL)
-        return NDIS_STATUS_RESOURCES;
+        goto cleanup_lock2;
 
     SxNBLPool = vrouter_generate_pool();
     if (SxNBLPool == NULL)
-    {
-        NdisFreeRWLock(AsyncWorkRWLock);
-        return NDIS_STATUS_RESOURCES;
-    }
-
-    if (vrouter_init()) {
-        goto Failure;
-    }
-
-    if (vr_init_assoc()) {
-        goto Failure;
-    }
+        goto cleanup_pool;
 
     return NDIS_STATUS_SUCCESS;
 
-Failure:
+cleanup_pool:
     NdisFreeRWLock(AsyncWorkRWLock);
-    NdisFreeNetBufferListPool(SxNBLPool);
+cleanup_lock2:
+    NdisFreeRWLock(ctx->lock);
+cleanup_lock1:
+    ExFreePoolWithTag(ctx, SxExtAllocationTag);
+cleanup_ctx:
+    vr_clean_assoc();
+cleanup_assoc:
+    vrouter_exit(false);
+cleanup_init:
+    vr_message_exit();
+cleanup_message:
+    DestroyDevice(SxDriverObject);
+cleanup_device:
+
+    SxSwitchObject = NULL;
+
     return NDIS_STATUS_FAILURE;
 }
 
@@ -264,6 +285,8 @@ SxExtDeleteSwitch(
     DbgPrint("SxExtDeleteSwitch\r\n");
     UNREFERENCED_PARAMETER(Switch);
 
+    ASSERTMSG("Trying to delete another switch than currently active", Switch == SxSwitchObject);
+
     NdisFreeRWLock(AsyncWorkRWLock);
     SxSwitchObject = NULL;
 
@@ -273,6 +296,8 @@ SxExtDeleteSwitch(
 
     vr_clean_assoc();
     vrouter_exit(false);
+    vr_message_exit();
+    DestroyDevice(SxDriverObject);
 }
 
 VOID
