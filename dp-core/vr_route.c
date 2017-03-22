@@ -274,7 +274,7 @@ vr_route_req_process(void *s_req)
         vr_route_add(req);
         break;
 
-    case SANDESH_OP_DELETE:
+    case SANDESH_OP_DEL:
         vr_route_delete(req);
         break;
 
