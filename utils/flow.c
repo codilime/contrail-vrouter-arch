@@ -120,8 +120,32 @@ static void flow_dump_nexthop(vr_nexthop_req *, vr_interface_req *,
 static vr_nexthop_req *flow_get_nexthop(int);
 static int flow_table_map(vr_flow_req *);
 
+void fl_flow_req_process(void *sreq);
+void fl_interface_req_process(void *sreq);
+void fl_response_process(void *sresp);
+void fl_nexthop_req_process(void *sreq);
+void fl_drop_stats_req_process(void *sreq);
+
+struct nl_sandesh_callbacks nl_cb = {
+    .vrouter_ops_process = NULL,
+    .vr_flow_req_process = fl_flow_req_process,
+    .vr_route_req_process = NULL,
+    .vr_interface_req_process = fl_interface_req_process,
+    .vr_mpls_req_process = NULL,
+    .vr_mirror_req_process = NULL,
+    .vr_response_process = fl_response_process,
+    .vr_nexthop_req_process = fl_nexthop_req_process,
+    .vr_vrf_assign_req_process = NULL,
+    .vr_vrf_stats_req_process = NULL,
+    .vr_drop_stats_req_process = fl_drop_stats_req_process,
+    .vr_vxlan_req_process = NULL,
+    .vr_mem_stats_req_process = NULL,
+    .vr_fc_map_req_process = NULL,
+    .vr_qos_map_req_process = NULL,
+};
+
 void
-vr_response_process(void *sresp)
+fl_response_process(void *sresp)
 {
     vr_response *resp = (vr_response *)sresp;
 
@@ -132,7 +156,7 @@ vr_response_process(void *sresp)
 }
 
 void
-vr_flow_req_process(void *sreq)
+fl_flow_req_process(void *sreq)
 {
     vr_flow_req *req = (vr_flow_req *)sreq;
 
@@ -151,7 +175,7 @@ vr_flow_req_process(void *sreq)
 }
 
 void
-vr_interface_req_process(void *arg)
+fl_interface_req_process(void *arg)
 {
     vr_interface_req *req = (vr_interface_req *)arg;
 
@@ -161,7 +185,7 @@ vr_interface_req_process(void *arg)
 }
 
 void
-vr_nexthop_req_process(void *arg)
+fl_nexthop_req_process(void *arg)
 {
     vr_nexthop_req *req = (vr_nexthop_req *)arg;
 
@@ -171,7 +195,7 @@ vr_nexthop_req_process(void *arg)
 }
 
 void
-vr_route_req_process(void *arg)
+fl_route_req_process(void *arg)
 {
     vr_route_req *req = (vr_route_req *)arg;
 
@@ -181,7 +205,7 @@ vr_route_req_process(void *arg)
 }
 
 void
-vr_drop_stats_req_process(void *arg)
+fl_drop_stats_req_process(void *arg)
 {
     vr_drop_stats_req *req = (vr_drop_stats_req *)arg;
 
