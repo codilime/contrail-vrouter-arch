@@ -48,6 +48,27 @@ static int comp_nh_ind = 0, lbl_ind = 0;
 static struct in_addr sip, dip;
 static struct nl_client *cl;
 
+void nh_response_process(void *s);
+void nh_nexthop_req_process(void *s_req);
+
+struct nl_sandesh_callbacks nl_cb = {
+    .vrouter_ops_process = NULL,
+    .vr_flow_req_process = NULL,
+    .vr_route_req_process = NULL,
+    .vr_interface_req_process = NULL,
+    .vr_mpls_req_process = NULL,
+    .vr_mirror_req_process = NULL,
+    .vr_response_process = nh_response_process,
+    .vr_nexthop_req_process = nh_nexthop_req_process,
+    .vr_vrf_assign_req_process = NULL,
+    .vr_vrf_stats_req_process = NULL,
+    .vr_drop_stats_req_process = NULL,
+    .vr_vxlan_req_process = NULL,
+    .vr_mem_stats_req_process = NULL,
+    .vr_fc_map_req_process = NULL,
+    .vr_qos_map_req_process = NULL,
+};
+
 static int
 vr_nh_op(struct nl_client *cl, int command, int type, uint32_t nh_id,
         uint32_t if_id, uint32_t vrf_id, int8_t *dst, int8_t  *src,
@@ -200,7 +221,7 @@ nh_print_newline_header(void)
 }
 
 void
-vr_nexthop_req_process(void *s_req)
+nh_nexthop_req_process(void *s_req)
 {
     unsigned int i, printed = 0;
     struct in_addr a;
@@ -306,7 +327,7 @@ vr_nexthop_req_process(void *s_req)
 }
 
 void
-vr_response_process(void *s)
+nh_response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
@@ -760,7 +781,6 @@ validate_options(void)
 
     return;
 }
-
 
 int
 main(int argc, char *argv[])
