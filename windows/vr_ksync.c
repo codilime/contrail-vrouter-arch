@@ -11,8 +11,13 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static int ToClean = 0;
 
-NTSTATUS
-Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH DispatchCreate;
+_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH DispatchClose;
+_Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH DispatchWrite;
+_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH DispatchRead;
+
+_Use_decl_annotations_ NTSTATUS
+DispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -21,8 +26,8 @@ Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-Close(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Use_decl_annotations_ NTSTATUS
+DispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -31,8 +36,8 @@ Close(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Use_decl_annotations_ NTSTATUS
+DispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     int ret;
     struct vr_message request, *response;
@@ -91,8 +96,8 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Use_decl_annotations_ NTSTATUS
+DispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -129,18 +134,6 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
-}
-
-NTSTATUS
-NotImplemented(PDEVICE_OBJECT DriverObject, PIRP Irp)
-{
-    UNREFERENCED_PARAMETER(DriverObject);
-
-    DbgPrint("Called a non-implemented function!");
-
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 VOID
@@ -190,13 +183,16 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
     if (NT_SUCCESS(Status))
     {
         ToClean |= DEVICE;
-        for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; i++)
-            DriverObject->MajorFunction[i] = NotImplemented;
+        
+#pragma warning(push)
+#pragma warning(disable:28175) 
 
-        DriverObject->MajorFunction[IRP_MJ_CREATE] = Create;
-        DriverObject->MajorFunction[IRP_MJ_CLOSE] = Close;
-        DriverObject->MajorFunction[IRP_MJ_WRITE] = Write;
-        DriverObject->MajorFunction[IRP_MJ_READ] = Read;
+        DriverObject->MajorFunction[IRP_MJ_CREATE] = DispatchCreate;
+        DriverObject->MajorFunction[IRP_MJ_CLOSE] = DispatchClose;
+        DriverObject->MajorFunction[IRP_MJ_WRITE] = DispatchWrite;
+        DriverObject->MajorFunction[IRP_MJ_READ] = DispatchRead;
+
+#pragma warning(pop)
 
         DeviceObject->Flags |= DO_DIRECT_IO;
         DeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);
