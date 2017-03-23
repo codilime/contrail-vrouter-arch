@@ -72,6 +72,24 @@ struct genl_ctrl_message {
 #define NLA_LEN(nla)                    (nla->nla_len - NLA_HDRLEN)
 #define GENLMSG_DATA(buf)               ((char *)buf + GENL_HDRLEN)
 
+struct nl_sandesh_callbacks {
+    void (*vrouter_ops_process)(void *);
+    void (*vr_flow_req_process)(void *);
+    void (*vr_route_req_process)(void *);
+    void (*vr_interface_req_process)(void *);
+    void (*vr_mpls_req_process)(void *);
+    void (*vr_mirror_req_process)(void *);
+    void (*vr_response_process)(void *);
+    void (*vr_nexthop_req_process)(void *);
+    void (*vr_vrf_assign_req_process)(void *);
+    void (*vr_vrf_stats_req_process)(void *);
+    void (*vr_drop_stats_req_process)(void *);
+    void (*vr_vxlan_req_process)(void *);
+    void (*vr_mem_stats_req_process)(void *);
+    void (*vr_fc_map_req_process)(void *);
+    void (*vr_qos_map_req_process)(void *);
+};
+
 /* Suppress NetLink error messages */
 extern bool vr_ignore_nl_errors;
 
