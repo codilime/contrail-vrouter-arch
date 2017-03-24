@@ -11,13 +11,13 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static int ToClean = 0;
 
-_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH DispatchCreate;
-_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH DispatchClose;
-_Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH DispatchWrite;
-_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH DispatchRead;
+_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
+_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
+_Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
+_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
 
 _Use_decl_annotations_ NTSTATUS
-DispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
+KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -27,7 +27,7 @@ DispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 }
 
 _Use_decl_annotations_ NTSTATUS
-DispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
+KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -37,7 +37,7 @@ DispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 }
 
 _Use_decl_annotations_ NTSTATUS
-DispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
+KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     int ret;
     struct vr_message request, *response;
@@ -97,13 +97,12 @@ DispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 }
 
 _Use_decl_annotations_ NTSTATUS
-DispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
+KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PWCHAR ReadDataBuffer;
-    unsigned int len;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
 
@@ -121,13 +120,14 @@ DispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
-        len = *((unsigned int*)(DriverObject->DeviceExtension));
 
-		if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
-			RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension+sizeof(unsigned int), len);
-			*((unsigned int*)(DriverObject->DeviceExtension)) = 0;
-			Irp->IoStatus.Information = len;
-		}
+        struct ksync_response *resp = (struct ksync_response*)DriverObject->DeviceExtension;
+
+        if (IoStackIrp->Parameters.Read.Length >= resp->len && resp->len > 0) {
+            RtlCopyMemory(ReadDataBuffer, resp->data, resp->len);
+            Irp->IoStatus.Information = resp->len;
+            resp->len = 0; 
+        }
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -185,12 +185,12 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
         ToClean |= DEVICE;
         
 #pragma warning(push)
-#pragma warning(disable:28175) 
+#pragma warning(disable:28175)
 
-        DriverObject->MajorFunction[IRP_MJ_CREATE] = DispatchCreate;
-        DriverObject->MajorFunction[IRP_MJ_CLOSE] = DispatchClose;
-        DriverObject->MajorFunction[IRP_MJ_WRITE] = DispatchWrite;
-        DriverObject->MajorFunction[IRP_MJ_READ] = DispatchRead;
+        DriverObject->MajorFunction[IRP_MJ_CREATE] = KsyncDispatchCreate;
+        DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
+        DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
+        DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
 
 #pragma warning(pop)
 
