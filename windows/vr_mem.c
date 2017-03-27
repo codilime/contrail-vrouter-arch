@@ -22,10 +22,10 @@ VOID
 unmap_section_address(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
-    status = ZwUnmapViewOfSection(Section, vr_flow_table);
+    status = ZwUnmapViewOfSection(ZwCurrentProcess(), vr_flow_table);
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("Failed closing a section, error code: %lx\r\n", status);
+        DbgPrint("Failed unmaping a section, error code: %lx\r\n", status);
     }
 }
 
@@ -90,18 +90,19 @@ memory_init(void)
         }
     }
 
-    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
-
     status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
-    if (status != STATUS_SUCCESS)
+    if (!NT_SUCCESS(status))
     {
         DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
     }
 
     RtlZeroMemory(BaseAddress, flow_table_size);
 
-    vr_flow_table = BaseAddress;
-    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
+    status = ZwUnmapViewOfSection(ZwCurrentProcess(), BaseAddress);
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Failed unmaping a section, error code: %lx\r\n", status);
+    }
 
     return 0;
 }
