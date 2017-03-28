@@ -35,11 +35,11 @@
   <ItemGroup>
     <ClInclude Include="..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.h" />
     <ClInclude Include="..\..\tools\sandesh\library\c\protocol\thrift_protocol.h" />
-    <ClInclude Include="..\..\tools\sandesh\library\c\sandesh.h" />
     <ClInclude Include="..\..\tools\sandesh\library\c\transport\thrift_fake_transport.h" />
     <ClInclude Include="..\..\tools\sandesh\library\c\transport\thrift_memory_buffer.h" />
     <ClInclude Include="..\..\tools\sandesh\library\c\transport\thrift_transport.h" />
     <ClInclude Include="..\include\nl_util.h" />
+    <ClInclude Include="..\include\sandesh.h" />
     <ClInclude Include="..\include\vr_nexthop.h" />
     <ClInclude Include="..\include\vr_os.h" />
     <ClInclude Include="..\include\vr_packet.h" />
@@ -56,7 +56,6 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>utils</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
-    <ProjectName>nh</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -135,7 +134,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_NH;%(PreprocessorDefinitions);_WINDOWS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_WINDOWS</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\tools\sandesh\library\c\;..\windows\sandesh-temp\;..\windows\include\;..\windows\;..\include;..\..\tools\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -169,7 +168,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;_NH;%(PreprocessorDefinitions);_WINDOWS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);_WINDOWS</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\tools\sandesh\library\c\;..\windows\sandesh-temp\;..\windows\include\;..\windows\;..\include;..\..\tools\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
