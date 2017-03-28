@@ -184,15 +184,15 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
     {
         ToClean |= DEVICE;
         
-#pragma warning(push)
-#pragma warning(disable:28175)
+#pragma prefast(push)
+#pragma prefast(disable:28175, "we're just setting it, it's allowed")
 
         DriverObject->MajorFunction[IRP_MJ_CREATE] = KsyncDispatchCreate;
         DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
         DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
         DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
 
-#pragma warning(pop)
+#pragma prefast(pop)
 
         DeviceObject->Flags |= DO_DIRECT_IO;
         DeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);
