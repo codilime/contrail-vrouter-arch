@@ -8,15 +8,8 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 #define SYMLINK 1
 #define DEVICE 2
-#define DATA_BUFFER 4096
-#define QUEUE_SIZE (DATA_BUFFER + sizeof(unsigned int))
 
 static int ToClean = 0;
-
-struct ksync_response {
-    unsigned int len;
-    char data[DATA_BUFFER];
-};
 
 NTSTATUS
 Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -85,11 +78,9 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     while ((response = vr_message_dequeue_response())) {
         len = response->vr_message_len;
 
-        struct ksync_response *ksync_resp = (struct ksync_response*)DriverObject->DeviceExtension;
+        memcpy(DriverObject->DeviceExtension, &response->vr_message_len, sizeof(unsigned int));
+        memcpy((char*)DriverObject->DeviceExtension + sizeof(unsigned int), response->vr_message_buf, response->vr_message_len);
 
-        RtlCopyMemory(&(ksync_resp->len), &response->vr_message_len, sizeof(unsigned int));
-        RtlCopyMemory(ksync_resp->data, response->vr_message_buf, response->vr_message_len);
-      
         vr_message_free(response);
     }
     
@@ -97,7 +88,6 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     Irp->IoStatus.Information = IoStackIrp->Parameters.Write.Length;
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
     return STATUS_SUCCESS;
 }
 
@@ -108,6 +98,7 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PWCHAR ReadDataBuffer;
+    unsigned int len;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
 
@@ -125,14 +116,13 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
+        len = *((unsigned int*)(DriverObject->DeviceExtension));
 
-        struct ksync_response *resp = (struct ksync_response*)DriverObject->DeviceExtension;
-
-        if (IoStackIrp->Parameters.Read.Length >= resp->len && resp->len > 0) {
-            RtlCopyMemory(ReadDataBuffer, resp->data, resp->len);
-            Irp->IoStatus.Information = resp->len;
-            resp->len = 0; 
-        }
+		if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
+			RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension+sizeof(unsigned int), len);
+			*((unsigned int*)(DriverObject->DeviceExtension)) = 0;
+			Irp->IoStatus.Information = len;
+		}
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -167,7 +157,7 @@ DestroyDevice(PDRIVER_OBJECT DriverObject)
     if (ToClean & DEVICE)
     {
         IoDeleteDevice(DriverObject->DeviceObject);
-        ToClean ^= DEVICE;
+	    ToClean ^= DEVICE;
     }
 }
 
@@ -195,7 +185,7 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, QUEUE_SIZE, &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+    Status = IoCreateDevice(DriverObject, sizeof(struct vr_message), &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
 
     if (NT_SUCCESS(Status))
     {

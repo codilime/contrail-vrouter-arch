@@ -3,14 +3,9 @@ dp-core/*.o
 dp-core/*.o.cmd
 linux/*.o.cmd
 linux/*.o
-*obj
-*tlog
-*pdb
-*idb
 
 # Not sure where this is generated
 .tmp_versions
-utils/win/flow/x64/*
 
 # vrouter module stuff
 .vrouter.ko.cmd

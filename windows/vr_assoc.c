@@ -1,5 +1,4 @@
 #include "precomp.h"
-#include "vr_windows.h"
 
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 NDIS_RW_LOCK_EX* name_lock;
