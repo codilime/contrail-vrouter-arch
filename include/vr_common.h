@@ -55,10 +55,13 @@ typedef UINT64 uint64_t;
 #define EOPNOTSUPP      130
 #define AF_BRIDGE       7
 
+#ifndef WIN_IOVEC
+#define WIN_IOVEC
 struct iovec {
     void *iov_base;
     SIZE_T iov_len;
 };
+#endif /* WIN_IOVEC */
 
 #else
 

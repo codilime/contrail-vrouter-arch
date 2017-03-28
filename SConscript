@@ -14,7 +14,7 @@ AddOption('--kernel-dir', dest = 'kernel-dir', action='store',
 AddOption('--system-header-path', dest = 'system-header-path', action='store',
           help='Linux kernel headers for applications')
 
-env = DefaultEnvironment().Clone()
+env = DefaultEnvironment(TARGET_ARCH='x86').Clone()
 VRouterEnv = env
 dpdk_exists = os.path.isdir('../third_party/dpdk')
 
@@ -33,7 +33,7 @@ env.Append(CPPPATH = ['#tools/sandesh/library/c'])
 
 # Make Sandesh quiet for production
 if 'production' in env['OPT']:
-    DefaultEnvironment().Append(CPPDEFINES='SANDESH_QUIET')
+    DefaultEnvironment(TARGET_ARCH='x86').Append(CPPDEFINES='SANDESH_QUIET')
 
 vr_root = './'
 makefile = vr_root + 'Makefile'

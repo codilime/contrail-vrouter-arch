@@ -124,6 +124,7 @@ nl_sendmsg(struct nl_client *cl)
     void *rr;
     struct nlmsghdr *nlh = (struct nlmsghdr *)cl->cl_buf;
     int d =  cl->cl_buf_offset;
+
     hPipe = CreateFile(TEXT("\\\\.\\vrouterKsync"),
         GENERIC_READ | GENERIC_WRITE,
         0,

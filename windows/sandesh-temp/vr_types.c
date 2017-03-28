@@ -8849,6 +8849,19 @@ vr_drop_stats_req_read (void *rsandesh, ThriftProtocol *protocol, int *error)
           xfer += ret;
         }
         break;
+      case 54:
+        if (ftype == T_I64)
+        {
+          if ((ret = thrift_protocol_read_i64 (protocol, &rvr_drop_stats_req->vds_trap_original, error)) < 0)
+            return -1;
+          xfer += ret;
+          rvr_drop_stats_req->__isset_vds_trap_original = 1;
+        } else {
+          if ((ret = thrift_protocol_skip (protocol, ftype, error)) < 0)
+            return -1;
+          xfer += ret;
+        }
+        break;
       default:
         if ((ret = thrift_protocol_skip (protocol, ftype, error)) < 0)
           return -1;

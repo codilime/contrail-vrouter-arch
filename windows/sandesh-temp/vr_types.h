@@ -22,7 +22,7 @@ extern "C" {
 enum _sandesh_op {
   SANDESH_OP_ADD = 0,
   SANDESH_OP_GET = 1,
-  SANDESH_OP_DELETE = 2,
+  SANDESH_OP_DEL = 2,
   SANDESH_OP_DUMP = 3,
   SANDESH_OP_RESPONSE = 4,
   SANDESH_OP_RESET = 5
