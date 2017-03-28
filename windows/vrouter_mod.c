@@ -207,7 +207,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
-    memory_exit();
+
     DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }
@@ -278,6 +278,7 @@ SxExtDeleteSwitch(
 
     vr_clean_assoc();
     vrouter_exit(false);
+    memory_exit();
 }
 
 VOID

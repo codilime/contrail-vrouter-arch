@@ -22,7 +22,7 @@ VOID
 unmap_section_address(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
-    status = ZwUnmapViewOfSection(Section, vr_flow_table);
+    status = ZwUnmapViewOfSection(ZwCurrentProcess(), vr_flow_table);
     if (!NT_SUCCESS(status))
     {
         DbgPrint("Failed closing a section, error code: %lx\r\n", status);

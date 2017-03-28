@@ -2354,6 +2354,13 @@ vr_link_local_ports_init(struct vrouter *router)
 void
 vr_flow_exit(struct vrouter *router, bool soft_reset)
 {
+#if defined(_WINDOWS)
+    set_section_address();
+#endif
+
+    ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
+    ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
+
     vr_flow_table_reset(router);
     vr_link_local_ports_reset(router);
     if (!soft_reset) {
@@ -2361,7 +2368,9 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
         vr_fragment_table_exit(router);
         vr_link_local_ports_exit(router);
     }
-
+#if defined(_WINDOWS)
+    unmap_section_address();
+#endif
     return;
 }
 
