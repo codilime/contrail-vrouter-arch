@@ -103,6 +103,7 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PWCHAR ReadDataBuffer;
+    unsigned int len;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
 
@@ -120,13 +121,12 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
     {
+        len = *((unsigned int*)(DriverObject->DeviceExtension));
 
-        struct ksync_response *resp = (struct ksync_response*)DriverObject->DeviceExtension;
-
-        if (IoStackIrp->Parameters.Read.Length >= resp->len && resp->len > 0) {
-            RtlCopyMemory(ReadDataBuffer, resp->data, resp->len);
-            Irp->IoStatus.Information = resp->len;
-            resp->len = 0; 
+        if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
+            RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension + sizeof(unsigned int), len);
+            *((unsigned int*)(DriverObject->DeviceExtension)) = 0;
+            Irp->IoStatus.Information = len;
         }
     }
     
@@ -150,7 +150,7 @@ DestroyDevice(PDRIVER_OBJECT DriverObject)
     if (ToClean & DEVICE)
     {
         IoDeleteDevice(DriverObject->DeviceObject);
-	    ToClean ^= DEVICE;
+        ToClean ^= DEVICE;
     }
 }
 
