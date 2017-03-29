@@ -175,7 +175,6 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-    int ret;
     DbgPrint("SxExtInitialize\r\n");
     
     vr_num_cpus = KeQueryActiveProcessorCount(NULL);
@@ -185,16 +184,15 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
     }
     
     NTSTATUS Status = CreateDevice(DriverObject);
-
-    ret = vr_message_init();
-    
-    if (NT_ERROR(Status) || ret)
-    {
-	    return NDIS_STATUS_DEVICE_FAILED;
+    if (!NT_SUCCESS(Status)) {
+        DbgPrint("%s: CreateDevice() failed: %d\n", __func__, Status);
+        return NDIS_STATUS_DEVICE_FAILED;
     }
-    else if (!NT_SUCCESS(Status))
-    {
-	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
+
+    int ret = vr_message_init();
+    if (ret) {
+        DbgPrint("%s: vr_message_init() failed: %d\n", __func__, ret);
+        return NDIS_STATUS_DEVICE_FAILED;
     }
 
     return NDIS_STATUS_SUCCESS;
