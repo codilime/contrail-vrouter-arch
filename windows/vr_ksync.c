@@ -6,9 +6,19 @@
 const WCHAR DeviceName[] = L"\\Device\\vrouterKsync";
 const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
-#define SYMLINK 1
-#define DEVICE 2
+#define KSYNC_CLEAN_SYMLINK 0b01
+#define KSYNC_CLEAN_DEVICE  0b10
 
+#define KSYNC_BUFFER_SIZE (4096)
+
+struct ksync_response {
+    unsigned int len;
+    unsigned char data[KSYNC_BUFFER_SIZE];
+};
+
+#define KSYNC_QUEUE_SIZE (sizeof(struct ksync_response))
+
+static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static int ToClean = 0;
 
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
@@ -44,7 +54,7 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     unsigned int len;
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
-    PCHAR WriteDataBuffer;
+    PCHAR WriteDataBuffer = NULL;
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
 
     if (Irp->MdlAddress == NULL)
@@ -56,7 +66,6 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     }
 
     WriteDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
-
     if (!WriteDataBuffer) {
         Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
         Irp->IoStatus.Information = 0;
@@ -83,8 +92,10 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     while ((response = vr_message_dequeue_response())) {
         len = response->vr_message_len;
 
-        memcpy(DriverObject->DeviceExtension, &response->vr_message_len, sizeof(unsigned int));
-        memcpy((char*)DriverObject->DeviceExtension + sizeof(unsigned int), response->vr_message_buf, response->vr_message_len);
+        struct ksync_response *resp = (struct ksync_response *)DriverObject->DeviceExtension;
+
+        RtlCopyMemory(&resp->len, &response->vr_message_len, sizeof(resp->len));
+        RtlCopyMemory(resp->data, response->vr_message_buf, resp->len);
 
         vr_message_free(response);
     }
@@ -102,8 +113,7 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
     UNREFERENCED_PARAMETER(DriverObject);
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
-    PWCHAR ReadDataBuffer;
-    unsigned int len;
+    PCHAR ReadDataBuffer = NULL;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
 
@@ -115,18 +125,18 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
         return STATUS_INVALID_PARAMETER;
     }
 
-    ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
-
     Irp->IoStatus.Information = 0;
 
-    if (ReadDataBuffer && DriverObject->DeviceExtension != NULL)
-    {
-        len = *((unsigned int*)(DriverObject->DeviceExtension));
+    ReadDataBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
+    if (ReadDataBuffer != NULL && DriverObject->DeviceExtension != NULL) {
+        struct ksync_response *resp = (struct ksync_response *)DriverObject->DeviceExtension;
+        ULONG read_max_length = IoStackIrp->Parameters.Read.Length;
 
-        if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
-            RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension + sizeof(unsigned int), len);
-            *((unsigned int*)(DriverObject->DeviceExtension)) = 0;
-            Irp->IoStatus.Information = len;
+        // User-space utility asks for __at most__ `read_max_length` bytes
+        if (resp->len > 0 && read_max_length >= resp->len) {
+            RtlCopyMemory(ReadDataBuffer, resp->data, resp->len);
+            Irp->IoStatus.Information = resp->len;
+            resp->len = 0;
         }
     }
     
@@ -141,16 +151,15 @@ DestroyDevice(PDRIVER_OBJECT DriverObject)
 {
     UNICODE_STRING _DeviceSymLink;
 
-    if (ToClean & SYMLINK)
-    {
+    if (ToClean & KSYNC_CLEAN_SYMLINK) {
         RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
         IoDeleteSymbolicLink(&_DeviceSymLink);
-        ToClean ^= SYMLINK;
+        ToClean ^= KSYNC_CLEAN_SYMLINK;
     }
-    if (ToClean & DEVICE)
-    {
-        IoDeleteDevice(DriverObject->DeviceObject);
-        ToClean ^= DEVICE;
+    if (ToClean & KSYNC_CLEAN_DEVICE) {
+        IoDeleteDevice(KsyncDeviceObject);
+        KsyncDeviceObject = NULL;
+        ToClean ^= KSYNC_CLEAN_DEVICE;
     }
 }
 
@@ -163,27 +172,24 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
     NTSTATUS Status;
 
     Status = RtlUnicodeStringInit(&_DeviceName, DeviceName);
-    
-    if (NT_ERROR(Status))
-    {
+    if (!NT_SUCCESS(Status)) {
         DbgPrint("DeviceName RtlUnicodeStringInit Error: %d\n", Status);
         return Status;
     }
 
     Status = RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
-
-    if (NT_ERROR(Status))
-    {
+    if (!NT_SUCCESS(Status)) {
         DbgPrint("DeviceSymLink RtlUnicodeStringInit Error: %d\n", Status);
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, sizeof(struct vr_message), &_DeviceName, FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+    Status = IoCreateDevice(DriverObject, KSYNC_QUEUE_SIZE, &_DeviceName,
+        FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+    if (NT_SUCCESS(Status)) {
+        ToClean |= KSYNC_CLEAN_DEVICE;
 
-    if (NT_SUCCESS(Status))
-    {
-        ToClean |= DEVICE;
-        
+        KsyncDeviceObject = DeviceObject;
+
 #pragma prefast(push)
 #pragma prefast(disable:28175, "we're just setting it, it's allowed")
 
@@ -198,16 +204,16 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
         DeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);
 
         Status = IoCreateSymbolicLink(&_DeviceSymLink, &_DeviceName);
+        if (NT_SUCCESS(Status)) {
+            ToClean |= KSYNC_CLEAN_SYMLINK;
+        } else {
+            IoDeleteDevice(DeviceObject);
+            KsyncDeviceObject = NULL;
+            DeviceObject = NULL;
 
-        if (NT_WARNING(Status) || NT_INFORMATION(Status) || NT_SUCCESS(Status))
-        {
-            DbgPrint("IoCreateSymbolicLink %d\n", Status);
-            ToClean |= SYMLINK;
+            ToClean &= ~KSYNC_CLEAN_DEVICE;
         }
-        return Status;
-    }
-    else
-    {
+    } else {
         DbgPrint("IoCreateDevice failed. Error code: %d\n", Status);
     }
 
