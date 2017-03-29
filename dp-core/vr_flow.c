@@ -19,6 +19,12 @@
 #include "vr_hash.h"
 #include "vr_ip_mtrie.h"
 
+#if defined(_WINDOWS)
+#include "vr_mem.h"
+
+extern HANDLE Section;
+#endif
+
 #define VR_NUM_FLOW_TABLES          1
 
 #define VR_NUM_OFLOW_TABLES         1
@@ -27,6 +33,25 @@
 
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
+
+
+
+struct vr_htable {
+    struct vrouter *ht_router;
+    unsigned int ht_hentries;
+    unsigned int ht_oentries;
+    unsigned int ht_entry_size;
+    unsigned int ht_key_size;
+    unsigned int ht_bucket_size;
+    struct vr_btable *ht_htable;
+    struct vr_btable *ht_otable;
+    struct vr_btable *ht_dtable;
+    get_hentry_key ht_get_key;
+    vr_hentry_t *ht_free_oentry_head;
+    unsigned int ht_used_oentries;
+    unsigned int ht_used_entries;
+};
+
 
 /*
  * host can provide its own memory . Point in case is the DPDK. In DPDK,
@@ -2094,6 +2119,13 @@ vr_flow_req_process(void *s_req)
     vr_flow_req *resp = NULL;
 
     router = vrouter_get(req->fr_rid);
+
+#if defined(_WINDOWS)
+    set_section_address();
+    ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
+    ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
+#endif
+
     switch (req->fr_op) {
     case FLOW_OP_FLOW_TABLE_GET:
         resp = vr_flow_req_get(req);
@@ -2137,7 +2169,9 @@ vr_flow_req_process(void *s_req)
     default:
         ret = -EINVAL;
     }
-
+#if defined(_WINDOWS)
+    unmap_section_address();
+#endif
 send_response:
     vr_message_response(object, resp, ret);
     if (need_destroy) {
@@ -2241,17 +2275,23 @@ vr_flow_table_reset(struct vrouter *router)
     return;
 }
 
+void
+compute_size_oflow_table()
+{
+    /*
+    * Overflow entries is 20% of the main flow table
+    * adjusted to next 1k
+    */
+    if (!vr_oflow_entries)
+        vr_oflow_entries = ((vr_flow_entries / 5) + 1023) & ~1023;
+}
+
 static int
 vr_flow_table_init(struct vrouter *router)
 {
     if (!router->vr_flow_table) {
 
-        /*
-         * Overflow entries is 20% of the main flow table
-         * adjusted to next 1k
-         */
-        if (!vr_oflow_entries)
-            vr_oflow_entries = ((vr_flow_entries / 5) + 1023) & ~1023;
+        compute_size_oflow_table();
 
         router->vr_flow_table = vr_htable_attach(router, vr_flow_entries,
                 vr_flow_table, vr_oflow_entries, vr_oflow_table,
@@ -2316,6 +2356,12 @@ vr_link_local_ports_init(struct vrouter *router)
 void
 vr_flow_exit(struct vrouter *router, bool soft_reset)
 {
+#if defined(_WINDOWS)
+    set_section_address();
+    ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
+    ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
+#endif
+
     vr_flow_table_reset(router);
     vr_link_local_ports_reset(router);
     if (!soft_reset) {
@@ -2323,23 +2369,32 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
         vr_fragment_table_exit(router);
         vr_link_local_ports_exit(router);
     }
-
+#if defined(_WINDOWS)
+    unmap_section_address();
+#endif
     return;
 }
 
 int
 vr_flow_init(struct vrouter *router)
 {
-    int ret;
+#if defined(_WINDOWS)
+    set_section_address();
+#endif
+    int ret = 0;
 
     if ((ret = vr_fragment_table_init(router)) < 0)
-        return ret;
+        goto ret_val;
 
     if ((ret = vr_flow_table_init(router)))
-        return ret;
+        goto ret_val;
 
     if ((ret = vr_link_local_ports_init(router)))
-        return ret;
+        goto ret_val;
 
-    return 0;
+ret_val:
+#if defined(_WINDOWS)
+    unmap_section_address();
+#endif
+    return ret;
 }

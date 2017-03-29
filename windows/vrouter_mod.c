@@ -4,6 +4,7 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 #include "vr_sandesh.h"
+#include "vr_mem.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
