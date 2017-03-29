@@ -25,7 +25,7 @@ unmap_section_address(void)
         DbgPrint("Failed closing a section, error code: %lx\r\n", status);
 }
 
-VOID
+int
 set_section_address(void)
 {
     NTSTATUS status = STATUS_SUCCESS;
@@ -39,11 +39,15 @@ set_section_address(void)
 
     status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
 
-    if (status != STATUS_SUCCESS)
+    if (!NT_SUCCESS(status)) {
         DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
+        return -1;
+    }
 
     vr_flow_table = BaseAddress;
     vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
+
+    return 0;
 }
 
 int

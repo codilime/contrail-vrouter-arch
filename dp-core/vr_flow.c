@@ -34,8 +34,6 @@ extern HANDLE Section;
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
 
-
-
 struct vr_htable {
     struct vrouter *ht_router;
     unsigned int ht_hentries;
@@ -51,7 +49,6 @@ struct vr_htable {
     unsigned int ht_used_oentries;
     unsigned int ht_used_entries;
 };
-
 
 /*
  * host can provide its own memory . Point in case is the DPDK. In DPDK,
@@ -2121,7 +2118,8 @@ vr_flow_req_process(void *s_req)
     router = vrouter_get(req->fr_rid);
 
 #if defined(_WINDOWS)
-    set_section_address();
+    if (set_section_address())
+        return;
     ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
     ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
 #endif
@@ -2357,7 +2355,9 @@ void
 vr_flow_exit(struct vrouter *router, bool soft_reset)
 {
 #if defined(_WINDOWS)
-    set_section_address();
+    if (set_section_address())
+        return;
+
     ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
     ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
 #endif
@@ -2379,7 +2379,8 @@ int
 vr_flow_init(struct vrouter *router)
 {
 #if defined(_WINDOWS)
-    set_section_address();
+    if (set_section_address())
+        return -1;
 #endif
     int ret = 0;
 
