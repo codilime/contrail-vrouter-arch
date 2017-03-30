@@ -51,7 +51,6 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     int ret;
     struct vr_message request, *response;
-    unsigned int len;
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PCHAR WriteDataBuffer = NULL;
