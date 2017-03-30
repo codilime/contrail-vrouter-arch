@@ -34,10 +34,16 @@ static char hex_table[] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 };
 
-static int
+static NTSTATUS
 vr_message_init(void)
 {
-    return vr_sandesh_init();
+    int ret = vr_sandesh_init();
+    if (ret) {
+        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 /*  Dumps packet contents to the debug buffer. Packet contents will be formatted in
@@ -189,9 +195,9 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
-    int ret = vr_message_init();
-    if (ret) {
-        DbgPrint("%s: vr_message_init() failed: %d\n", __func__, ret);
+    Status = vr_message_init();
+    if (!NT_SUCCESS(Status)) {
+        DbgPrint("%s: vr_message_init() failed\n", __func__);
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
