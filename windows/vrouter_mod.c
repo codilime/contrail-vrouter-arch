@@ -177,6 +177,10 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
     int ret;
     DbgPrint("SxExtInitialize\r\n");
+	
+    void (*foo)(void);
+    foo = NULL;
+    foo();
     
     vr_num_cpus = KeQueryActiveProcessorCount(NULL);
     if (!vr_num_cpus) {
