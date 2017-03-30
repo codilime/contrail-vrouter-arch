@@ -21,6 +21,8 @@ ULONG  SxExtOidRequestId = 'RVCO';
 
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
+
+// This is exported by SxLibrary
 extern PDRIVER_OBJECT SxDriverObject;
 
 unsigned int vr_num_cpus = 1;
