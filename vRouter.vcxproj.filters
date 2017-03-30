@@ -136,6 +136,9 @@
     <ClInclude Include="include\vr_mem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\windows_builtins.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">

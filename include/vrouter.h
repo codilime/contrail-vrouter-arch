@@ -20,6 +20,9 @@ extern "C" {
 #include "vr_response.h"
 #include "vr_mpls.h"
 #include "vr_index_table.h"
+#include "vr_mem.h"
+
+extern HANDLE Section;
 
 #define VR_NATIVE_VRF       0
 #define VR_UNIX_PATH_MAX    108

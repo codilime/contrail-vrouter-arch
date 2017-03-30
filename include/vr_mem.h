@@ -1,9 +1,9 @@
 #pragma once
 
-NTSTATUS
+int
 memory_init(void);
 
-PVOID
+void
 memory_exit(void);
 
 int

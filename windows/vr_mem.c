@@ -10,24 +10,29 @@ HANDLE Section;
 void
 memory_exit(void)
 {
+    /*
     NTSTATUS status = STATUS_SUCCESS;
     status = ZwClose(Section);
     if (!NT_SUCCESS(status))
         DbgPrint("Failed closing a section, error code: %lx\r\n", status);
+        */
 }
 
 VOID
 unmap_section_address(void)
 {
+    /*
     NTSTATUS status = STATUS_SUCCESS;
     status = ZwUnmapViewOfSection(ZwCurrentProcess(), vr_flow_table);
     if (!NT_SUCCESS(status))
         DbgPrint("Failed closing a section, error code: %lx\r\n", status);
+        */
 }
 
 int
 set_section_address(void)
 {
+    /*
     NTSTATUS status = STATUS_SUCCESS;
     size_t flow_table_size;
     UNICODE_STRING _SectionName;
@@ -46,21 +51,25 @@ set_section_address(void)
 
     vr_flow_table = BaseAddress;
     vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
-
+    */
     return 0;
 }
+
+PMDL MemoryMdl = NULL;
 
 int
 memory_init(void)
 {
-    NTSTATUS status = STATUS_SUCCESS;
+    
+//    NTSTATUS status = STATUS_SUCCESS;
     UNICODE_STRING _SectionName;
     OBJECT_ATTRIBUTES ObjectAttributes;
     ULONG Attributes = OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | OBJ_OPENIF;;
     LARGE_INTEGER MaxSize;
     size_t flow_table_size;
-    PVOID BaseAddress = NULL;
-    SIZE_T ViewSize = 0;
+  //  PVOID BaseAddress = NULL;
+  //  SIZE_T ViewSize = 0;
+    PVOID userMem;
     RtlInitUnicodeString(&_SectionName, SectionName);
     InitializeObjectAttributes(&ObjectAttributes, &_SectionName, Attributes, NULL, NULL);
     compute_size_oflow_table();
@@ -68,9 +77,13 @@ memory_init(void)
     flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
 
     MaxSize.QuadPart = flow_table_size;
+    userMem = ExAllocatePoolWithTag(NonPagedPool, flow_table_size, 'test');
 
-    status = ZwCreateSection(&Section, SECTION_ALL_ACCESS, &ObjectAttributes, &MaxSize, PAGE_READWRITE, SEC_COMMIT, NULL);
 
+    //atus = ZwCreateSection(&Section, SECTION_ALL_ACCESS, &ObjectAttributes, &MaxSize, PAGE_READWRITE, SEC_COMMIT, NULL);
+    MemoryMdl = IoAllocateMdl(userMem, flow_table_size, FALSE, FALSE, NULL);
+    MmBuildMdlForNonPagedPool(MemoryMdl);
+    /*
     if (!NT_SUCCESS(status))
     {
         DbgPrint("Failed creating a section, error code: %lx\r\n", status);
@@ -82,7 +95,7 @@ memory_init(void)
             return -1;
         }
     }
-
+    */ /*
     flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
 
     status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
@@ -91,9 +104,9 @@ memory_init(void)
         DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
 
     RtlZeroMemory(BaseAddress, flow_table_size);
-
-    vr_flow_table = BaseAddress;
-    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
+    */
+    vr_flow_table = userMem;
+    vr_oflow_table = (char *)userMem + VR_FLOW_TABLE_SIZE;
 
     return 0;
 }

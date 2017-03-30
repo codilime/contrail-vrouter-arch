@@ -337,6 +337,7 @@
     <ClInclude Include="include\vr_vxlan.h" />
     <ClInclude Include="include\vr_windows.h" />
     <ClInclude Include="include\vr_ksync.h" />
+    <ClInclude Include="include\windows_builtins.h" />
     <ClInclude Include="windows\include\windows_builtins.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
