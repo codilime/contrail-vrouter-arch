@@ -59,7 +59,6 @@ struct nlmsghdr {
 #define NLMSG_MIN_TYPE  0x10    /* Linux reserves below values for control
                                  * messages */
 
-
 /*
  * Netlink Attribute Header.
  * NOTE: Payload, following the header, needs to be padded (at the end)
@@ -78,5 +77,20 @@ struct nlattr {
 #define NLA_ALIGNTO 4
 #define NLA_ALIGN(len)  (((len) + NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
 #define NLA_HDRLEN  ((int) NLA_ALIGN(sizeof(struct nlattr)))
+#define NLMSG_ALIGN(len) ( ((len)+NLMSG_ALIGNTO-1) & ~(NLMSG_ALIGNTO-1) )
+#define NLMSG_HDRLEN     ((int) NLMSG_ALIGN(sizeof(struct nlmsghdr)))
+#define GENL_HDRLEN     NLMSG_ALIGN(sizeof(struct genlmsghdr))
+#define GENL_ID_CTRL 0x10
+#define IFNAMSIZ 16
+#define IFNAMSIZ 16
+#define AF_BRIDGE 7
+#define AF_NETLINK 0
+#define NLMSG_DONE  0x3
+
+struct genlmsghdr {
+    UINT8    cmd;
+    UINT8    version;
+    UINT16   reserved;
+};
 
 #endif /* FAKE_NETLINK_H */
