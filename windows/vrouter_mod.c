@@ -35,10 +35,16 @@ static char hex_table[] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 };
 
-static int
+static NTSTATUS
 vr_message_init(void)
 {
-    return vr_sandesh_init();
+    int ret = vr_sandesh_init();
+    if (ret) {
+        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 static void

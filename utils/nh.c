@@ -766,6 +766,7 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
+
     while ((opt = getopt_long(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {
@@ -780,12 +781,7 @@ main(int argc, char *argv[])
 
     validate_options();
 
-#ifndef _WINDOWS
     cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
-#else
-    cl = vr_get_nl_client(VR_NAMED_PIPE_WINDOWS);
-#endif
-
     if (!cl) {
         exit(1);
     }

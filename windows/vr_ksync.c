@@ -3,23 +3,20 @@
 #include "Ntstrsafe.h"
 #include "vr_message.h"
 
+#include "vr_netlink_defs.h"
+
 const WCHAR DeviceName[] = L"\\Device\\vrouterKsync";
 const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
-#define KSYNC_CLEAN_SYMLINK (1 << 0)
-#define KSYNC_CLEAN_DEVICE  (1 << 1)
-
-#define KSYNC_BUFFER_SIZE (4096)
-
 struct ksync_response {
     ULONG len;
-    unsigned char data[KSYNC_BUFFER_SIZE];
+    unsigned char data[NL_MSG_DEFAULT_SIZE];
 };
 
 #define KSYNC_QUEUE_SIZE (sizeof(struct ksync_response))
 
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
-static int ToClean = 0;
+static BOOLEAN KsyncSymlinkCreated = FALSE;
 
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
@@ -152,15 +149,14 @@ DestroyDevice(PDRIVER_OBJECT DriverObject)
 {
     UNICODE_STRING _DeviceSymLink;
 
-    if (ToClean & KSYNC_CLEAN_SYMLINK) {
+    if (KsyncSymlinkCreated) {
         RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
         IoDeleteSymbolicLink(&_DeviceSymLink);
-        ToClean ^= KSYNC_CLEAN_SYMLINK;
+        KsyncSymlinkCreated = FALSE;
     }
-    if (ToClean & KSYNC_CLEAN_DEVICE) {
+    if (KsyncDeviceObject != NULL) {
         IoDeleteDevice(KsyncDeviceObject);
         KsyncDeviceObject = NULL;
-        ToClean ^= KSYNC_CLEAN_DEVICE;
     }
 }
 
@@ -185,10 +181,10 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
     }
 
     Status = IoCreateDevice(DriverObject, KSYNC_QUEUE_SIZE, &_DeviceName,
-        FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
-    if (NT_SUCCESS(Status)) {
-        ToClean |= KSYNC_CLEAN_DEVICE;
-
+                            FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
+                            FALSE, &DeviceObject);
+    if (NT_SUCCESS(Status))
+    {
         KsyncDeviceObject = DeviceObject;
 
 #pragma prefast(push)
@@ -206,13 +202,10 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
 
         Status = IoCreateSymbolicLink(&_DeviceSymLink, &_DeviceName);
         if (NT_SUCCESS(Status)) {
-            ToClean |= KSYNC_CLEAN_SYMLINK;
+            KsyncSymlinkCreated = TRUE;
         } else {
             IoDeleteDevice(DeviceObject);
             KsyncDeviceObject = NULL;
-            DeviceObject = NULL;
-
-            ToClean &= ~KSYNC_CLEAN_DEVICE;
         }
     } else {
         DbgPrint("IoCreateDevice failed. Error code: %d\n", Status);

@@ -596,6 +596,20 @@ nl_client_stream_recvmsg(struct nl_client *cl) {
 }
 #endif
 
+#ifdef _WINDOWS
+int
+nl_client_stream_recvmsg(struct nl_client *cl)
+{
+    return 0;
+}
+
+int
+nl_client_datagram_recvmsg(struct nl_client *cl)
+{
+    return 0;
+}
+#endif
+
 int
 nl_recvmsg(struct nl_client *cl)
 {
@@ -622,6 +636,12 @@ nl_sendmsg(struct nl_client *cl)
     msg.msg_iovlen = 1;
 
     return sendmsg(cl->cl_sock, &msg, 0);
+}
+#else
+int
+nl_sendmsg(struct nl_client *cl)
+{
+    return win_nl_sendmsg(cl);
 }
 #endif
 

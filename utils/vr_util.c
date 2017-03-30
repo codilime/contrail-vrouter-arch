@@ -262,22 +262,12 @@ vr_sendmsg(struct nl_client *cl, void *request,
     return nl_sendmsg(cl);
 }
 
-struct nl_client *
-vr_get_nl_client(unsigned int proto)
+#ifndef _WINDOWS
+static int
+__setup_nl_client(struct nl_client *cl, unsigned int proto)
 {
-    int ret;
+    int ret = 0;
     unsigned int sock_proto = proto;
-    struct nl_client *cl;
-
-    cl = nl_register_client();
-    if (!cl)
-        return NULL;
-
-    if (proto == VR_NAMED_PIPE_WINDOWS)
-    {
-        cl->cl_recvmsg = nl_client_stream_recvmsg;
-        return cl;
-    }
 
     parse_ini_file();
 
@@ -286,23 +276,46 @@ vr_get_nl_client(unsigned int proto)
 
     ret = nl_socket(cl, get_domain(), get_type(), sock_proto);
     if (ret <= 0)
-        goto fail;
+        return ret;
 
     ret = nl_connect(cl, get_ip(), get_port());
     if (ret < 0)
-        goto fail;
+        return ret;
 
     if ((proto == VR_NETLINK_PROTO_DEFAULT) &&
             (vrouter_get_family_id(cl) <= 0))
-        goto fail;
+        return -EINVAL;
 
-    return cl;
+    return 0;
+}
+#endif
 
-fail:
-    if (cl)
-        nl_free_client(cl);
+#ifdef _WINDOWS
+static int
+__setup_nl_client(struct nl_client *cl, unsigned int proto)
+{
+    return win_setup_nl_client(cl, proto);
+}
+#endif
 
-    return NULL;
+struct nl_client *
+vr_get_nl_client(unsigned int proto)
+{
+    int ret;
+    struct nl_client *cl;
+
+    cl = nl_register_client();
+    if (!cl)
+        return NULL;
+
+    ret = __setup_nl_client(cl, proto);
+    if (!ret) {
+        return cl;
+    } else {
+        if (cl)
+            nl_free_client(cl);
+        return NULL;
+    }
 }
 
 int
