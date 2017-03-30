@@ -11,8 +11,13 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static int ToClean = 0;
 
-NTSTATUS
-Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
+_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
+_Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
+_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
+
+_Use_decl_annotations_ NTSTATUS
+KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -21,8 +26,8 @@ Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-Close(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Use_decl_annotations_ NTSTATUS
+KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -31,8 +36,8 @@ Close(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Use_decl_annotations_ NTSTATUS
+KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     int ret;
     struct vr_message request, *response;
@@ -91,8 +96,8 @@ Write(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
+_Use_decl_annotations_ NTSTATUS
+KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -118,29 +123,17 @@ Read(PDEVICE_OBJECT DriverObject, PIRP Irp)
     {
         len = *((unsigned int*)(DriverObject->DeviceExtension));
 
-		if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
-			RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension+sizeof(unsigned int), len);
-			*((unsigned int*)(DriverObject->DeviceExtension)) = 0;
-			Irp->IoStatus.Information = len;
-		}
+        if (IoStackIrp->Parameters.Read.Length >= len && len > 0) {
+            RtlCopyMemory(ReadDataBuffer, (char *)DriverObject->DeviceExtension + sizeof(unsigned int), len);
+            *((unsigned int*)(DriverObject->DeviceExtension)) = 0;
+            Irp->IoStatus.Information = len;
+        }
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
-}
-
-NTSTATUS
-NotImplemented(PDEVICE_OBJECT DriverObject, PIRP Irp)
-{
-    UNREFERENCED_PARAMETER(DriverObject);
-
-    DbgPrint("Called a non-implemented function!");
-
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 VOID
@@ -157,7 +150,7 @@ DestroyDevice(PDRIVER_OBJECT DriverObject)
     if (ToClean & DEVICE)
     {
         IoDeleteDevice(DriverObject->DeviceObject);
-	    ToClean ^= DEVICE;
+        ToClean ^= DEVICE;
     }
 }
 
@@ -190,13 +183,16 @@ CreateDevice(PDRIVER_OBJECT DriverObject)
     if (NT_SUCCESS(Status))
     {
         ToClean |= DEVICE;
-        for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; i++)
-            DriverObject->MajorFunction[i] = NotImplemented;
+        
+#pragma prefast(push)
+#pragma prefast(disable:28175, "we're just setting it, it's allowed")
 
-        DriverObject->MajorFunction[IRP_MJ_CREATE] = Create;
-        DriverObject->MajorFunction[IRP_MJ_CLOSE] = Close;
-        DriverObject->MajorFunction[IRP_MJ_WRITE] = Write;
-        DriverObject->MajorFunction[IRP_MJ_READ] = Read;
+        DriverObject->MajorFunction[IRP_MJ_CREATE] = KsyncDispatchCreate;
+        DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
+        DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
+        DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
+
+#pragma prefast(pop)
 
         DeviceObject->Flags |= DO_DIRECT_IO;
         DeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);

@@ -223,7 +223,10 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char fla
 {
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    if (!pkt)
+        return NULL;
+
     RtlZeroMemory(pkt, sizeof(struct vr_packet));
 
     pkt->vp_win_flags = flags;
@@ -403,7 +406,7 @@ win_pclone(struct vr_packet *pkt)
     if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
         goto cleanup_nbl;
 
-    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct vr_packet), SxExtAllocationTag);
+    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
     if (npkt == NULL)
         goto cleanup_ctx;
     *npkt = *pkt;
