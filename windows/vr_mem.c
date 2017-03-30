@@ -1,112 +1,39 @@
 #include "vrouter.h"
 #include "vr_flow.h"
 
-const WCHAR SectionName[] = L"\\BaseNamedObjects\\vRouter";
+#define MEMORY_TAG 'MEM'
+
 extern void *vr_flow_table;
 extern void *vr_oflow_table;
 
-HANDLE Section;
-
-void
-memory_exit(void)
-{
-    /*
-    NTSTATUS status = STATUS_SUCCESS;
-    status = ZwClose(Section);
-    if (!NT_SUCCESS(status))
-        DbgPrint("Failed closing a section, error code: %lx\r\n", status);
-        */
-}
-
-VOID
-unmap_section_address(void)
-{
-    /*
-    NTSTATUS status = STATUS_SUCCESS;
-    status = ZwUnmapViewOfSection(ZwCurrentProcess(), vr_flow_table);
-    if (!NT_SUCCESS(status))
-        DbgPrint("Failed closing a section, error code: %lx\r\n", status);
-        */
-}
-
-int
-set_section_address(void)
-{
-    /*
-    NTSTATUS status = STATUS_SUCCESS;
-    size_t flow_table_size;
-    UNICODE_STRING _SectionName;
-    PVOID BaseAddress = NULL;
-    SIZE_T ViewSize = 0;
-
-    RtlInitUnicodeString(&_SectionName, SectionName);
-    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
-
-    status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
-
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
-        return -1;
-    }
-
-    vr_flow_table = BaseAddress;
-    vr_oflow_table = (char *)BaseAddress + VR_FLOW_TABLE_SIZE;
-    */
-    return 0;
-}
-
-PMDL MemoryMdl = NULL;
+PMDL mdl_mem   = NULL;
+PVOID user_mem = NULL;
 
 int
 memory_init(void)
 {
-    
-//    NTSTATUS status = STATUS_SUCCESS;
-    UNICODE_STRING _SectionName;
-    OBJECT_ATTRIBUTES ObjectAttributes;
-    ULONG Attributes = OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | OBJ_OPENIF;;
-    LARGE_INTEGER MaxSize;
     size_t flow_table_size;
-  //  PVOID BaseAddress = NULL;
-  //  SIZE_T ViewSize = 0;
-    PVOID userMem;
-    RtlInitUnicodeString(&_SectionName, SectionName);
-    InitializeObjectAttributes(&ObjectAttributes, &_SectionName, Attributes, NULL, NULL);
+
     compute_size_oflow_table();
 
     flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
 
-    MaxSize.QuadPart = flow_table_size;
-    userMem = ExAllocatePoolWithTag(NonPagedPool, flow_table_size, 'test');
+    user_mem = ExAllocatePoolWithTag(NonPagedPool, flow_table_size, MEMORY_TAG);
 
+    mdl_mem = IoAllocateMdl(user_mem, flow_table_size, FALSE, FALSE, NULL);
+    MmBuildMdlForNonPagedPool(mdl_mem);
 
-    //atus = ZwCreateSection(&Section, SECTION_ALL_ACCESS, &ObjectAttributes, &MaxSize, PAGE_READWRITE, SEC_COMMIT, NULL);
-    MemoryMdl = IoAllocateMdl(userMem, flow_table_size, FALSE, FALSE, NULL);
-    MmBuildMdlForNonPagedPool(MemoryMdl);
-    /*
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("Failed creating a section, error code: %lx\r\n", status);
-        DbgPrint("Falling back to opening an existing section...\r\n");
-        status = ZwOpenSection(&Section, SECTION_ALL_ACCESS, &ObjectAttributes);
-        if (status != STATUS_SUCCESS)
-        {
-            DbgPrint("Failed open a section, error code: %lx\r\n", status);
-            return -1;
-        }
-    }
-    */ /*
-    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+    RtlZeroMemory(user_mem, flow_table_size);
 
-    status = ZwMapViewOfSection(Section, ZwCurrentProcess(), &BaseAddress, 0, flow_table_size, NULL, &ViewSize, ViewShare, 0, PAGE_READWRITE);
-
-    if (status != STATUS_SUCCESS)
-        DbgPrint("Failed creating a mapping, error code: %lx\r\n", status);
-
-    RtlZeroMemory(BaseAddress, flow_table_size);
-    */
-    vr_flow_table = userMem;
-    vr_oflow_table = (char *)userMem + VR_FLOW_TABLE_SIZE;
+    vr_flow_table = user_mem;
+    vr_oflow_table = (char *)user_mem + VR_FLOW_TABLE_SIZE;
 
     return 0;
+}
+
+void
+memory_exit(void)
+{
+    IoFreeMdl(mdl_mem);
+    ExFreePoolWithTag(user_mem, MEMORY_TAG);
 }

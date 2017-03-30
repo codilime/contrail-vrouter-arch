@@ -2113,13 +2113,6 @@ vr_flow_req_process(void *s_req)
 
     router = vrouter_get(req->fr_rid);
 
-#if defined(_WINDOWS)
-    if (set_section_address())
-        return;
-   // ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
-   // ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
-#endif
-
     switch (req->fr_op) {
     case FLOW_OP_FLOW_TABLE_GET:
         resp = vr_flow_req_get(req);
@@ -2163,9 +2156,7 @@ vr_flow_req_process(void *s_req)
     default:
         ret = -EINVAL;
     }
-#if defined(_WINDOWS)
-    unmap_section_address();
-#endif
+
 send_response:
     vr_message_response(object, resp, ret);
     if (need_destroy) {
@@ -2350,14 +2341,6 @@ vr_link_local_ports_init(struct vrouter *router)
 void
 vr_flow_exit(struct vrouter *router, bool soft_reset)
 {
-#if defined(_WINDOWS)
-    if (set_section_address())
-        return;
-
-  //  ((struct vr_htable*)router->vr_flow_table)->ht_htable->vb_mem = &vr_flow_table;
-  //  ((struct vr_htable*)router->vr_flow_table)->ht_otable->vb_mem = &vr_oflow_table;
-#endif
-
     vr_flow_table_reset(router);
     vr_link_local_ports_reset(router);
     if (!soft_reset) {
@@ -2365,19 +2348,12 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
         vr_fragment_table_exit(router);
         vr_link_local_ports_exit(router);
     }
-#if defined(_WINDOWS)
-    unmap_section_address();
-#endif
     return;
 }
 
 int
 vr_flow_init(struct vrouter *router)
 {
-#if defined(_WINDOWS)
-    if (set_section_address())
-        return -1;
-#endif
     int ret = 0;
 
     if ((ret = vr_fragment_table_init(router)) < 0)
@@ -2390,8 +2366,5 @@ vr_flow_init(struct vrouter *router)
         goto ret_val;
 
 ret_val:
-#if defined(_WINDOWS)
-    unmap_section_address();
-#endif
     return ret;
 }

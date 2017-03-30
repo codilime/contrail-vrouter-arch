@@ -15,10 +15,14 @@ struct ksync_response {
 
 #define KSYNC_QUEUE_SIZE (sizeof(struct ksync_response))
 
+<<<<<<< 26429c0b2b21ea67aa4da553bf3cccb397440e32
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
+=======
+static int ToClean = 0;
+extern PMDL mdl_mem;
+>>>>>>> Removed section
 
-<<<<<<< 03dc5329c453ef209057a3d1bc57cc1d21118fae
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
 _Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
@@ -26,12 +30,6 @@ _Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
 
 _Use_decl_annotations_ NTSTATUS
 KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
-=======
-extern PMDL MemoryMdl;
-
-NTSTATUS
-Create(PDEVICE_OBJECT DriverObject, PIRP Irp)
->>>>>>> WIP
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -170,10 +168,10 @@ KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
 #define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
 CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
 
-typedef struct _MEMORY_ENTRY
+typedef struct
 {
     PVOID       pBuffer;
-} MEMORY_ENTRY, *PMEMORY_ENTRY;
+} mem_wrapper;
 
 NTSTATUS
 DeviceControl(
@@ -183,34 +181,45 @@ DeviceControl(
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
-    PIO_STACK_LOCATION irpSp;// Pointer to current stack location
-    irpSp = IoGetCurrentIrpStackLocation(Irp);
+    NTSTATUS ntStatus = STATUS_SUCCESS;
+    PIO_STACK_LOCATION irpSp;
     void* UserVirtualAddress = NULL;
-    MEMORY_ENTRY returnedValue;
+    mem_wrapper returnedValue;
     PVOID buffer = NULL;
+
+    irpSp = IoGetCurrentIrpStackLocation(Irp);
 
     switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
     {
         case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
 
-            UserVirtualAddress = MmMapLockedPagesSpecifyCache(
-                MemoryMdl,
-                UserMode,
-                MmNonCached,
-                NULL,
-                FALSE,
-                NormalPagePriority); //Return the virtual address in the context of 
-                                     //the user space program who called the IOCTL
-            buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
-            returnedValue.pBuffer = UserVirtualAddress;
-            RtlCopyMemory(buffer,
-                &returnedValue,
-                sizeof(PVOID));
-            Irp->IoStatus.Information = sizeof(PVOID);
-         break;
+                UserVirtualAddress = MmMapLockedPagesSpecifyCache(
+                    mdl_mem,
+                    UserMode,
+                    MmNonCached,
+                    NULL,
+                    FALSE,
+                    NormalPagePriority);
+
+                buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+
+                returnedValue.pBuffer = UserVirtualAddress;
+
+                RtlCopyMemory(buffer, &returnedValue, sizeof(PVOID));
+
+                Irp->IoStatus.Information = sizeof(PVOID);
+
+                ntStatus = STATUS_SUCCESS;
+
+             break;
+
+        default:
+
+            ntStatus = STATUS_INVALID_DEVICE_REQUEST;
+            break;
     }
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Status = ntStatus;
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
