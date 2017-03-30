@@ -17,6 +17,23 @@
                                             VR_HENTRY_FLAG_DELETE_PROCESSED)
 #define VR_HENTRY_FLAG_IN_FREE_LIST      0x8
 
+
+struct vr_htable {
+    struct vrouter *ht_router;
+    unsigned int ht_hentries;
+    unsigned int ht_oentries;
+    unsigned int ht_entry_size;
+    unsigned int ht_key_size;
+    unsigned int ht_bucket_size;
+    struct vr_btable *ht_htable;
+    struct vr_btable *ht_otable;
+    struct vr_btable *ht_dtable;
+    get_hentry_key ht_get_key;
+    vr_hentry_t *ht_free_oentry_head;
+    unsigned int ht_used_oentries;
+    unsigned int ht_used_entries;
+};
+
 struct vr_hentry_delete_data {
     struct vr_htable *hd_table;
     unsigned int hd_index;

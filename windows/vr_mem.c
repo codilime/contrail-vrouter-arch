@@ -20,7 +20,16 @@ memory_init(void)
 
     user_mem = ExAllocatePoolWithTag(NonPagedPool, flow_table_size, MEMORY_TAG);
 
+    if (user_mem == NULL) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
     mdl_mem = IoAllocateMdl(user_mem, flow_table_size, FALSE, FALSE, NULL);
+
+    if (mdl_mem == NULL) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
     MmBuildMdlForNonPagedPool(mdl_mem);
 
     RtlZeroMemory(user_mem, flow_table_size);

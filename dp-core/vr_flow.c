@@ -19,8 +19,6 @@
 #include "vr_hash.h"
 #include "vr_ip_mtrie.h"
 
-
-
 #define VR_NUM_FLOW_TABLES          1
 
 #define VR_NUM_OFLOW_TABLES         1
@@ -30,21 +28,6 @@
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
 
-/*struct vr_htable {
-    struct vrouter *ht_router;
-    unsigned int ht_hentries;
-    unsigned int ht_oentries;
-    unsigned int ht_entry_size;
-    unsigned int ht_key_size;
-    unsigned int ht_bucket_size;
-    struct vr_btable *ht_htable;
-    struct vr_btable *ht_otable;
-    struct vr_btable *ht_dtable;
-    get_hentry_key ht_get_key;
-    vr_hentry_t *ht_free_oentry_head;
-    unsigned int ht_used_oentries;
-    unsigned int ht_used_entries;
-};*/
 
 /*
  * host can provide its own memory . Point in case is the DPDK. In DPDK,
@@ -2231,7 +2214,6 @@ vr_flow_invalidate_entry(vr_htable_t htable, vr_hentry_t *ent,
     struct vr_forwarding_md fmd;
     struct vr_flow_md flmd;
     struct vrouter *router = (struct vrouter *)data;
-
     if (!ent || !data)
         return;
 
@@ -2354,17 +2336,16 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
 int
 vr_flow_init(struct vrouter *router)
 {
-    int ret = 0;
+    int ret;
 
     if ((ret = vr_fragment_table_init(router)) < 0)
-        goto ret_val;
+        return ret;
 
     if ((ret = vr_flow_table_init(router)))
-        goto ret_val;
+        return ret;
 
     if ((ret = vr_link_local_ports_init(router)))
-        goto ret_val;
+        return ret;
 
-ret_val:
-    return ret;
+    return 0;
 }
