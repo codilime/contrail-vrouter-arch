@@ -196,57 +196,55 @@ SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 }
 
 void
-SxExtUninitializeVRouter(BOOLEAN device, BOOLEAN message, BOOLEAN vrouter, BOOLEAN assoc)
+SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 {
-    if (device)
+    if (ctx->device_up)
         DestroyDevice(SxDriverObject);
 
-    if (message)
+    if (ctx->message_up)
         vr_message_exit();
 
-    if (vrouter)
+    if (ctx->vrouter_up)
         vrouter_exit(false);
 
-    if (assoc)
+    if (ctx->assoc_up)
         vr_clean_assoc();
 }
 
 NDIS_STATUS
-SxExtInitializeVRouter()
+SxExtInitializeVRouter(struct vr_switch_context* ctx)
 {
-    BOOLEAN device = FALSE;
-    BOOLEAN message = FALSE;
-    BOOLEAN vrouter = FALSE;
-    BOOLEAN assoc = FALSE;
+    if (ctx->vrouter_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
+        return NDIS_STATUS_FAILURE;
 
     if (!NT_SUCCESS(CreateDevice(SxDriverObject))) {
         goto cleanup;
     }
 
-    device = TRUE;
+    ctx->device_up = TRUE;
 
     if (vr_message_init()) {
         goto cleanup;
     }
 
-    message = TRUE;
+    ctx->message_up = TRUE;
 
     if (vrouter_init()) {
         goto cleanup;
     }
 
-    vrouter = TRUE;
+    ctx->vrouter_up = TRUE;
 
     if (vr_init_assoc()) {
         goto cleanup;
     }
 
-    assoc = TRUE;
+    ctx->assoc_up = TRUE;
 
     return NDIS_STATUS_SUCCESS;
 
 cleanup:
-    SxExtUninitializeVRouter(device, message, vrouter, assoc);
+    SxExtUninitializeVRouter(ctx);
     return NDIS_STATUS_FAILURE;
 }
 
@@ -327,13 +325,14 @@ SxExtCreateSwitch(
     BOOLEAN vrouter = FALSE;
 
     NDIS_STATUS status = SxExtInitializeWindowsComponenets(Switch, ExtensionContext);
+    struct vr_switch_context* ctx = (struct vr_switch_context*)*ExtensionContext;
 
     if (!NT_SUCCESS(status))
         goto cleanup;
 
     windows = TRUE;
 
-    status = SxExtInitializeVRouter(Switch, ExtensionContext);
+    status = SxExtInitializeVRouter(ctx);
 
     if (!NT_SUCCESS(status))
         goto cleanup;
@@ -344,10 +343,10 @@ SxExtCreateSwitch(
 
 cleanup:
     if (vrouter)
-        SxExtUninitializeVRouter(TRUE, TRUE, TRUE, TRUE);
+        SxExtUninitializeVRouter(ctx);
 
     if (windows)
-        SxExtUninitializeWindowsComponents((NDIS_HANDLE)*ExtensionContext);
+        SxExtUninitializeWindowsComponents(ctx);
 
     SxSwitchObject = NULL;
 
@@ -365,8 +364,10 @@ SxExtDeleteSwitch(
 
     ASSERTMSG("Trying to delete another switch than currently active", Switch == SxSwitchObject);
 
-    SxExtUninitializeVRouter(TRUE, TRUE, TRUE, TRUE);
-    SxExtUninitializeWindowsComponents((struct vr_switch_context*)ExtensionContext);
+    struct vr_switch_context* ctx = (struct vr_switch_context*)ExtensionContext;
+
+    SxExtUninitializeVRouter(ctx);
+    SxExtUninitializeWindowsComponents(ctx);
 
     SxSwitchObject = NULL;
 }
