@@ -18,7 +18,7 @@ memory_init(void)
 
     flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
 
-    user_mem = ExAllocatePoolWithTag(NonPagedPool, flow_table_size, MEMORY_TAG);
+    user_mem = ExAllocatePoolWithTag(NonPagedPoolNx, flow_table_size, MEMORY_TAG);
 
     if (user_mem == NULL) {
         return STATUS_INSUFFICIENT_RESOURCES;

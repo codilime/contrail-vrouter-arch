@@ -28,7 +28,6 @@
 unsigned int vr_flow_entries = VR_DEF_FLOW_ENTRIES;
 unsigned int vr_oflow_entries = 0;
 
-
 /*
  * host can provide its own memory . Point in case is the DPDK. In DPDK,
  * we allocate the table from hugepages and just ask the flow module to
@@ -2095,7 +2094,6 @@ vr_flow_req_process(void *s_req)
     vr_flow_req *resp = NULL;
 
     router = vrouter_get(req->fr_rid);
-
     switch (req->fr_op) {
     case FLOW_OP_FLOW_TABLE_GET:
         resp = vr_flow_req_get(req);
@@ -2214,6 +2212,7 @@ vr_flow_invalidate_entry(vr_htable_t htable, vr_hentry_t *ent,
     struct vr_forwarding_md fmd;
     struct vr_flow_md flmd;
     struct vrouter *router = (struct vrouter *)data;
+
     if (!ent || !data)
         return;
 
@@ -2330,6 +2329,7 @@ vr_flow_exit(struct vrouter *router, bool soft_reset)
         vr_fragment_table_exit(router);
         vr_link_local_ports_exit(router);
     }
+
     return;
 }
 
