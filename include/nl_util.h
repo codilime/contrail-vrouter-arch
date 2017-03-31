@@ -48,6 +48,7 @@ struct nl_client {
     int (*cl_recvmsg)(struct nl_client *);
     struct sockaddr *cl_sa;
     uint32_t cl_sa_len;
+
 #ifdef _WINDOWS
     // Handle for named pipe used by Ksync
     HANDLE cl_win_pipe;

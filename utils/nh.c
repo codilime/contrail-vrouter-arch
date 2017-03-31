@@ -766,7 +766,6 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
-
     while ((opt = getopt_long(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {

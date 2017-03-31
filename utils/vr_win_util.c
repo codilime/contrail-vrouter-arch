@@ -3,8 +3,11 @@
 #include "nl_util.h"
 
 #define ETHER_ADDR_LEN	   6
-
 #define KSYNC_MAX_WRITE_COUNT (NL_MSG_DEFAULT_SIZE)
+
+// nl_*_sendmsg and nl_*_recvmsg functions use sendmsg and recvmsg
+// and they return -1 on error.
+#define GLIBC_ERROR (-1)
 
 const WCHAR *KSYNC_PATH = L"\\\\.\\vrouterKsync";
 
@@ -61,7 +64,7 @@ win_nl_sendmsg(struct nl_client *cl)
     BOOL ret = WriteFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &written, NULL);
     if (!ret) {
         print_and_get_error_code();
-        return -1;  // NOTE: Linux sendmsg() called by nl_sendmsg returns -1
+        return GLIBC_ERROR;
     }
 
     return written;
@@ -78,7 +81,7 @@ win_nl_client_recvmsg(struct nl_client *cl)
     BOOL ret = ReadFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &read, NULL);
     if (!ret) {
         print_and_get_error_code();
-        return -1;  // NOTE: Linux sendmsg() called by nl_sendmsg returns -1
+        return GLIBC_ERROR;
     }
 
     return read;

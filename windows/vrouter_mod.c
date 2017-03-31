@@ -189,9 +189,9 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
         return NDIS_STATUS_FAILURE;
     }
     
-    NTSTATUS Status = CreateDevice(DriverObject);
+    NTSTATUS Status = KsyncCreateDevice(DriverObject);
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("%s: CreateDevice() failed: %d\n", __func__, Status);
+        DbgPrint("%s: KsyncCreateDevice() failed: %d\n", __func__, Status);
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
@@ -207,7 +207,7 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
-    DestroyDevice(DriverObject);
+    KsyncDestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
 }
 
