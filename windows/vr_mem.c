@@ -1,5 +1,6 @@
 #include "vrouter.h"
 #include "vr_flow.h"
+#include "vr_mem.h"
 
 #define SHARED_MEMORY_POOL_TAG 'MEMS'
 
@@ -12,6 +13,7 @@ PVOID user_mem = NULL;
 NDIS_STATUS
 memory_init(void)
 {
+    NDIS_STATUS ret = NDIS_STATUS_SUCCESS;
     size_t flow_table_size;
 
     compute_size_oflow_table(&vr_oflow_entries, vr_flow_entries);
@@ -20,14 +22,14 @@ memory_init(void)
 
     user_mem = ExAllocatePoolWithTag(NonPagedPoolNx, flow_table_size, SHARED_MEMORY_POOL_TAG);
     if (user_mem == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        ret = STATUS_INSUFFICIENT_RESOURCES;
+        goto mem_clean_up;
     }
 
     mdl_mem = IoAllocateMdl(user_mem, flow_table_size, FALSE, FALSE, NULL);
     if (mdl_mem == NULL) {
-        ExFreePoolWithTag(user_mem, SHARED_MEMORY_POOL_TAG);
-        user_mem = NULL;
-        return STATUS_INSUFFICIENT_RESOURCES;
+        ret = STATUS_INSUFFICIENT_RESOURCES;
+        goto mem_clean_up;
     }
 
     MmBuildMdlForNonPagedPool(mdl_mem);
@@ -37,14 +39,21 @@ memory_init(void)
     vr_flow_table = user_mem;
     vr_oflow_table = (char *)user_mem + VR_FLOW_TABLE_SIZE;
 
-    return NDIS_STATUS_SUCCESS;
+    return ret;
+
+mem_clean_up:
+    memory_exit();
+    return ret;
 }
 
 void
 memory_exit(void)
 {
-    IoFreeMdl(mdl_mem);
+    if (mdl_mem != NULL)
+        IoFreeMdl(mdl_mem);
     mdl_mem = NULL;
-    ExFreePoolWithTag(user_mem, SHARED_MEMORY_POOL_TAG);
+
+    if (user_mem != NULL)
+        ExFreePoolWithTag(user_mem, SHARED_MEMORY_POOL_TAG);
     user_mem = NULL;
 }

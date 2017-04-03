@@ -1,8 +1,7 @@
 #pragma once
 
-int
+NDIS_STATUS
 memory_init(void);
 
 void
 memory_exit(void);
-

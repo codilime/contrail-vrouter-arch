@@ -23,6 +23,15 @@ static int ToClean = 0;
 extern PMDL mdl_mem;
 >>>>>>> Removed section
 
+#define SIOCTL_TYPE 40000
+#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
+    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
+
+struct mem_wrapper
+{
+    PVOID       pBuffer;
+};
+
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
 _Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
@@ -165,15 +174,6 @@ KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
         KsyncDeviceObject = NULL;
     }
 }
-#define SIOCTL_TYPE 40000
-#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
-    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
-
-struct mem_wrapper
-{
-    PVOID       pBuffer;
-};
-
 
 _Use_decl_annotations_ NTSTATUS
 KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -201,9 +201,17 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
                 NormalPagePriority);
 
             buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+
+            if (!buffer) {
+                Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+                Irp->IoStatus.Information = 0;
+                IoCompleteRequest(Irp, IO_NO_INCREMENT);
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+
             returnedValue.pBuffer = UserVirtualAddress;
-            RtlCopyMemory(buffer, &returnedValue, sizeof(PVOID));
-            Irp->IoStatus.Information = sizeof(PVOID);
+            RtlCopyMemory(buffer, &returnedValue, sizeof(struct mem_wrapper));
+            Irp->IoStatus.Information = sizeof(struct mem_wrapper);
             ntStatus = STATUS_SUCCESS;
 
             break;
