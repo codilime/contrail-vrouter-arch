@@ -1,4 +1,5 @@
 #include "vr_os.h"
+#include "vr_mem.h"
 #include "vr_windows.h"
 #include "Ntstrsafe.h"
 #include "vr_message.h"
@@ -15,13 +16,8 @@ struct ksync_response {
 
 #define KSYNC_QUEUE_SIZE (sizeof(struct ksync_response))
 
-<<<<<<< 26429c0b2b21ea67aa4da553bf3cccb397440e32
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
-=======
-static int ToClean = 0;
-extern PMDL mdl_mem;
->>>>>>> Removed section
 
 #define SIOCTL_TYPE 40000
 #define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
@@ -182,7 +178,6 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     NTSTATUS ntStatus = STATUS_SUCCESS;
     PIO_STACK_LOCATION irpSp;
-    void* UserVirtualAddress = NULL;
     struct mem_wrapper returnedValue;
     PVOID buffer = NULL;
 
@@ -191,14 +186,6 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
     {
         case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
-
-            UserVirtualAddress = MmMapLockedPagesSpecifyCache(
-                mdl_mem,
-                UserMode,
-                MmNonCached,
-                NULL,
-                FALSE,
-                NormalPagePriority);
 
             buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
 
@@ -209,7 +196,7 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
                 return STATUS_INSUFFICIENT_RESOURCES;
             }
 
-            returnedValue.pBuffer = UserVirtualAddress;
+            returnedValue.pBuffer = user_virtual_address;
             RtlCopyMemory(buffer, &returnedValue, sizeof(struct mem_wrapper));
             Irp->IoStatus.Information = sizeof(struct mem_wrapper);
             ntStatus = STATUS_SUCCESS;

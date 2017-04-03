@@ -7,6 +7,7 @@
 extern void *vr_flow_table;
 extern void *vr_oflow_table;
 
+void* user_virtual_address = NULL;
 PMDL mdl_mem   = NULL;
 PVOID user_mem = NULL;
 
@@ -39,6 +40,19 @@ memory_init(void)
     vr_flow_table = user_mem;
     vr_oflow_table = (char *)user_mem + VR_FLOW_TABLE_SIZE;
 
+    user_virtual_address = MmMapLockedPagesSpecifyCache(
+        mdl_mem,
+        UserMode,
+        MmNonCached,
+        NULL,
+        FALSE,
+        NormalPagePriority);
+
+    if (!user_virtual_address) {
+        ret = STATUS_INSUFFICIENT_RESOURCES;
+        goto mem_clean_up;
+    }
+
     return ret;
 
 mem_clean_up:
@@ -49,11 +63,19 @@ mem_clean_up:
 void
 memory_exit(void)
 {
-    if (mdl_mem != NULL)
+    if (mdl_mem != NULL) {
+        if (user_virtual_address != NULL)
+            MmUnmapLockedPages(user_virtual_address, mdl_mem);
+
         IoFreeMdl(mdl_mem);
+        user_virtual_address = NULL;
+    }
     mdl_mem = NULL;
 
     if (user_mem != NULL)
         ExFreePoolWithTag(user_mem, SHARED_MEMORY_POOL_TAG);
     user_mem = NULL;
+
+    vr_flow_table = NULL;
+    vr_oflow_table = NULL;
 }
