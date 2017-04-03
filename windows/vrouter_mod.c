@@ -22,6 +22,9 @@ ULONG  SxExtOidRequestId = 'RVCO';
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
 
+// This is exported by SxLibrary
+extern PDRIVER_OBJECT SxDriverObject;
+
 unsigned int vr_num_cpus = 1;
 
 /* Read/write lock which must be acquired by deferred callbacks. Used in functions from
@@ -38,6 +41,12 @@ static int
 vr_message_init(void)
 {
     return vr_sandesh_init();
+}
+
+static void
+vr_message_exit(void)
+{
+    vr_sandesh_exit();
 }
 
 /*  Dumps packet contents to the debug buffer. Packet contents will be formatted in
@@ -175,27 +184,7 @@ AddNicToArray(struct vr_switch_context* ctx, struct vr_nic* nic, NDIS_IF_COUNTED
 NDIS_STATUS
 SxExtInitialize(PDRIVER_OBJECT DriverObject)
 {
-    int ret;
     DbgPrint("SxExtInitialize\r\n");
-    
-    vr_num_cpus = KeQueryActiveProcessorCount(NULL);
-    if (!vr_num_cpus) {
-        DbgPrint("%s: Failed to get processor count\n", __func__);
-        return NDIS_STATUS_FAILURE;
-    }
-    
-    NTSTATUS Status = CreateDevice(DriverObject);
-
-    ret = vr_message_init();
-    
-    if (NT_ERROR(Status) || ret)
-    {
-	    return NDIS_STATUS_DEVICE_FAILED;
-    }
-    else if (!NT_SUCCESS(Status))
-    {
-	    DbgPrint("CreateDevice informal/warning: %d\n", Status);
-    }
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -203,8 +192,110 @@ SxExtInitialize(PDRIVER_OBJECT DriverObject)
 VOID
 SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 {
-    DestroyDevice(DriverObject);
     DbgPrint("SxExtUninitialize\r\n");
+}
+
+void
+SxExtUninitializeVRouter(struct vr_switch_context* ctx)
+{
+    if (ctx->device_up)
+        DestroyDevice(SxDriverObject);
+
+    if (ctx->message_up)
+        vr_message_exit();
+
+    if (ctx->vrouter_up)
+        vrouter_exit(false);
+
+    if (ctx->assoc_up)
+        vr_clean_assoc();
+}
+
+NDIS_STATUS
+SxExtInitializeVRouter(struct vr_switch_context* ctx)
+{
+    if (ctx->vrouter_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
+        return NDIS_STATUS_FAILURE;
+
+    ctx->device_up = NT_SUCCESS(CreateDevice(SxDriverObject));
+
+    if (!ctx->device_up)
+        goto cleanup;
+
+    ctx->message_up = !vr_message_init();
+
+    if (!ctx->message_up)
+        goto cleanup;
+
+    ctx->vrouter_up = !vrouter_init();
+
+    if (!ctx->vrouter_up)
+        goto cleanup;
+
+    ctx->assoc_up = !vr_init_assoc();
+
+    if (!ctx->assoc_up)
+        goto cleanup;
+
+    return NDIS_STATUS_SUCCESS;
+
+cleanup:
+    SxExtUninitializeVRouter(ctx);
+    return NDIS_STATUS_FAILURE;
+}
+
+void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
+{
+    if (ctx)
+    {
+        if (ctx->lock)
+            NdisFreeRWLock(ctx->lock);
+
+        ExFreePoolWithTag(ctx, SxExtAllocationTag);
+    }
+
+    if (AsyncWorkRWLock)
+        NdisFreeRWLock(AsyncWorkRWLock);
+
+    if (SxNBLPool)
+        vrouter_free_pool(SxNBLPool);
+}
+
+NDIS_STATUS
+SxExtInitializeWindowsComponenets(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
+{
+    struct vr_switch_context *ctx = NULL;
+
+    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
+    if (ctx == NULL)
+        return NDIS_STATUS_RESOURCES;
+
+    RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
+
+    ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+
+    ctx->restart = TRUE;
+
+    *ExtensionContext = (NDIS_HANDLE)ctx;
+
+    AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+    if (AsyncWorkRWLock == NULL)
+        goto cleanup;
+
+    SxNBLPool = vrouter_generate_pool();
+    if (SxNBLPool == NULL)
+        goto cleanup;
+
+    *ExtensionContext = (NDIS_HANDLE) ctx;
+
+    return NDIS_STATUS_SUCCESS;
+
+cleanup:
+    SxExtUninitializeWindowsComponents(ctx);
+
+    *ExtensionContext = NULL;
+
+    return NDIS_STATUS_FAILURE;
 }
 
 NDIS_STATUS
@@ -215,43 +306,46 @@ SxExtCreateSwitch(
 {
     DbgPrint("SxExtCreateSwitch\r\n");
 
-    struct vr_switch_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
-    if (!ctx) {
-        DbgPrint("%s: Allocating vr_switch_context failed\n", __func__);
+    if (SxSwitchObject != NULL)
+        return NDIS_STATUS_FAILURE;
+
+    vr_num_cpus = KeQueryActiveProcessorCount(NULL);
+    if (!vr_num_cpus) {
+        DbgPrint("%s: Failed to get processor count\n", __func__);
         return NDIS_STATUS_FAILURE;
     }
-    RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
-    ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
-    ctx->restart = TRUE;
-
-    *ExtensionContext = (NDIS_HANDLE)ctx;
 
     SxSwitchObject = Switch;
 
-    AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
-    if (AsyncWorkRWLock == NULL)
-        return NDIS_STATUS_RESOURCES;
+    BOOLEAN windows = FALSE;
+    BOOLEAN vrouter = FALSE;
 
-    SxNBLPool = vrouter_generate_pool();
-    if (SxNBLPool == NULL)
-    {
-        NdisFreeRWLock(AsyncWorkRWLock);
-        return NDIS_STATUS_RESOURCES;
-    }
+    NDIS_STATUS status = SxExtInitializeWindowsComponenets(Switch, ExtensionContext);
+    struct vr_switch_context* ctx = (struct vr_switch_context*)*ExtensionContext;
 
-    if (vrouter_init()) {
-        goto Failure;
-    }
+    if (!NT_SUCCESS(status))
+        goto cleanup;
 
-    if (vr_init_assoc()) {
-        goto Failure;
-    }
+    windows = TRUE;
+
+    status = SxExtInitializeVRouter(ctx);
+
+    if (!NT_SUCCESS(status))
+        goto cleanup;
+
+    vrouter = TRUE;
 
     return NDIS_STATUS_SUCCESS;
 
-Failure:
-    NdisFreeRWLock(AsyncWorkRWLock);
-    NdisFreeNetBufferListPool(SxNBLPool);
+cleanup:
+    if (vrouter)
+        SxExtUninitializeVRouter(ctx);
+
+    if (windows)
+        SxExtUninitializeWindowsComponents(ctx);
+
+    SxSwitchObject = NULL;
+
     return NDIS_STATUS_FAILURE;
 }
 
@@ -264,15 +358,14 @@ SxExtDeleteSwitch(
     DbgPrint("SxExtDeleteSwitch\r\n");
     UNREFERENCED_PARAMETER(Switch);
 
-    NdisFreeRWLock(AsyncWorkRWLock);
+    ASSERTMSG("Trying to delete another switch than currently active", Switch == SxSwitchObject);
+
+    struct vr_switch_context* ctx = (struct vr_switch_context*)ExtensionContext;
+
+    SxExtUninitializeVRouter(ctx);
+    SxExtUninitializeWindowsComponents(ctx);
+
     SxSwitchObject = NULL;
-
-    vrouter_free_pool(SxNBLPool);
-    NdisFreeRWLock(((struct vr_switch_context*)ExtensionContext)->lock);
-    ExFreePoolWithTag(ExtensionContext, SxExtAllocationTag);
-
-    vr_clean_assoc();
-    vrouter_exit(false);
 }
 
 VOID
