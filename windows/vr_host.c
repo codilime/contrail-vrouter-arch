@@ -3,12 +3,9 @@
 #include <errno.h>
 #include "vr_os.h"
 #include "vr_packet.h"
+#include "vr_stats.h"
 #include "vr_windows.h"
 #include "vrouter.h"
-
-extern void vif_attach(struct vr_interface *vif);
-extern void vr_malloc_stats(unsigned int, unsigned int);
-extern void vr_free_stats(unsigned int);
 
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
@@ -122,7 +119,7 @@ free_associated_nbl(struct vr_packet* pkt)
 {
     ASSERT(pkt != NULL);
 
-    unsigned char any_flag = VP_WIN_RECEIVED | VP_WIN_CLONED | VP_WIN_CREATED;
+    const unsigned char any_flag = VP_WIN_RECEIVED | VP_WIN_CLONED | VP_WIN_CREATED;
     ASSERTMSG("vr_packet which doesn't have any source flag set", (pkt->vp_win_flags & any_flag) > 0);
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
@@ -250,7 +247,9 @@ struct vr_packet *
 win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char flags)
 {
     ASSERT(nbl != NULL);
-    ASSERTMSG("No source provided", (flags & (VP_WIN_CLONED | VP_WIN_CREATED | VP_WIN_RECEIVED)) == 0);
+
+    const unsigned char any_flag = VP_WIN_RECEIVED | VP_WIN_CLONED | VP_WIN_CREATED;
+    ASSERTMSG("No source provided", (flags & any_flag) == 0);
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */

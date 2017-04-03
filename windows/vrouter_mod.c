@@ -5,9 +5,6 @@
 #include "vr_packet.h"
 #include "vr_sandesh.h"
 
-extern void vif_attach(struct vr_interface *vif);
-extern void vif_detach(struct vr_interface *vif);
-
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 

@@ -308,6 +308,8 @@ extern void vrouter_put_interface(struct vr_interface *);
 extern int vr_interface_dump_wrapper(vr_interface_req *);
 extern int vr_interface_add(vr_interface_req *, bool);
 
+extern void vif_attach(struct vr_interface *vif);
+extern void vif_detach(struct vr_interface *vif);
 extern int vif_delete(struct vr_interface *);
 extern struct vr_interface *vif_find(struct vrouter *, char *);
 extern unsigned int vif_get_mtu(struct vr_interface *);
