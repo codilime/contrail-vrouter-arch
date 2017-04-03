@@ -119,8 +119,7 @@ free_associated_nbl(struct vr_packet* pkt)
 {
     ASSERT(pkt != NULL);
 
-    const unsigned char any_flag = VP_WIN_RECEIVED | VP_WIN_CLONED | VP_WIN_CREATED;
-    ASSERTMSG("vr_packet which doesn't have any source flag set", (pkt->vp_win_flags & any_flag) > 0);
+    ASSERTMSG("vr_packet which doesn't have any source flag set", (pkt->vp_win_flags & VP_WIN_ANY_SOURCE) > 0);
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
@@ -248,8 +247,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char fla
 {
     ASSERT(nbl != NULL);
 
-    const unsigned char any_flag = VP_WIN_RECEIVED | VP_WIN_CLONED | VP_WIN_CREATED;
-    ASSERTMSG("No source provided", (flags & any_flag) == 0);
+    ASSERTMSG("No source provided", (flags & VP_WIN_ANY_SOURCE) == 0);
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
@@ -355,9 +353,6 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     ASSERT(pkt != NULL);
     ASSERT(size > 0);
 
-    if (pkt == NULL)
-        return NULL;
-
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
     if (nbl == NULL)
         return NULL;
@@ -388,9 +383,6 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 {
     ASSERT(pkt != NULL);
 
-    if (!pkt)
-        return NULL;
-
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
     if (nbl == NULL)
         return NULL;
@@ -418,9 +410,6 @@ static void
 win_preset(struct vr_packet *pkt)
 {
     ASSERT(pkt != NULL);
-
-    if (!pkt)
-        return;
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
     if (!nbl)

@@ -189,6 +189,7 @@
 #define VP_WIN_CLONED                       0b0001
 #define VP_WIN_CREATED                      0b0010
 #define VP_WIN_RECEIVED                     0b0100
+#define VP_WIN_ANY_SOURCE                   (VP_WIN_RECEIVED | VP_WIN_CREATED | VP_WIN_CLONED)
 #endif
 
 struct vr_drop_stats {
