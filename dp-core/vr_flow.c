@@ -2242,14 +2242,14 @@ vr_flow_table_reset(struct vrouter *router)
 }
 
 void
-compute_size_oflow_table()
+compute_size_oflow_table(int *oentries, int entries)
 {
     /*
     * Overflow entries is 20% of the main flow table
     * adjusted to next 1k
     */
-    if (!vr_oflow_entries)
-        vr_oflow_entries = ((vr_flow_entries / 5) + 1023) & ~1023;
+    if (!*oentries)
+        *oentries = ((entries / 5) + 1023) & ~1023;
 }
 
 static int
@@ -2257,7 +2257,7 @@ vr_flow_table_init(struct vrouter *router)
 {
     if (!router->vr_flow_table) {
 
-        compute_size_oflow_table();
+        compute_size_oflow_table(&vr_oflow_entries, vr_flow_entries);
 
         router->vr_flow_table = vr_htable_attach(router, vr_flow_entries,
                 vr_flow_table, vr_oflow_entries, vr_oflow_table,

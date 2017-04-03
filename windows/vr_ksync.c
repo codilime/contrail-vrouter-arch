@@ -167,12 +167,12 @@ KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
 }
 #define SIOCTL_TYPE 40000
 #define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
-CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
+    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
 
-typedef struct
+struct mem_wrapper
 {
     PVOID       pBuffer;
-} mem_wrapper;
+};
 
 
 _Use_decl_annotations_ NTSTATUS
@@ -183,7 +183,7 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     NTSTATUS ntStatus = STATUS_SUCCESS;
     PIO_STACK_LOCATION irpSp;
     void* UserVirtualAddress = NULL;
-    mem_wrapper returnedValue;
+    struct mem_wrapper returnedValue;
     PVOID buffer = NULL;
 
     irpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -192,25 +192,21 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     {
         case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
 
-                UserVirtualAddress = MmMapLockedPagesSpecifyCache(
-                    mdl_mem,
-                    UserMode,
-                    MmNonCached,
-                    NULL,
-                    FALSE,
-                    NormalPagePriority);
+            UserVirtualAddress = MmMapLockedPagesSpecifyCache(
+                mdl_mem,
+                UserMode,
+                MmNonCached,
+                NULL,
+                FALSE,
+                NormalPagePriority);
 
-                buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+            buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+            returnedValue.pBuffer = UserVirtualAddress;
+            RtlCopyMemory(buffer, &returnedValue, sizeof(PVOID));
+            Irp->IoStatus.Information = sizeof(PVOID);
+            ntStatus = STATUS_SUCCESS;
 
-                returnedValue.pBuffer = UserVirtualAddress;
-
-                RtlCopyMemory(buffer, &returnedValue, sizeof(PVOID));
-
-                Irp->IoStatus.Information = sizeof(PVOID);
-
-                ntStatus = STATUS_SUCCESS;
-
-             break;
+            break;
 
         default:
 
