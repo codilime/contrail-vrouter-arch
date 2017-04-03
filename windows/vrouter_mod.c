@@ -217,29 +217,25 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
     if (ctx->vrouter_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
         return NDIS_STATUS_FAILURE;
 
-    if (!NT_SUCCESS(CreateDevice(SxDriverObject))) {
+    ctx->device_up = NT_SUCCESS(CreateDevice(SxDriverObject));
+
+    if (!ctx->device_up)
         goto cleanup;
-    }
 
-    ctx->device_up = TRUE;
+    ctx->message_up = !vr_message_init();
 
-    if (vr_message_init()) {
+    if (!ctx->message_up)
         goto cleanup;
-    }
 
-    ctx->message_up = TRUE;
+    ctx->vrouter_up = !vrouter_init();
 
-    if (vrouter_init()) {
+    if (!ctx->vrouter_up)
         goto cleanup;
-    }
 
-    ctx->vrouter_up = TRUE;
+    ctx->assoc_up = !vr_init_assoc();
 
-    if (vr_init_assoc()) {
+    if (!ctx->assoc_up)
         goto cleanup;
-    }
-
-    ctx->assoc_up = TRUE;
 
     return NDIS_STATUS_SUCCESS;
 
