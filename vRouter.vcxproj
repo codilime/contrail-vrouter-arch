@@ -142,6 +142,7 @@
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <OutputName>ndislwf</OutputName>
     <IncludePath>$(ProjectDir)\Include;$(IncludePath)</IncludePath>
+    <ApiValidator_Enable>false</ApiValidator_Enable>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -322,6 +323,7 @@
     <ClInclude Include="include\vr_message.h" />
     <ClInclude Include="include\vr_mirror.h" />
     <ClInclude Include="include\vr_mpls.h" />
+    <ClInclude Include="include\vr_ksync_defs.h" />
     <ClInclude Include="include\vr_nexthop.h" />
     <ClInclude Include="include\vr_os.h" />
     <ClInclude Include="include\vr_packet.h" />

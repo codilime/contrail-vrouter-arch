@@ -35,10 +35,16 @@ static char hex_table[] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 };
 
-static int
+static NTSTATUS
 vr_message_init(void)
 {
-    return vr_sandesh_init();
+    int ret = vr_sandesh_init();
+    if (ret) {
+        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 static void
@@ -181,7 +187,7 @@ void
 SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 {
     if (ctx->device_up)
-        DestroyDevice(SxDriverObject);
+        KsyncDestroyDevice(SxDriverObject);
 
     if (ctx->message_up)
         vr_message_exit();
@@ -199,7 +205,7 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
     if (ctx->vrouter_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
         return NDIS_STATUS_FAILURE;
 
-    ctx->device_up = NT_SUCCESS(CreateDevice(SxDriverObject));
+    ctx->device_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
 
     if (!ctx->device_up)
         goto cleanup;

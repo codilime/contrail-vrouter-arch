@@ -450,6 +450,7 @@ nl_free(struct nl_client *cl)
     return;
 }
 
+#ifndef _WINDOWS
 int
 nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 {
@@ -480,13 +481,13 @@ nl_socket(struct nl_client *cl, int domain, int type, int protocol)
 
     return cl->cl_sock;
 }
+#endif
 
+#ifndef _WINDOWS
 int
 nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 {
     if (cl->cl_socket_domain == AF_NETLINK) {
-#ifdef _WINDOWS
-#else
         struct sockaddr_nl *sa = malloc(sizeof(struct sockaddr_nl));
 
         if (!sa)
@@ -499,7 +500,6 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
         cl->cl_sa_len = sizeof(*sa);
 
         return bind(cl->cl_sock, cl->cl_sa, cl->cl_sa_len);
-#endif
     }
 
     if (cl->cl_socket_domain == AF_INET) {
@@ -520,6 +520,7 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
     }
     return 0;
 }
+#endif
 
 #ifndef _WINDOWS
 int
@@ -602,10 +603,10 @@ nl_recvmsg(struct nl_client *cl)
     return cl->cl_recvmsg(cl);
 }
 
-#ifndef _WINDOWS
 int
 nl_sendmsg(struct nl_client *cl)
 {
+#ifndef _WINDOWS
     struct msghdr msg;
     struct iovec iov;
     memset(&msg, 0, sizeof(msg));
@@ -622,8 +623,10 @@ nl_sendmsg(struct nl_client *cl)
     msg.msg_iovlen = 1;
 
     return sendmsg(cl->cl_sock, &msg, 0);
-}
+#else
+    return win_nl_sendmsg(cl);
 #endif
+}
 
 void
 nl_set_buf(struct nl_client *cl, char *buf, unsigned int len)

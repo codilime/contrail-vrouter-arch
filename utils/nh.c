@@ -780,12 +780,7 @@ main(int argc, char *argv[])
 
     validate_options();
 
-#ifndef _WINDOWS
     cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
-#else
-    cl = vr_get_nl_client(VR_NAMED_PIPE_WINDOWS);
-#endif
-
     if (!cl) {
         exit(1);
     }
