@@ -470,6 +470,10 @@ vrouter_exit(bool soft_reset)
         modules[i].exit(&router, soft_reset);
     }
 
+    /* This is necessary on operating systems that don't
+     * unload the binary on exit*/
+    memset(&router, 0, sizeof(router));
+
     return;
 }
 
