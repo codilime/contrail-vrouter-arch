@@ -1,5 +1,5 @@
-#ifndef __VR_NETLINK_DEFS_H__
-#define __VR_NETLINK_DEFS_H__
+#ifndef __VR_KSYNC_DEFS_H__
+#define __VR_KSYNC_DEFS_H__
 
 #define NL_RESP_DEFAULT_SIZE        512
 #define NL_MSG_DEFAULT_SIZE         4096
@@ -17,4 +17,4 @@
 #define NLA_LEN(nla)                    (nla->nla_len - NLA_HDRLEN)
 #define GENLMSG_DATA(buf)               ((char *)buf + GENL_HDRLEN)
 
-#endif /* __VR_NETLINK_DEFS_H__ */
+#endif /* __VR_KSYNC_DEFS_H__ */

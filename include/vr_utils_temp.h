@@ -43,7 +43,6 @@ enum {
 #define NLM_F_ECHO              8       /* Echo this request            */
 #define NLM_F_DUMP_INTR         16      /* Dump was inconsistent due to sequence change */
 #define NLM_F_DUMP_FILTERED     32      /* Dump was filtered as requested */
-#define VR_NAMED_PIPE_WINDOWS  100
 
 
 struct nlattr {

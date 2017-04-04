@@ -603,10 +603,10 @@ nl_recvmsg(struct nl_client *cl)
     return cl->cl_recvmsg(cl);
 }
 
-#ifndef _WINDOWS
 int
 nl_sendmsg(struct nl_client *cl)
 {
+#ifndef _WINDOWS
     struct msghdr msg;
     struct iovec iov;
     memset(&msg, 0, sizeof(msg));
@@ -623,14 +623,10 @@ nl_sendmsg(struct nl_client *cl)
     msg.msg_iovlen = 1;
 
     return sendmsg(cl->cl_sock, &msg, 0);
-}
 #else
-int
-nl_sendmsg(struct nl_client *cl)
-{
     return win_nl_sendmsg(cl);
-}
 #endif
+}
 
 void
 nl_set_buf(struct nl_client *cl, char *buf, unsigned int len)
