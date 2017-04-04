@@ -259,7 +259,7 @@ void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
 }
 
 NDIS_STATUS
-SxExtInitializeWindowsComponenets(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
+SxExtInitializeWindowsComponents(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
 {
     struct vr_switch_context *ctx = NULL;
 
@@ -317,7 +317,7 @@ SxExtCreateSwitch(
     BOOLEAN windows = FALSE;
     BOOLEAN vrouter = FALSE;
 
-    NDIS_STATUS status = SxExtInitializeWindowsComponenets(Switch, ExtensionContext);
+    NDIS_STATUS status = SxExtInitializeWindowsComponents(Switch, ExtensionContext);
     struct vr_switch_context* ctx = (struct vr_switch_context*)*ExtensionContext;
 
     if (!NT_SUCCESS(status))
