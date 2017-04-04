@@ -7,7 +7,7 @@
 extern void *vr_flow_table;
 extern void *vr_oflow_table;
 
-void* user_virtual_address = NULL;
+PVOID user_virtual_address = NULL;
 PMDL mdl_mem   = NULL;
 PVOID user_mem = NULL;
 
