@@ -3,7 +3,7 @@
 #include "Ntstrsafe.h"
 #include "vr_message.h"
 
-#include "vr_netlink_defs.h"
+#include "vr_ksync_defs.h"
 
 const WCHAR DeviceName[] = L"\\Device\\vrouterKsync";
 const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";

@@ -13,7 +13,7 @@ extern "C" {
 #include "vr_utils.h"
 #include "vr_response.h"
 #include "vr_utils_temp.h"
-#include "vr_netlink_defs.h"
+#include "vr_ksync_defs.h"
 
 struct nl_response {
     uint8_t *nl_data;
