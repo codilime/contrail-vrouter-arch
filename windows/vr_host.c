@@ -247,7 +247,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char fla
 {
     ASSERT(nbl != NULL);
 
-    ASSERTMSG("No source provided", (flags & VP_WIN_ANY_SOURCE) == 0);
+    ASSERTMSG("No source provided", (flags & VP_WIN_ANY_SOURCE) != 0);
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
