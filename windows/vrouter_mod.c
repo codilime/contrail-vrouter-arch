@@ -4,6 +4,7 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 #include "vr_sandesh.h"
+#include "vr_mem.h"
 
 UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
 UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
@@ -197,6 +198,9 @@ SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 
     if (ctx->assoc_up)
         vr_clean_assoc();
+
+    if (ctx->memory_up)
+        memory_exit();
 }
 
 NDIS_STATUS
@@ -208,6 +212,11 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
     ctx->device_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
 
     if (!ctx->device_up)
+        goto cleanup;
+
+    ctx->memory_up = NT_SUCCESS(memory_init());
+
+    if (!ctx->memory_up)
         goto cleanup;
 
     ctx->message_up = !vr_message_init();

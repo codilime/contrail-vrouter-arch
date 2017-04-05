@@ -320,6 +320,7 @@
     <ClInclude Include="include\vr_index_table.h" />
     <ClInclude Include="include\vr_interface.h" />
     <ClInclude Include="include\vr_ip_mtrie.h" />
+    <ClInclude Include="include\vr_mem.h" />
     <ClInclude Include="include\vr_message.h" />
     <ClInclude Include="include\vr_mirror.h" />
     <ClInclude Include="include\vr_mpls.h" />
@@ -336,6 +337,7 @@
     <ClInclude Include="include\vr_vxlan.h" />
     <ClInclude Include="include\vr_windows.h" />
     <ClInclude Include="include\vr_ksync.h" />
+    <ClInclude Include="include\windows_builtins.h" />
     <ClInclude Include="windows\include\windows_builtins.h" />
     <ClInclude Include="windows\precomp.h" />
     <ClInclude Include="windows\sandesh-temp\vr_types.h" />
@@ -460,6 +462,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\vr_host_interface.c" />
+    <ClCompile Include="windows\vr_mem.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="windows\windows_random.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>

@@ -1,4 +1,5 @@
 #include "vr_os.h"
+#include "vr_mem.h"
 #include "vr_windows.h"
 #include "Ntstrsafe.h"
 #include "vr_message.h"
@@ -18,10 +19,20 @@ struct ksync_response {
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
 
+#define SIOCTL_TYPE 40000
+#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
+    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
+
+struct mem_wrapper
+{
+    PVOID       pBuffer;
+};
+
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
 _Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
 _Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
+_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDeviceControl;
 
 _Use_decl_annotations_ NTSTATUS
 KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -160,6 +171,51 @@ KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
     }
 }
 
+_Use_decl_annotations_ NTSTATUS
+KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
+{
+    UNREFERENCED_PARAMETER(DriverObject);
+
+    NTSTATUS ntStatus = STATUS_SUCCESS;
+    PIO_STACK_LOCATION irpSp;
+    struct mem_wrapper returnedValue;
+    PVOID buffer = NULL;
+
+    irpSp = IoGetCurrentIrpStackLocation(Irp);
+
+    switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
+    {
+        case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
+
+            buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+
+            if (!buffer) {
+                Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+                Irp->IoStatus.Information = 0;
+                IoCompleteRequest(Irp, IO_NO_INCREMENT);
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+
+            returnedValue.pBuffer = user_virtual_address;
+            RtlCopyMemory(buffer, &returnedValue, sizeof(struct mem_wrapper));
+            Irp->IoStatus.Information = sizeof(struct mem_wrapper);
+            ntStatus = STATUS_SUCCESS;
+
+            break;
+
+        default:
+
+            ntStatus = STATUS_INVALID_DEVICE_REQUEST;
+            break;
+    }
+
+    Irp->IoStatus.Status = ntStatus;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_SUCCESS;
+}
+
+
 NTSTATUS
 KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
 {
@@ -194,7 +250,7 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
         DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
         DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
         DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
-
+        DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDeviceControl;
 #pragma prefast(pop)
 
         DeviceObject->Flags |= DO_DIRECT_IO;

@@ -1,44 +1,81 @@
-/*-
- * Copyright (c) 2014 Semihalf
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- * $FreeBSD$
- */
-
 #include "vrouter.h"
 #include "vr_flow.h"
+#include "vr_mem.h"
 
-void
-vr_mem_exit(void)
+#define SHARED_MEMORY_POOL_TAG 'MEMS'
+
+extern void *vr_flow_table;
+extern void *vr_oflow_table;
+
+PVOID user_virtual_address = NULL;
+PMDL mdl_mem   = NULL;
+PVOID user_mem = NULL;
+
+NDIS_STATUS
+memory_init(void)
 {
+    NDIS_STATUS ret = NDIS_STATUS_SUCCESS;
+    size_t flow_table_size;
 
-	
+    compute_size_oflow_table(&vr_oflow_entries, vr_flow_entries);
+
+    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+
+    user_mem = ExAllocatePoolWithTag(NonPagedPoolNx, flow_table_size, SHARED_MEMORY_POOL_TAG);
+    if (user_mem == NULL) {
+        ret = STATUS_INSUFFICIENT_RESOURCES;
+        goto mem_clean_up;
+    }
+
+    mdl_mem = IoAllocateMdl(user_mem, flow_table_size, FALSE, FALSE, NULL);
+    if (mdl_mem == NULL) {
+        ret = STATUS_INSUFFICIENT_RESOURCES;
+        goto mem_clean_up;
+    }
+
+    MmBuildMdlForNonPagedPool(mdl_mem);
+
+    RtlZeroMemory(user_mem, flow_table_size);
+
+    vr_flow_table = user_mem;
+    vr_oflow_table = (char *)user_mem + VR_FLOW_TABLE_SIZE;
+
+    user_virtual_address = MmMapLockedPagesSpecifyCache(
+        mdl_mem,
+        UserMode,
+        MmNonCached,
+        NULL,
+        FALSE,
+        NormalPagePriority);
+
+    if (!user_virtual_address) {
+        ret = STATUS_INSUFFICIENT_RESOURCES;
+        goto mem_clean_up;
+    }
+
+    return ret;
+
+mem_clean_up:
+    memory_exit();
+    return ret;
 }
 
-int
-vr_mem_init(void)
+void
+memory_exit(void)
 {
+    if (mdl_mem != NULL) {
+        if (user_virtual_address != NULL)
+            MmUnmapLockedPages(user_virtual_address, mdl_mem);
 
-	return 0;
+        IoFreeMdl(mdl_mem);
+        user_virtual_address = NULL;
+    }
+    mdl_mem = NULL;
+
+    if (user_mem != NULL)
+        ExFreePoolWithTag(user_mem, SHARED_MEMORY_POOL_TAG);
+    user_mem = NULL;
+
+    vr_flow_table = NULL;
+    vr_oflow_table = NULL;
 }

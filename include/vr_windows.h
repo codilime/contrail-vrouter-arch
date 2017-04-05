@@ -34,6 +34,7 @@ struct vr_switch_context {
     BOOLEAN                 device_up;
     BOOLEAN                 assoc_up;
     BOOLEAN                 message_up;
+    BOOLEAN                 memory_up;
 };
 
 struct vr_assoc {
