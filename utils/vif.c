@@ -3,24 +3,33 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
+#include <assert.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#include <getopt.h>
-#include <stdbool.h>
 #include <ctype.h>
 #include <time.h>
+
+#if defined(__GNUC__)
+#include <stdbool.h>
+#include <getopt.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
 #include <termios.h>
+#else
+#include <conio.h>
+#include <winsock2.h>
+#include <windows.h>
+#include "wingetopt.h"
+#include "stdbool.h"
+#endif
 
 #include "vr_os.h"
-
-#include <sys/types.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
 
 #if defined(__linux__)
 #include <asm/types.h>
@@ -103,11 +112,27 @@ static int8_t vr_ifmac[6];
 static struct ether_addr *mac_opt;
 
 static vr_interface_req prev_req[VR_MAX_INTERFACES];
+
+#if defined(_WINDOWS)
+static ULONGLONG last_timer_value;
+#else
 static struct timeval last_time;
+#endif
 
 
 static bool first_rate_iter = false;
 
+void vif_interface_req_process(void *s);
+void vif_response_process(void *s);
+void vif_vrf_assign_req_process(void *s);
+
+void
+vif_fill_nl_callbacks()
+{
+    nl_cb.vr_interface_req_process = vif_interface_req_process;
+    nl_cb.vr_response_process = vif_response_process;
+    nl_cb.vr_vrf_assign_req_process = vif_vrf_assign_req_process;
+}
 
 /*
  * How many times we partially ignore function call vr_interface_req_process.
@@ -129,7 +154,9 @@ static void list_rate_print(vr_interface_req *);
 static void rate_process(vr_interface_req *req, vr_interface_req *prev_req);
 static void rate_stats_diff(vr_interface_req *, vr_interface_req *);
 static void rate_stats(struct nl_client *, unsigned int);
+#ifndef _WINDOWS
 static int is_stdin_hit();
+#endif
 
 static struct vr_util_flags flag_metadata[] = {
     {VIF_FLAG_POLICY_ENABLED,   "P",    "Policy"            },
@@ -244,7 +271,7 @@ vr_if_flags(int flags)
 {
     unsigned int i, array_size;
 
-    bzero(flag_string, sizeof(flag_string));
+    memset(flag_string, 0, sizeof(flag_string));
 
     array_size = sizeof(flag_metadata) / sizeof(flag_metadata[0]);
     for (i = 0; i < array_size; i++) {
@@ -282,7 +309,7 @@ vr_interface_print_header(void)
 }
 
 void
-vr_vrf_assign_req_process(void *s)
+vif_vrf_assign_req_process(void *s)
 {
     vr_vrf_assign_req *req = (vr_vrf_assign_req *)s;
 
@@ -578,7 +605,7 @@ list_header_print(void)
 
     printf("\n");
 
-    printed = strlen("Errors");
+    printed = (int)strlen("Errors");
     for (; printed < 30 * 2; printed++)
         printf(" ");
 
@@ -687,7 +714,7 @@ rate_process(vr_interface_req *req, vr_interface_req *prev_req)
  * Otherwise we can be in infinity loop.
  */
 void
-vr_interface_req_process(void *s)
+vif_interface_req_process(void *s)
 {
     vr_interface_req *req = (vr_interface_req *)s;
 
@@ -734,7 +761,7 @@ vr_interface_req_process(void *s)
 }
 
 void
-vr_response_process(void *s)
+vif_response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
@@ -809,6 +836,11 @@ ending:
 
     if (s >=0)
         close(s);
+#elif defined(_WINDOWS)
+    /*  Interface used as vhost on Windows is automatically created when
+        Hyper-V switch is enabled. */
+    fprintf(stderr, "vhost_create: Not supported on Windows.\n");
+    return 0;
 #else
 #error "Unsupported platform"
 #endif
@@ -852,7 +884,7 @@ op_retry:
                 if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac, vr_transport);
         break;
 
-    case SANDESH_OP_DELETE:
+    case SANDESH_OP_DEL:
         ret = vr_send_interface_delete(cl, 0, if_name, vr_ifindex);
         break;
 
@@ -1034,7 +1066,7 @@ parse_long_opts(int option_index, char *opt_arg)
             break;
 
         case DELETE_OPT_INDEX:
-            vr_op = SANDESH_OP_DELETE;
+            vr_op = SANDESH_OP_DEL;
             vr_ifindex = safer_strtoul(opt_arg, NULL, 0);
             if (errno)
                 Usage();
@@ -1111,7 +1143,7 @@ parse_long_opts(int option_index, char *opt_arg)
 
         case VLAN_OPT_INDEX:
             vr_ifflags |= VIF_FLAG_SERVICE_IF;
-            vlan_id = safer_strtoul(opt_arg, NULL, 0);
+            vlan_id = (short)safer_strtoul(opt_arg, NULL, 0);
             if (errno)
                 Usage();
             break;
@@ -1227,17 +1259,22 @@ validate_options(void)
     return;
 }
 
-
 static void
 rate_stats_diff(vr_interface_req *req, vr_interface_req *prev_req)
 {
-    struct timeval now;
     int64_t diff_ms = 0;
     unsigned int i = 0;
 
+#if defined(_WINDOWS)
+    ULONGLONG current_timer_value = GetTickCount64();
+    diff_ms = current_timer_value - last_timer_value;
+#else
+    struct timeval now;
     gettimeofday(&now, NULL);
     diff_ms = (now.tv_sec - last_time.tv_sec) * 1000;
     diff_ms += (now.tv_usec - last_time.tv_usec) / 1000;
+#endif
+
     assert(diff_ms > 0);
 
     /* TODO:
@@ -1300,6 +1337,7 @@ rate_stats_diff(vr_interface_req *req, vr_interface_req *prev_req)
 static void
 rate_stats(struct nl_client *cl, unsigned int vr_op)
 {
+#ifndef _WINDOWS
     struct tm *tm;
     char fmt[80] = {0};
     int ret = 0;
@@ -1379,8 +1417,67 @@ rate_stats(struct nl_client *cl, unsigned int vr_op)
         }
         fflush(NULL);
     }
+#else  // rate_stats()
+    struct tm *tm;
+    time_t current_time;
+    char fmt[80] = { 0 };
+    int ret = 0;
+
+    print_number_interface = MAX_OUTPUT_IF;
+    ignore_number_interface = 0;
+    first_rate_iter = true;
+
+    /* Wait for 1s so rate_stats_diff could get non-zero diff_ms */
+    last_timer_value = GetTickCount64();
+    Sleep(1000);
+
+    while (true) {
+        if (!first_rate_iter) {
+            Sleep(1000);
+        }
+
+        /* Size of the terminal does not limit us on Windows. */
+        print_number_interface = MAX_OUTPUT_IF;
+
+        ret = system("cls");
+        if (ret == -1) {
+            fprintf(stderr, "Error: system() failed.\n");
+            exit(1);
+        }
+        printf("Interface rate statistics\n");
+        printf("-------------------------\n\n");
+        if (vr_intf_op(cl, vr_op)) {
+            fprintf(stderr, "Communication problem with vRouter.\n\n");
+            exit(1);
+        }
+        if (list_set) {
+            printf("Key 'q' for quit.\n");
+        }
+
+        time(&current_time);
+        tm = localtime(&current_time);
+        if (tm) {
+            strftime(fmt, sizeof(fmt), "%Y-%m-%d %H:%M:%S %z", tm);
+            printf("%s \n", fmt);
+        }
+
+        /* We need reinitialize dump_marker variable, because we are in loop */
+        dump_marker = -1;
+        first_rate_iter = false;
+        last_timer_value = GetTickCount64();
+
+        /* Handle pressing 'q' to exit */
+        while (_kbhit() != 0) {
+            int key_pressed = _getch_nolock();
+            if (tolower(key_pressed) == 'q') {
+                return;
+            }
+        }
+    }
+#endif
 }
 
+#ifndef _WINDOWS
 static int
 is_stdin_hit()
 {
@@ -1395,18 +1492,25 @@ is_stdin_hit()
     select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
     return FD_ISSET(STDIN_FILENO, &fds);
 }
+#endif
 
 int
 main(int argc, char *argv[])
 {
-    int ret, opt, option_index;
+    int opt, option_index;
     unsigned int i = 0;
+
+#ifndef _WINDOWS
     static struct termios old_term_set, new_term_set;
+#endif
+
     /*
      * the proto of the socket changes based on whether we are creating an
      * interface in linux or doing an operation in vrouter
      */
     unsigned int sock_proto = NETLINK_GENERIC;
+
+    vif_fill_nl_callbacks();
 
     parse_ini_file();
     platform = get_platform();
@@ -1527,6 +1631,7 @@ main(int argc, char *argv[])
         vr_intf_op(cl, vr_op);
 
     } else {
+    #ifndef _WINDOWS
         fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
         /*
          * tc[get/set]attr functions are for changing terminal behavior.
@@ -1540,13 +1645,15 @@ main(int argc, char *argv[])
 
         rate_stats(cl, vr_op);
         tcsetattr(STDIN_FILENO, TCSANOW, &old_term_set);
+    #else
+        rate_stats(cl, vr_op);
+    #endif
         for (i = 0; i < VR_MAX_INTERFACES; i++) {
             if (prev_req[i].vifr_queue_ierrors_to_lcore) {
                 free(prev_req[i].vifr_queue_ierrors_to_lcore);
                 prev_req[i].vifr_queue_ierrors_to_lcore = NULL;
             }
         }
-
     }
     return 0;
 }
