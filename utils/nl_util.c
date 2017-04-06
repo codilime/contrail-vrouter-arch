@@ -40,7 +40,7 @@
 
 extern struct nl_response *nl_parse_gen(struct nl_client *);
 
-extern struct nl_sandesh_callbacks nl_cb;
+struct nl_sandesh_callbacks nl_cb;
 
 void
 vrouter_ops_process(void *s_req)
