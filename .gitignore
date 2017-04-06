@@ -19,7 +19,7 @@ vrouter.o
 Module.symvers
 modules.order
 /x64/
-/utils/x64
+/utils/windows/x64
 /.vs/vRouter/v14
 /vRouter.VC.db
 /vRouter.VC.VC.opendb

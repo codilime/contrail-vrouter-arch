@@ -187,20 +187,20 @@ SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 void
 SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 {
-    if (ctx->device_up)
-        KsyncDestroyDevice(SxDriverObject);
-
-    if (ctx->message_up)
-        vr_message_exit();
+    if (ctx->assoc_up)
+        vr_clean_assoc();
 
     if (ctx->vrouter_up)
         vrouter_exit(false);
 
-    if (ctx->assoc_up)
-        vr_clean_assoc();
+    if (ctx->message_up)
+        vr_message_exit();
 
     if (ctx->memory_up)
         memory_exit();
+
+    if (ctx->device_up)
+        KsyncDestroyDevice(SxDriverObject);
 }
 
 NDIS_STATUS
@@ -243,6 +243,12 @@ cleanup:
 
 void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
 {
+    if (SxNBLPool)
+        vrouter_free_pool(SxNBLPool);
+
+    if (AsyncWorkRWLock)
+        NdisFreeRWLock(AsyncWorkRWLock);
+
     if (ctx)
     {
         if (ctx->lock)
@@ -250,16 +256,10 @@ void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
 
         ExFreePoolWithTag(ctx, SxExtAllocationTag);
     }
-
-    if (AsyncWorkRWLock)
-        NdisFreeRWLock(AsyncWorkRWLock);
-
-    if (SxNBLPool)
-        vrouter_free_pool(SxNBLPool);
 }
 
 NDIS_STATUS
-SxExtInitializeWindowsComponenets(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
+SxExtInitializeWindowsComponents(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
 {
     struct vr_switch_context *ctx = NULL;
 
@@ -317,7 +317,7 @@ SxExtCreateSwitch(
     BOOLEAN windows = FALSE;
     BOOLEAN vrouter = FALSE;
 
-    NDIS_STATUS status = SxExtInitializeWindowsComponenets(Switch, ExtensionContext);
+    NDIS_STATUS status = SxExtInitializeWindowsComponents(Switch, ExtensionContext);
     struct vr_switch_context* ctx = (struct vr_switch_context*)*ExtensionContext;
 
     if (!NT_SUCCESS(status))
