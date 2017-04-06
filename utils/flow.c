@@ -126,23 +126,15 @@ void fl_response_process(void *sresp);
 void fl_nexthop_req_process(void *sreq);
 void fl_drop_stats_req_process(void *sreq);
 
-struct nl_sandesh_callbacks nl_cb = {
-    .vrouter_ops_process = NULL,
-    .vr_flow_req_process = fl_flow_req_process,
-    .vr_route_req_process = NULL,
-    .vr_interface_req_process = fl_interface_req_process,
-    .vr_mpls_req_process = NULL,
-    .vr_mirror_req_process = NULL,
-    .vr_response_process = fl_response_process,
-    .vr_nexthop_req_process = fl_nexthop_req_process,
-    .vr_vrf_assign_req_process = NULL,
-    .vr_vrf_stats_req_process = NULL,
-    .vr_drop_stats_req_process = fl_drop_stats_req_process,
-    .vr_vxlan_req_process = NULL,
-    .vr_mem_stats_req_process = NULL,
-    .vr_fc_map_req_process = NULL,
-    .vr_qos_map_req_process = NULL,
-};
+void
+flow_fill_nl_callbacks()
+{
+    nl_cb.vr_flow_req_process = fl_flow_req_process;
+    nl_cb.vr_interface_req_process = fl_interface_req_process;
+    nl_cb.vr_response_process = fl_response_process;
+    nl_cb.vr_nexthop_req_process = fl_nexthop_req_process;
+    nl_cb.vr_drop_stats_req_process = fl_drop_stats_req_process;
+}
 
 void
 fl_response_process(void *sresp)
@@ -2232,6 +2224,8 @@ main(int argc, char *argv[])
     char opt;
     int ret;
     int option_index;
+
+    flow_fill_nl_callbacks();
 
     while ((opt = getopt_long(argc, argv, "d:f:g:i:lrs",
                     long_options, &option_index)) >= 0) {

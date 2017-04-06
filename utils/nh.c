@@ -51,23 +51,12 @@ static struct nl_client *cl;
 void nh_response_process(void *s);
 void nh_nexthop_req_process(void *s_req);
 
-struct nl_sandesh_callbacks nl_cb = {
-    .vrouter_ops_process = NULL,
-    .vr_flow_req_process = NULL,
-    .vr_route_req_process = NULL,
-    .vr_interface_req_process = NULL,
-    .vr_mpls_req_process = NULL,
-    .vr_mirror_req_process = NULL,
-    .vr_response_process = nh_response_process,
-    .vr_nexthop_req_process = nh_nexthop_req_process,
-    .vr_vrf_assign_req_process = NULL,
-    .vr_vrf_stats_req_process = NULL,
-    .vr_drop_stats_req_process = NULL,
-    .vr_vxlan_req_process = NULL,
-    .vr_mem_stats_req_process = NULL,
-    .vr_fc_map_req_process = NULL,
-    .vr_qos_map_req_process = NULL,
-};
+void
+nh_fill_nl_callbacks()
+{
+    nl_cb.vr_response_process = nh_response_process;
+    nl_cb.vr_nexthop_req_process = nh_nexthop_req_process;
+}
 
 static int
 vr_nh_op(struct nl_client *cl, int command, int type, uint32_t nh_id,
@@ -786,6 +775,9 @@ int
 main(int argc, char *argv[])
 {
     int opt, ind;
+
+    nh_fill_nl_callbacks();
+
     while ((opt = getopt_long(argc, argv, "",
                     long_options, &ind)) >= 0) {
         switch (opt) {

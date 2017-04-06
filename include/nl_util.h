@@ -15,6 +15,8 @@ extern "C" {
 #include "vr_utils_temp.h"
 #include "vr_ksync_defs.h"
 
+extern struct nl_sandesh_callbacks nl_cb;
+
 struct nl_response {
     uint8_t *nl_data;
     unsigned int nl_type;
