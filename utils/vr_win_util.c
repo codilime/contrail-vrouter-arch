@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include "nl_util.h"
 
-#define ETHER_ADDR_LEN	   6
+#define ETHER_ADDR_LEN       6
 #define KSYNC_MAX_WRITE_COUNT (NL_MSG_DEFAULT_SIZE)
 
 // nl_*_sendmsg and nl_*_recvmsg functions use sendmsg and recvmsg
@@ -15,6 +15,39 @@ const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
 struct ether_addr {
     u_char ether_addr_octet[ETHER_ADDR_LEN];
 };
+char dest[18];
+char* ether_ntoa(unsigned char* etheraddr)
+{
+    snprintf(dest, sizeof(dest), "%02x:%02x:%02x:%02x:%02x:%02x",
+      (unsigned)etheraddr[0],
+      (unsigned)etheraddr[1],
+      (unsigned)etheraddr[2],
+      (unsigned)etheraddr[3],
+      (unsigned)etheraddr[4],
+      (unsigned)etheraddr[5]);
+    return dest;
+}
+
+int gettimeofday(struct timeval * tp, struct timezone * tzp)
+{
+    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+    // until 00:00:00 January 1, 1970
+    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+
+    SYSTEMTIME  system_time;
+    FILETIME    file_time;
+    uint64_t    time;
+
+    GetSystemTime(&system_time);
+    SystemTimeToFileTime(&system_time, &file_time);
+    time = ((uint64_t)file_time.dwLowDateTime);
+    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+
+    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
+    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
+    return 0;
+}
 
 static DWORD
 print_and_get_error_code()
@@ -71,7 +104,7 @@ win_nl_sendmsg(struct nl_client *cl)
 }
 
 int
-win_nl_client_recvmsg(struct nl_client *cl) 
+win_nl_client_recvmsg(struct nl_client *cl)
 {
     DWORD read_bytes = 0;
 

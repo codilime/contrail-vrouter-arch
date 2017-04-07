@@ -14,6 +14,7 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vif", "utils\windows\vif\vif.vcxproj", "{24A70A49-DD18-46F6-9A44-CEA1B654DA14}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vtest", "utils\vtest\vtest.vcxproj", "{F5E1BE35-A649-4D15-A006-BFB56AE9CFD9}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "flow", "utils\windows\flow\flow.vcxproj", "{D18B96EB-FA69-48AF-8C4D-C4FB4949F753}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

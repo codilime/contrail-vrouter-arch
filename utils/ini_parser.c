@@ -21,6 +21,7 @@
 #endif
 
 #define BUF_LENGTH 256
+#pragma warning(disable:4996)
 
 static char value[BUF_LENGTH];
 static char *ini_data = NULL;

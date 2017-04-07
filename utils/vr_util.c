@@ -24,6 +24,7 @@
 #include <net/ethernet.h>
 #endif
 
+#pragma warning(disable:4996)
 
 #include "vr_types.h"
 #include "nl_util.h"
@@ -42,8 +43,7 @@ bool vr_ignore_nl_errors = false;
 char *
 vr_extract_token(char *string, char token_separator)
 {
-    int ret;
-    unsigned int length;
+    size_t length;
 
     char *sep;
 
@@ -375,10 +375,10 @@ vr_response_common_process(vr_response *resp, bool *dump_pending)
 }
 
 /* dropstats start */
-unsigned long
+int64_t
 vr_sum_drop_stats(vr_drop_stats_req *req)
 {
-    unsigned long sum = 0;
+    int64_t sum = 0;
 
     sum += req->vds_discard;
     sum += req->vds_pull;

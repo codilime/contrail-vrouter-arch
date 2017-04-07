@@ -13,6 +13,7 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
+PVOID user_virtual_address = NULL;
 
 #define SIOCTL_TYPE 40000
 #define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
@@ -97,6 +98,13 @@ KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
+    return STATUS_SUCCESS;
+}
+
+_Use_decl_annotations_ NTSTATUS
+KsyncDispatchCleanUp(PDEVICE_OBJECT DriverObject, PIRP Irp)
+{
+    MmUnmapLockedPages(user_virtual_address, mdl_mem);
     return STATUS_SUCCESS;
 }
 
@@ -250,7 +258,7 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
     } else {
         goto failure;
     }
-    
+
     Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
@@ -285,7 +293,7 @@ KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
 }
 
 _Use_decl_annotations_ NTSTATUS
-KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
+KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -300,6 +308,13 @@ KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     {
         case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
 
+            user_virtual_address = MmMapLockedPagesSpecifyCache(
+                mdl_mem,
+                UserMode,
+                MmNonCached,
+                NULL,
+                FALSE,
+                NormalPagePriority);
             buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
 
             if (!buffer) {
