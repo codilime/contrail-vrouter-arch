@@ -163,9 +163,9 @@ UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
             else
                 vif_detach(interface);
         }
-        else {
-            return NDIS_STATUS_RESOURCES;
-        }
+    }
+    else {
+        return NDIS_STATUS_RESOURCES;
     }
     return NDIS_STATUS_SUCCESS;
 }
