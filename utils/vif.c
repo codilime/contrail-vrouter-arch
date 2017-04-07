@@ -1426,15 +1426,10 @@ rate_stats(struct nl_client *cl, unsigned int vr_op)
     print_number_interface = MAX_OUTPUT_IF;
     ignore_number_interface = 0;
     first_rate_iter = true;
-
-    /* Wait for 1s so rate_stats_diff could get non-zero diff_ms */
     last_timer_value = GetTickCount64();
-    Sleep(1000);
 
     while (true) {
-        if (!first_rate_iter) {
-            Sleep(1000);
-        }
+        Sleep(1000);
 
         /* Size of the terminal does not limit us on Windows. */
         print_number_interface = MAX_OUTPUT_IF;
