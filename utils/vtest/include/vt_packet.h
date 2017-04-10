@@ -6,10 +6,13 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <pcap/pcap.h>
-#include <linux/un.h>
 
 #include <vtest.h>
 #include "../vhost/src/vhost_net.h"
+
+#ifndef _WINDOWS
+#include <linux/un.h>
+#endif /* _WINDOWS */
 
 typedef enum {
     S_START = 0,

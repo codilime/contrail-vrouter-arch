@@ -22,8 +22,11 @@
 #include <vr_packet.h>
 #include <vr_interface.h>
 
-#include <net/if.h>
 #include <nl_util.h>
+
+#ifndef _WINDOWS
+#include <net/if.h>
+#endif /* _WINDOWS */
 
 extern struct vt_message_module vt_message_modules[];
 extern unsigned int vt_message_modules_num;

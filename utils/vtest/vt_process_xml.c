@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <unistd.h>
 
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
@@ -15,8 +14,12 @@
 #include <vt_packet.h>
 #include <vt_process_xml.h>
 
-#include <net/if.h>
 #include <nl_util.h>
+
+#ifndef _WINDOWS
+#include <unistd.h>
+#include <net/if.h>
+#endif /* _WINDOWS */
 
 extern struct vtest_module vt_modules[];
 #define SKIP_TEST_PFX "SKIP"

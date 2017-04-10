@@ -7,11 +7,16 @@
 #ifndef __VTEST_H__
 #define __VTEST_H__
 
-#include <linux/un.h>
 #include <limits.h>
 
 #include <stdint.h>
 #include <stdbool.h>
+
+#ifndef _WINDOWS
+#include <linux/un.h>
+#else
+#include "vt_win_temp.h"
+#endif /* _WINDOWS */
 
 #define VT_PROG_NAME                "vtest"
 #define VT_MAX_TEST_NAME_LEN        128

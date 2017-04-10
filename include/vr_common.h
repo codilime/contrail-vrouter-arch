@@ -30,6 +30,10 @@ typedef BOOLEAN bool;
 
 #endif /* _NTKERNEL */
 
+#define __LITTLE_ENDIAN 1
+#define __BIG_ENDIAN 2
+#define __BYTE_ORDER __LITTLE_ENDIAN
+
 typedef INT8 __s8;
 typedef UINT8 __u8;
 typedef INT16 __s16;
