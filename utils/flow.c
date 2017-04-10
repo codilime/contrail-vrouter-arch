@@ -38,24 +38,14 @@
 #include <stdbool.h>
 #include <wingetopt.h>
 #include <Netioapi.h>
-
-#define O_SYNC 1
-#define PROT_READ 1
-#define MAP_SHARED 1
-#define MAP_FAILED 1
-#define vRouterKsync "\\\\.\\vrouterKsync"
-#define SIOCTL_TYPE 40000
-#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
-CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
-
-struct mem_wrapper
-{
-    PVOID       pBuffer;
-};
+#include <nl_util.h>
+#include "vr_ksync_defs.h"
 
 char* ether_ntoa(unsigned char* etheraddr);
 int gettimeofday(struct timeval * tp, struct timezone * tzp);
-
+#define CLEAN_SCREEN            "cls"
+#else
+#define CLEAN_SCREEN            "clear"
 #endif
 
 #include "vr_types.h"
@@ -673,7 +663,7 @@ flow_dump_entry(struct vr_flow_entry *fe)
 
     struct vr_flow_entry *rfe = NULL;
 
-    system("clear");
+    system(CLEAN_SCREEN);
     flow_print_field_name("Flow Index");
     printf("%lu\n", flow_index);
 
@@ -1280,8 +1270,9 @@ flow_dump_table(struct flow_table *ft)
                     }
                 }
             }
+            printf("%p %p\n", &fe->fe_key.flow_ip, fe->fe_key.flow_ip);
             if ((fe->fe_type == VP_TYPE_IP) || (fe->fe_type == VP_TYPE_IP6)) {
-                inet_ntop(VR_FLOW_FAMILY(fe->fe_type),&fe->fe_key.flow_ip,
+                inet_ntop(VR_FLOW_FAMILY(fe->fe_type), fe->fe_key.flow_ip,
                             in_src, sizeof(in_src));
                 inet_ntop(VR_FLOW_FAMILY(fe->fe_type),
                       &fe->fe_key.flow_ip[VR_IP_ADDR_SIZE(fe->fe_type)],
@@ -1568,7 +1559,7 @@ flow_stats(void)
         /* On Ubuntu system() is declared with warn_unused_result
          * attribute, so we suppress the warning
          */
-        if (system("clear") == -1) {
+        if (system(CLEAN_SCREEN) == -1) {
             printf("Error: system() failed\n");
         }
 
@@ -1686,7 +1677,7 @@ flow_table_map(vr_flow_req *req)
         struct mem_wrapper sharedMem;
         LPDWORD bRetur;
 
-        HANDLE hPipe = CreateFile(TEXT(vRouterKsync),
+        HANDLE hPipe = CreateFile(KSYNC_PATH,
 
             GENERIC_READ | GENERIC_WRITE,
             0,
@@ -1710,7 +1701,7 @@ flow_table_map(vr_flow_req *req)
             NULL);
 
         if (!transactionResult) {
-            printf("Error DeviceIoControl: %ws [%d]\r\n", transactionResult);
+            printf("Error DeviceIoControl: [%d]\r\n", transactionResult);
             exit(transactionResult);
         }
 
@@ -1735,12 +1726,12 @@ flow_table_map(vr_flow_req *req)
             PROT_READ, MAP_SHARED, mem_fd, 0);
     /* the file descriptor is no longer needed */
     close(mem_fd);
-#endif
+
     if ((long long)ft->ft_entries == MAP_FAILED) {
         printf("flow table: %s\n", strerror(errno));
         exit(errno);
     }
-
+#endif
     ft->ft_span = req->fr_ftable_size;
     ft->ft_num_entries = ft->ft_span / sizeof(struct vr_flow_entry);
     ft->ft_processed = req->fr_processed;
@@ -1799,17 +1790,10 @@ flow_make_flow_req(vr_flow_req *req)
     ret = nl_sendmsg(cl);
     if (ret <= 0)
         return ret;
-    if ((ret = nl_recvmsg(cl)) > 0) {
-#if defined(__linux__)
-        resp = nl_parse_reply(cl);
-        if (resp->nl_op == SANDESH_REQUEST) {
-            sandesh_decode(resp->nl_data, resp->nl_len, vr_find_sandesh_info, &ret);
-        }
-#else
-        sandesh_decode(cl->cl_buf, ret,
-            vr_find_sandesh_info, &ret);
-#endif
-    }
+
+    ret = vr_recvmsg(cl, false);
+    if (ret <= 0)
+        return ret;
 
     if (errno == EAGAIN || errno == EWOULDBLOCK)
         ret = 0;
@@ -1832,10 +1816,11 @@ flow_table_setup(void)
 {
     int ret = 1;
 
+#ifndef _WINDOWS
+
     cl = nl_register_client();
     if (!cl)
         return -ENOMEM;
-#ifndef _WINDOWS
 
     parse_ini_file();
     ret = nl_socket(cl, get_domain(), get_type(), get_protocol());
@@ -2066,10 +2051,9 @@ void run_perf(void) {
     while (i != 0) {
         i--;
         cl->cl_buf_offset = 0;
-        if ((ret = nl_recvmsg(cl)) > 0) {
-                sandesh_decode(cl->cl_buf, ret,
-                                vr_find_sandesh_info, &ret);
-        }
+        ret = vr_recvmsg(cl, false);
+        if (ret <= 0)
+            return ret;
     }
     cl->cl_buf_offset = 0;
 
@@ -2129,10 +2113,9 @@ void run_perf(void) {
     while (i != 0) {
         i--;
         cl->cl_buf_offset = 0;
-        if ((ret = nl_recvmsg(cl)) > 0) {
-                sandesh_decode(cl->cl_buf, ret,
-                                vr_find_sandesh_info, &ret);
-        }
+        ret = vr_recvmsg(cl, false);
+        if (ret <= 0)
+            return ret;
     }
     cl->cl_buf_offset = 0;
 

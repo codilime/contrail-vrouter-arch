@@ -134,7 +134,7 @@ extern struct nl_client *vr_get_nl_client(unsigned int);
 
 extern int vr_response_common_process(vr_response *, bool *);
 
-extern int64_t vr_sum_drop_stats(vr_drop_stats_req *);
+extern uint64_t vr_sum_drop_stats(vr_drop_stats_req *);
 extern void vr_drop_stats_req_destroy(vr_drop_stats_req *);
 extern vr_drop_stats_req *vr_drop_stats_req_get_copy(vr_drop_stats_req *);
 extern int vr_send_drop_stats_get(struct nl_client *, unsigned int, int);

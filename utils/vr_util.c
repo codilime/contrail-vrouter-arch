@@ -375,10 +375,10 @@ vr_response_common_process(vr_response *resp, bool *dump_pending)
 }
 
 /* dropstats start */
-int64_t
+uint64_t
 vr_sum_drop_stats(vr_drop_stats_req *req)
 {
-    int64_t sum = 0;
+    uint64_t sum = 0;
 
     sum += req->vds_discard;
     sum += req->vds_pull;

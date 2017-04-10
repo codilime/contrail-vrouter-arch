@@ -15,15 +15,6 @@ static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
 PVOID user_virtual_address = NULL;
 
-#define SIOCTL_TYPE 40000
-#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
-    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
-
-struct mem_wrapper
-{
-    PVOID       pBuffer;
-};
-
 static struct ksync_response *
 KsyncResponseCreate()
 {
@@ -78,7 +69,7 @@ _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
 _Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
 _Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
-_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH KsyncDeviceControl;
+_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH KsyncDispatchDeviceControl;
 _Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH KsyncDispatchCleanup;
 
 _Use_decl_annotations_ NTSTATUS
@@ -98,13 +89,6 @@ KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
-    return STATUS_SUCCESS;
-}
-
-_Use_decl_annotations_ NTSTATUS
-KsyncDispatchCleanUp(PDEVICE_OBJECT DriverObject, PIRP Irp)
-{
-    MmUnmapLockedPages(user_virtual_address, mdl_mem);
     return STATUS_SUCCESS;
 }
 
@@ -349,6 +333,8 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
     struct ksync_device_context *ctx;
     struct ksync_response *resp;
 
+    MmUnmapLockedPages(user_virtual_address, mdl_mem);
+
     ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
     while ((resp = KsyncPopResponse(ctx))) {
         KsyncResponseDelete(resp);
@@ -396,7 +382,7 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
         DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
         DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
         DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
-        DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDeviceControl;
+        DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDispatchDeviceControl;
         DriverObject->MajorFunction[IRP_MJ_CLEANUP] = KsyncDispatchCleanup;
 #pragma prefast(pop)
 
