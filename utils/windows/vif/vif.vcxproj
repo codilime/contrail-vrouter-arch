@@ -103,7 +103,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_WINDOWS;_VIF;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\tools\sandesh\library\c\;..\..\windows\sandesh-temp\;..\..\windows\include\;..\..\windows\;..\..\include;..\..\..\tools\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\tools\sandesh\library\c\;..\..\..\windows\sandesh-temp\;..\..\..\windows\include\;..\..\..\windows\;..\..\..\include;..\..\..\..\tools\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -149,23 +149,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c" />
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\protocol\thrift_protocol.c" />
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\sandesh.c" />
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\transport\thrift_fake_transport.c" />
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\transport\thrift_memory_buffer.c" />
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\transport\thrift_transport.c" />
-    <ClCompile Include="..\..\windows\sandesh-temp\vr_types.c" />
-    <ClCompile Include="..\ini_parser.c" />
-    <ClCompile Include="..\nl_util.c" />
-    <ClCompile Include="..\vif.c" />
-    <ClCompile Include="..\vr_util.c" />
-    <ClCompile Include="..\vr_win_util.c" />
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c" />
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\protocol\thrift_protocol.c" />
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\sandesh.c" />
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\transport\thrift_fake_transport.c" />
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\transport\thrift_memory_buffer.c" />
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\transport\thrift_transport.c" />
+    <ClCompile Include="..\..\..\windows\sandesh-temp\vr_types.c" />
+    <ClCompile Include="..\..\ini_parser.c" />
+    <ClCompile Include="..\..\nl_util.c" />
+    <ClCompile Include="..\..\vif.c" />
+    <ClCompile Include="..\..\vr_util.c" />
+    <ClCompile Include="..\..\vr_win_util.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\vr_os.h" />
-    <ClInclude Include="..\..\include\wingetopt.h" />
-    <ClInclude Include="..\..\windows\sandesh-temp\vr_types.h" />
+    <ClInclude Include="..\..\..\include\vr_os.h" />
+    <ClInclude Include="..\..\..\include\wingetopt.h" />
+    <ClInclude Include="..\..\..\windows\sandesh-temp\vr_types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

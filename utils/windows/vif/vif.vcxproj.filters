@@ -15,51 +15,51 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\vif.c">
+    <ClCompile Include="..\..\vif.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\windows\sandesh-temp\vr_types.c">
+    <ClCompile Include="..\..\..\windows\sandesh-temp\vr_types.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\sandesh.c">
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\sandesh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c">
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\protocol\thrift_protocol.c">
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\protocol\thrift_protocol.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\transport\thrift_fake_transport.c">
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\transport\thrift_fake_transport.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\transport\thrift_memory_buffer.c">
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\transport\thrift_memory_buffer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tools\sandesh\library\c\transport\thrift_transport.c">
+    <ClCompile Include="..\..\..\..\tools\sandesh\library\c\transport\thrift_transport.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\nl_util.c">
+    <ClCompile Include="..\..\nl_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ini_parser.c">
+    <ClCompile Include="..\..\ini_parser.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\vr_win_util.c">
+    <ClCompile Include="..\..\vr_win_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\vr_util.c">
+    <ClCompile Include="..\..\vr_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\vr_os.h">
+    <ClInclude Include="..\..\..\include\vr_os.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\windows\include\wingetopt.h">
+    <ClInclude Include="..\..\..\windows\include\wingetopt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\windows\sandesh-temp\vr_types.h">
+    <ClInclude Include="..\..\..\windows\sandesh-temp\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
