@@ -11,7 +11,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "utils", "utils", "{6E09678F
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nh", "utils\windows\nh.vcxproj", "{E7006D0D-A698-4F3D-B1F0-2D23578847CB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vif", "utils\windows\vif.vcxproj", "{24A70A49-DD18-46F6-9A44-CEA1B654DA14}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vif", "utils\windows\vif\vif.vcxproj", "{24A70A49-DD18-46F6-9A44-CEA1B654DA14}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
