@@ -49,10 +49,10 @@ struct iov_iter {
 };
 
 #ifdef _WINDOWS
-struct ether_addr *ether_aton(const char *asc);
+extern struct ether_addr *ether_aton(const char *asc);
 
-unsigned int if_nametoindex(const char *ifname);
-char *if_indextoname(unsigned int ifindex, char *ifname);
+extern unsigned int if_nametoindex(const char *ifname);
+extern char *if_indextoname(unsigned int ifindex, char *ifname);
 #endif
 
 #endif /* __UTILS_TEMP__ */
