@@ -48,21 +48,4 @@ struct iov_iter {
     };
 };
 
-#ifdef _WINDOWS
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern struct ether_addr *ether_aton(const char *asc);
-
-extern unsigned int if_nametoindex(const char *ifname);
-extern char *if_indextoname(unsigned int ifindex, char *ifname);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* _WINDOWS*/
-
 #endif /* __UTILS_TEMP__ */
