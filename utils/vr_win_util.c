@@ -144,3 +144,17 @@ struct ether_addr *
     static struct ether_addr addr;
     return ether_aton_r(asc, &addr);
 }
+
+// TODO: JW-351
+unsigned int
+if_nametoindex(const char *ifname)
+{
+    return -1;
+}
+
+// TODO: JW-351
+char *
+if_indextoname(unsigned int ifindex, char *ifname)
+{
+    return NULL;
+}
