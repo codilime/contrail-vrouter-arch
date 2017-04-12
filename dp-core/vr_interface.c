@@ -1944,10 +1944,12 @@ generate_resp:
     if (need_response)
         vr_send_response(ret);
 
-    if (ret && vif)
-        vif_free(vif);
-    else
-        vr_register_nic(vif);
+    if (vif) {
+        if (ret)
+            vif_free(vif);
+        else
+            vr_register_nic(vif);
+    }
 
     return ret;
 }
