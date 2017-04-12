@@ -97,8 +97,8 @@ struct vtest_module {
     int (*vt_init)(void);
 };
 
+extern const size_t VTEST_NUM_MODULES;
 
-#define VTEST_NUM_MODULES 3
 extern int vt_message(xmlNodePtr, struct vtest *);
 extern int vt_packet(xmlNodePtr, struct vtest *);
 extern int vt_test_name(xmlNodePtr, struct vtest *);

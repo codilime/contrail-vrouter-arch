@@ -20,7 +20,6 @@
 #include <vtest.h>
 #include <vt_main.h>
 #include <vt_message.h>
-#include <vt_packet.h>
 #include <vt_process_xml.h>
 
 #include <nl_util.h>
@@ -28,6 +27,7 @@
 #ifndef _WINDOWS
 #include <unistd.h>
 #include <net/if.h>
+#include <vt_packet.h>
 #endif /* _WINDOWS */
 
 extern struct expect_vrouter expect_msg;
@@ -55,11 +55,15 @@ struct vtest_module vt_modules[] = {
         .vt_name        =   "message",
         .vt_node        =   vt_message,
     },
+#ifndef _WINDOWS
     {
         .vt_name        =   "packet",
         .vt_node        =   vt_packet,
     },
+#endif /* _WINDOWS */
 };
+
+const size_t VTEST_NUM_MODULES = ARRAYSIZE(vt_modules);
 
 void
 vt_fill_nl_callbacks()

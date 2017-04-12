@@ -9,7 +9,7 @@
 // and they return -1 on error.
 #define GLIBC_ERROR (-1)
 
-const WCHAR *KSYNC_PATH = L"\\\\.\\vrouterKsync";
+const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
 
 // TODO: JW-120 - Refactoring of vr_win_utils.c
 struct ether_addr {

@@ -36,7 +36,6 @@
     <ClCompile Include="vt_gen_lib.c" />
     <ClCompile Include="vt_main.c" />
     <ClCompile Include="vt_message.c" />
-    <ClCompile Include="vt_packet.c" />
     <ClCompile Include="vt_process_xml.c" />
     <ClCompile Include="vt_sandesh_response.c" />
   </ItemGroup>
@@ -45,7 +44,6 @@
     <ClInclude Include="include\vt_gen_lib.h" />
     <ClInclude Include="include\vt_main.h" />
     <ClInclude Include="include\vt_message.h" />
-    <ClInclude Include="include\vt_packet.h" />
     <ClInclude Include="include\vt_process_xml.h" />
     <ClInclude Include="include\vt_win_temp.h" />
   </ItemGroup>
@@ -69,6 +67,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -140,6 +139,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>ws2_32.lib;wpcap.lib;libxml2.dll.a;libiconv.dll.a;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>10000000</StackReserveSize>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

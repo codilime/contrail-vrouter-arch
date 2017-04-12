@@ -21,9 +21,6 @@
     <ClCompile Include="vt_message.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="vt_packet.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="vt_process_xml.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -84,9 +81,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\vt_message.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\vt_packet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\vt_process_xml.h">
