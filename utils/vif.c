@@ -119,6 +119,21 @@ static ULONGLONG last_timer_value;
 static struct timeval last_time;
 #endif
 
+#if defined(_WINDOWS)
+// TODO: JW-351
+unsigned int
+if_nametoindex(const char *ifname)
+{
+    return -1;
+}
+
+// TODO: JW-351
+char *
+if_indextoname(unsigned int ifindex, char *ifname)
+{
+    return NULL;
+}
+#endif
 
 static bool first_rate_iter = false;
 
