@@ -230,7 +230,7 @@ extern int win_setup_nl_client(struct nl_client *, unsigned int);
 extern int win_nl_sendmsg(struct nl_client *);
 extern int win_nl_client_recvmsg(struct nl_client *);
 
-extern const WCHAR *KSYNC_PATH;
+extern const LPCTSTR KSYNC_PATH;
 #endif
 
 #ifdef __cplusplus
