@@ -23,13 +23,14 @@ vrouter.o
 
 Module.symvers
 modules.order
-/x64/
+/x64
 /utils/windows/x64
-/.vs/vRouter/v14
-/vRouter.VC.db
-/vRouter.VC.VC.opendb
+.vs
+*.VC.db
+*.VC.VC.opendb
 /ipch/
 /sandesh/gen-c/*
 /utils/*obj
 /test/cmocka
 /test/atomic-test/x64
+/utils/vtest/x64

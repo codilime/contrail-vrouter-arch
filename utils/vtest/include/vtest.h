@@ -7,11 +7,16 @@
 #ifndef __VTEST_H__
 #define __VTEST_H__
 
-#include <linux/un.h>
 #include <limits.h>
 
 #include <stdint.h>
 #include <stdbool.h>
+
+#ifndef _WINDOWS
+#include <linux/un.h>
+#else
+#include "vt_win_temp.h"
+#endif /* _WINDOWS */
 
 #define VT_PROG_NAME                "vtest"
 #define VT_MAX_TEST_NAME_LEN        128
@@ -92,8 +97,8 @@ struct vtest_module {
     int (*vt_init)(void);
 };
 
+extern const size_t VTEST_NUM_MODULES;
 
-#define VTEST_NUM_MODULES 3
 extern int vt_message(xmlNodePtr, struct vtest *);
 extern int vt_packet(xmlNodePtr, struct vtest *);
 extern int vt_test_name(xmlNodePtr, struct vtest *);
