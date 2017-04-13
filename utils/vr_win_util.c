@@ -84,6 +84,10 @@ win_nl_client_recvmsg(struct nl_client *cl)
         return GLIBC_ERROR;
     }
 
+    cl->cl_recv_len = read;
+    if (cl->cl_recv_len > cl->cl_buf_len)
+        return -EOPNOTSUPP;
+
     return read;
 }
 
