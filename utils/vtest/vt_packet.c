@@ -16,7 +16,6 @@
 #include <vt_gen_lib.h>
 
 #include <vr_message.h>
-
 #include <vr_interface.h>
 
 #include "vt_packet.h"
@@ -29,7 +28,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp)
 {
     // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
     // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
-    // until 00:00:00 January 1, 1970 
+    // until 00:00:00 January 1, 1970
     static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
 
     SYSTEMTIME  system_time;
@@ -293,16 +292,18 @@ tx_rx_pcap_test(struct vtest *test) {
 
 
     struct tx_rx_handler tx_rx_handler;
+
+    vhost_net_state rx_state = E_VHOST_NET_OK;
+    vhost_net_state tx_state = E_VHOST_NET_OK;
+
     memset(&tx_rx_handler, 0, sizeof(struct tx_rx_handler));
 
-#ifndef _WINDOWS
-    vhost_net_state tx_state = init_vhost_net(&tx_rx_handler.send_data, src_vif_ctrl_sock);
-    vhost_net_state rx_state = init_vhost_net(&tx_rx_handler.recv_data, dst_vif_ctrl_sock);
+    tx_state = init_vhost_net(&tx_rx_handler.send_data, src_vif_ctrl_sock);
+    rx_state = init_vhost_net(&tx_rx_handler.recv_data, dst_vif_ctrl_sock);
 
     if (tx_state != E_VHOST_NET_OK || rx_state != E_VHOST_NET_OK) {
         return E_PACKET_ERR;
     }
-#endif /* _WINDOWS */
 
     memset(&tx_rx_handler.errbuf, 0, sizeof(char) * PCAP_ERRBUF_SIZE);
     tx_rx_handler.p =  pcap_open_offline(test->packet.pcap_file, tx_rx_handler.errbuf);
@@ -392,11 +393,8 @@ tx_rx_pcap_test(struct vtest *test) {
 
     pcap_close(tx_rx_handler.pd);
     pcap_dump_close(tx_rx_handler.dumper);
-
-#ifndef _WINDOWS
     deinit_vhost_net(tx_rx_handler.send_data);
     deinit_vhost_net(tx_rx_handler.recv_data);
-#endif /* _WINDOWS */
 
     return E_PACKET_OK;
 }
