@@ -3,10 +3,6 @@
 
 #if defined(_WINDOWS)
 
-#ifndef UNICODE
-#warning Please use Unicode character set
-#endif /* UNICODE */
-
 #include <basetsd.h>
 #include <errno.h>
 
