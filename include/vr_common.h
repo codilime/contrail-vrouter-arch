@@ -4,7 +4,7 @@
 #if defined(_WINDOWS)
 
 #ifndef UNICODE
-#error Please use Unicode character set
+#warning Please use Unicode character set
 #endif /* UNICODE */
 
 #include <basetsd.h>
