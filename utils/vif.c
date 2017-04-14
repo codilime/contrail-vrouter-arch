@@ -25,11 +25,9 @@
 #include <conio.h>
 #include <winsock2.h>
 #include <windows.h>
+#include <Iphlpapi.h>
 #include "wingetopt.h"
 #include "stdbool.h"
-
-extern unsigned int if_nametoindex(const char *ifname);
-extern char *if_indextoname(unsigned int ifindex, char *ifname);
 #endif
 
 #include "vr_os.h"

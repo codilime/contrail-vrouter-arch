@@ -44,6 +44,8 @@ env.Replace(LIBS = [libvrutil, 'sandesh-c', 'dp_sandesh_c'])
 
 # Build individual utils
 vif_sources = ['vif.c']
+if sys.platform.startswith('win'):
+    vif_sources.append('if_windows.c')
 vif = env.Program(target = 'vif', source = vif_sources)
 
 rt_sources = ['rt.c']
@@ -59,6 +61,8 @@ mpls_sources = ['mpls.c']
 mpls = env.Program(target = 'mpls', source = mpls_sources)
 
 flow_sources = ['flow.c']
+if sys.platform.startswith('win'):
+    flow_sources.append('if_windows.c')
 flow = env.Program(target = 'flow', source = flow_sources)
 
 vrfstats_sources = ['vrfstats.c']
