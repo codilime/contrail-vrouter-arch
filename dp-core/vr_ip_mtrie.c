@@ -119,7 +119,7 @@ set_entry_to_bucket(struct ip_bucket_entry *ent, struct ip_bucket *bkt)
     /* save old... */
     tmp_nh = ent->entry_nh_p;
     /* update... */
-    ent->entry_long_i = (uint64_t)bkt | 0x1ul;
+    ent->entry_long_i = (uintptr_t)bkt | (uintptr_t)0x1;
     /* release old */
     if (tmp_nh)
         vrouter_put_nexthop(tmp_nh);
@@ -168,10 +168,10 @@ set_entry_to_nh(struct ip_bucket_entry *entry, struct vr_nexthop *nh)
 static inline struct ip_bucket *
 entry_to_bucket(struct ip_bucket_entry *ent)
 {
-    uint64_t long_i = ent->entry_long_i;
+    uintptr_t long_i = ent->entry_long_i;
 
     if (PTR_IS_BUCKET(long_i))
-        return (struct ip_bucket *)(long_i & ~0x1UL);
+        return (struct ip_bucket *)(long_i & ~(uintptr_t)0x1);
 
     return NULL;
 }
