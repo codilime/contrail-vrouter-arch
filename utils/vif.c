@@ -57,6 +57,20 @@
 #include "nl_util.h"
 #include "ini_parser.h"
 
+#ifdef _WINDOWS
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern struct ether_addr *ether_aton(const char *asc);
+
+extern unsigned int if_nametoindex(const char *ifname);
+extern char *if_indextoname(unsigned int ifindex, char *ifname);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* _WINDOWS*/
 
 #define LISTING_NUM_OF_LINE  3
 #define MAX_OUTPUT_IF 32
@@ -119,6 +133,21 @@ static ULONGLONG last_timer_value;
 static struct timeval last_time;
 #endif
 
+#if defined(_WINDOWS)
+// TODO: JW-351
+unsigned int
+if_nametoindex(const char *ifname)
+{
+    return -1;
+}
+
+// TODO: JW-351
+char *
+if_indextoname(unsigned int ifindex, char *ifname)
+{
+    return NULL;
+}
+#endif
 
 static bool first_rate_iter = false;
 
