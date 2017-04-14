@@ -159,6 +159,7 @@
     <ClCompile Include="..\..\ini_parser.c" />
     <ClCompile Include="..\..\nl_util.c" />
     <ClCompile Include="..\..\vif.c" />
+    <ClCompile Include="..\..\if_windows.c" />
     <ClCompile Include="..\..\vr_util.c" />
     <ClCompile Include="..\..\vr_win_util.c" />
   </ItemGroup>

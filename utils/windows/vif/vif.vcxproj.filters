@@ -51,15 +51,18 @@
     <ClCompile Include="..\..\vr_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\if_windows.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\vr_os.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\windows\include\wingetopt.h">
+    <ClInclude Include="..\..\..\windows\sandesh-temp\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\windows\sandesh-temp\vr_types.h">
+    <ClInclude Include="..\..\..\include\wingetopt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
