@@ -78,7 +78,7 @@ _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
 _Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
 _Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
 _Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH KsyncDeviceControl;
-_Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH KsyncDeviceCleanup;
+_Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH KsyncDispatchCleanup;
 
 _Use_decl_annotations_ NTSTATUS
 KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
@@ -232,29 +232,40 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
             ULONG buffer_size = resp->header.len;
             ULONG read_length = header_size + buffer_size;
 
-            // User-space utility asks for __at most__ `read_max_length` bytes
-            if (read_length > 0 && read_max_length >= read_length) {
-                RtlCopyMemory(ReadDataBuffer, &resp->header, header_size);
-                RtlCopyMemory(ReadDataBuffer + header_size, resp->buffer, buffer_size);
-                Irp->IoStatus.Information = read_length;
-            } else {
-                Irp->IoStatus.Information = 0;
-            }
+            // User-space utility asks for __at most__ `read_max_length` bytes.
+            // NOTE: In theory - dp-core dumps messages only up to 4KB and utilities
+            // ask for at most 4KB.
+            ASSERTMSG("dp-core responds with more than `read_max_length` bytes",
+                      read_length > 0 && read_max_length >= read_length);
+
+            RtlCopyMemory(ReadDataBuffer, &resp->header, header_size);
+            RtlCopyMemory(ReadDataBuffer + header_size, resp->buffer, buffer_size);
+            Irp->IoStatus.Information = read_length;
 
             KsyncResponseDelete(resp);
         } else {
-            Irp->IoStatus.Information = 0;
+            // No messages in queue => cannot read anything
+            goto empty_read;
         }
     } else {
-        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        Irp->IoStatus.Information = 0;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        goto failure;
     }
     
     Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
+
+empty_read:
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_SUCCESS;
+
+failure:
+    Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+    Irp->IoStatus.Information = 0;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_INSUFFICIENT_RESOURCES;
 }
 
 VOID
@@ -371,6 +382,7 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
         DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
         DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
         DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDeviceControl;
+        DriverObject->MajorFunction[IRP_MJ_CLEANUP] = KsyncDispatchCleanup;
 #pragma prefast(pop)
 
         DeviceObject->Flags |= DO_DIRECT_IO;

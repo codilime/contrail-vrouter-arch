@@ -21,7 +21,6 @@ enum ksync_response_type {
     KSYNC_RESPONSE_DONE, // ending marker for MULTIPLE messages
     KSYNC_RESPONSE_MULTIPLE, // receiver should expect multiple messages, last one with type DONE
     KSYNC_RESPONSE_SINGLE, // receiver should expect only this message
-    KSYNC_RESPONSE_MAX,
 };
 
 struct ksync_response_header {
