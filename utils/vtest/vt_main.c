@@ -90,12 +90,11 @@ vt_dealloc_test(struct vtest *test) {
     vt_safe_free(test->vtest_error_module);
     int i = 0;
 
-    for (i = 0; i < test->message_ptr_num; ++i) {
+    for (i = 0; i <= test->message_ptr_num; ++i) {
         vt_safe_free(test->messages.data[i].mem);
-        vt_safe_free(test->messages.data[i].xml_data.element_expect_ptr);
     }
 
-    for(i = 0; i < test->messages.expect_vrouter_msg->expected_ptr_num; ++i) {
+    for(i = 0; i <= test->messages.expect_vrouter_msg->expected_ptr_num; ++i) {
         vt_safe_free(test->messages.expect_vrouter_msg->mem_expected_msg[i]);
     }
 
@@ -112,7 +111,7 @@ vt_init(struct vtest *test)
 
     test->messages.expect_vrouter_msg = &expect_msg;
     test->messages.return_vrouter_msg = &return_msg;
-    test->message_ptr_num = 0;
+    test->message_ptr_num = -1;
 
     expect_msg.expected_ptr_num = test->message_ptr_num;
     return_msg.returned_ptr_num = test->message_ptr_num;
@@ -149,6 +148,8 @@ main(int argc, char *argv[])
 
     struct stat stat_buf;
     struct vtest vtest;
+
+    vt_fill_nl_callbacks();
 
     if (argc != 2) {
         vt_Usage();

@@ -25,6 +25,7 @@
 #include <conio.h>
 #include <winsock2.h>
 #include <windows.h>
+#include <Iphlpapi.h>
 #include "wingetopt.h"
 #include "stdbool.h"
 #endif
