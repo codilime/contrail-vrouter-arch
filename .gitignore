@@ -28,6 +28,7 @@ modules.order
 .vs
 *.VC.db
 *.VC.VC.opendb
+/utils/windows/*/x64
 /ipch/
 /sandesh/gen-c/*
 /utils/*obj

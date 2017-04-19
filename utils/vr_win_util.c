@@ -1,8 +1,10 @@
+#include <assert.h>
 #include <strsafe.h>
 #include <stdbool.h>
 #include "nl_util.h"
 
-#define ETHER_ADDR_LEN	   6
+#define ETHER_ADDR_LEN	   (6)
+#define ETHER_ADDR_STR_LEN (ETHER_ADDR_LEN * 3)
 #define KSYNC_MAX_WRITE_COUNT (NL_MSG_DEFAULT_SIZE)
 
 // nl_*_sendmsg and nl_*_recvmsg functions use sendmsg and recvmsg
@@ -143,8 +145,26 @@ struct ether_addr *
 * Re-entrant version (GNU extensions)
 */
 struct ether_addr *
-    ether_aton(const char *asc)
+ether_aton(const char *asc)
 {
     static struct ether_addr addr;
     return ether_aton_r(asc, &addr);
+}
+
+char *
+ether_ntoa(const struct ether_addr *addr)
+{
+    static char buffer[ETHER_ADDR_STR_LEN];
+
+    memset(buffer, 0, sizeof(buffer));
+    int ret = snprintf(buffer, sizeof(buffer), "%02x:%02x:%02x:%02x:%02x:%02x",
+             addr->ether_addr_octet[0],
+             addr->ether_addr_octet[1],
+             addr->ether_addr_octet[2],
+             addr->ether_addr_octet[3],
+             addr->ether_addr_octet[4],
+             addr->ether_addr_octet[5]);
+    assert(ret == ETHER_ADDR_STR_LEN - 1);  // ETHER_ADDR_STR_LEN includes '\0' byte
+
+    return buffer;
 }
