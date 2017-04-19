@@ -190,14 +190,60 @@ vr_proto_string(unsigned short proto)
     return "UNKNOWN";
 }
 
+static int
+__vr_recvmsg_parse(struct nl_client *cl, int received, bool *pending)
+{
+    int ret = received;
+
+#ifndef _WINDOWS
+    struct nl_response *resp;
+
+    resp = nl_parse_reply(cl);
+    if (resp->nl_op == SANDESH_REQUEST) {
+        sandesh_decode(resp->nl_data, resp->nl_len,
+                        vr_find_sandesh_info, &ret);
+    } else if (resp->nl_type == NL_MSG_TYPE_DONE) {
+        *pending = false;
+    }
+#else
+    struct ksync_response_header *ksync_hdr;
+    unsigned char *buffer;
+
+    ksync_hdr = (struct ksync_response_header *)cl->cl_buf;
+    if (IS_KSYNC_RESPONSE_VALID(ksync_hdr)) {
+        buffer = cl->cl_buf + sizeof(struct ksync_response_header);
+        sandesh_decode(buffer, ksync_hdr->len,
+                        vr_find_sandesh_info, &ret);
+    } else if (ksync_hdr->type == KSYNC_RESPONSE_DONE) {
+        *pending = false;
+    }
+#endif
+
+    return ret;
+}
+
+static bool
+__vr_recvmsg_afert(struct nl_client *cl)
+{
+#ifndef _WINDOWS
+    struct nlmsghdr *nlh;
+
+    nlh = (struct nlmsghdr *)cl->cl_buf;
+    if (!nlh || !nlh->nlmsg_flags)
+        return true;
+    else
+        return false;
+#else
+    return false;
+#endif
+}
+
 /* send and receive */
 int
 vr_recvmsg(struct nl_client *cl, bool dump)
 {
     int ret = 0;
     bool pending = true;
-    struct nl_response *resp;
-    struct nlmsghdr *nlh;
 
     while (pending) {
         if ((ret = nl_recvmsg(cl)) > 0) {
@@ -206,27 +252,14 @@ vr_recvmsg(struct nl_client *cl, bool dump)
             } else {
                 pending = false;
             }
-#ifdef _WINDOWS
-			sandesh_decode(cl->cl_buf, ret,
-				vr_find_sandesh_info, &ret);
-#else
-			resp = nl_parse_reply(cl);
-			if (resp->nl_op == SANDESH_REQUEST) {
-				sandesh_decode(resp->nl_data, resp->nl_len,
-					vr_find_sandesh_info, &ret);
-			}
-			else if (resp->nl_type == NL_MSG_TYPE_DONE) {
-				pending = false;
-			}
-#endif
+            ret = __vr_recvmsg_parse(cl, ret, &pending);
         } else {
             return ret;
         }
-#ifndef _WINDOWS
-        nlh = (struct nlmsghdr *)cl->cl_buf;
-        if (!nlh || !nlh->nlmsg_flags)
+
+        if (__vr_recvmsg_afert(cl)) {
             break;
-#endif
+        }
     }
 
     return ret;
