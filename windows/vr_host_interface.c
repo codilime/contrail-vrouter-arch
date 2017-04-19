@@ -45,10 +45,18 @@ win_if_add_tap(struct vr_interface* vif)
 static int
 win_if_del(struct vr_interface *vif)
 {
-    UNREFERENCED_PARAMETER(vif);
+    struct vr_assoc *assoc_by_name;
+    struct vr_assoc *assoc_by_ids;
 
-    /* TODO: Implement (JW-139) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
+    assoc_by_name = vr_get_assoc_by_name(vif->vif_name);
+    if (assoc_by_name != NULL) {
+        assoc_by_name->interface = NULL;
+    }
+
+    assoc_by_ids = vr_get_assoc_ids(vif->vif_port, vif->vif_nic);
+    if (assoc_by_ids != NULL) {
+        assoc_by_ids->interface = NULL;
+    }
 
     return 0;
 }
@@ -57,10 +65,8 @@ static int
 win_if_del_tap(struct vr_interface *vif)
 {
     UNREFERENCED_PARAMETER(vif);
-
-    /* TODO: Implement (JW-139) */
-    DbgPrint("%s(): dummy implementation called\n", __func__);
-
+    // NOOP - no bridges on Windows; most *_drv_del function which call if_del_tap
+    // also call if_del
     return 0;
 }
 
