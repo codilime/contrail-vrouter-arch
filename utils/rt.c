@@ -27,7 +27,6 @@
 #endif
 #else
 #include <wingetopt.h>
-#include "vr_os.h"
 #endif
 
 #include "vr_types.h"

@@ -24,7 +24,6 @@ vrouter.o
 Module.symvers
 modules.order
 /x64
-/utils/windows/x64
 .vs
 *.VC.db
 *.VC.VC.opendb
