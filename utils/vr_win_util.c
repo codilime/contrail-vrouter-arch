@@ -73,18 +73,22 @@ win_nl_sendmsg(struct nl_client *cl)
 int
 win_nl_client_recvmsg(struct nl_client *cl) 
 {
-    DWORD read = 0;
+    DWORD read_bytes = 0;
 
     cl->cl_buf_offset = 0;
     cl->cl_recv_len = 0;
 
-    BOOL ret = ReadFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &read, NULL);
+    BOOL ret = ReadFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &read_bytes, NULL);
     if (!ret) {
         print_and_get_error_code();
         return GLIBC_ERROR;
     }
 
-    return read;
+    cl->cl_recv_len = read_bytes;
+    if (cl->cl_recv_len > cl->cl_buf_len)
+        return -EOPNOTSUPP;
+
+    return read_bytes;
 }
 
 static inline int

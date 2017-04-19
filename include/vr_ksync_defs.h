@@ -17,4 +17,30 @@
 #define NLA_LEN(nla)                    (nla->nla_len - NLA_HDRLEN)
 #define GENLMSG_DATA(buf)               ((char *)buf + GENL_HDRLEN)
 
+enum ksync_response_type {
+    KSYNC_RESPONSE_DONE, // ending marker for MULTIPLE messages
+    KSYNC_RESPONSE_MULTIPLE, // receiver should expect multiple messages, last one with type DONE
+    KSYNC_RESPONSE_SINGLE, // receiver should expect only this message
+};
+
+struct ksync_response_header {
+    enum ksync_response_type type;
+    ULONG len;
+};
+
+struct ksync_response {
+    struct ksync_response *next;
+    struct ksync_response_header header;
+    unsigned char buffer[NL_MSG_DEFAULT_SIZE];
+};
+
+// TODO: JW-261 Implement multiple queues to handle multiple processes
+//       opening a pipe
+struct ksync_device_context {
+    struct ksync_response *responses; // responses queue
+};
+
+// Returns true if response header contains a response, parseable by sandesh.
+#define IS_KSYNC_RESPONSE_VALID(hdr) ((hdr)->type == KSYNC_RESPONSE_SINGLE || (hdr)->type == KSYNC_RESPONSE_MULTIPLE)
+
 #endif /* __VR_KSYNC_DEFS_H__ */
