@@ -95,6 +95,11 @@ struct vr_packet* win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif,
 int win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER src, unsigned int offset, unsigned int len);
 void delete_unbound_nbl(NET_BUFFER_LIST* nbl, unsigned long flags);
 
+struct vr_assoc* win_get_physical();
+void win_set_physical(struct vr_assoc* assoc);
+/*struct vr_assoc* win_get_host();
+void win_set_host(struct vr_assoc* assoc);*/
+
 extern struct host_os windows_host;
 
 #ifdef __cplusplus

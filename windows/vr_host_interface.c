@@ -107,7 +107,7 @@ win_if_rx(struct vr_interface *vif, struct vr_packet* pkt)
 
     // Since we are operating from virtual switch's PoV and not from OS's PoV, RXing is the same as TXing
     // On Linux, we receive the packet as an OS, but in Windows we are a switch to we simply push the packet to OS's networking stack
-    // See linux_if_rx for reference
+    // See vhost_tx for reference (it calls hif_ops->hif_rx)
 
     win_if_tx(vif, pkt);
 

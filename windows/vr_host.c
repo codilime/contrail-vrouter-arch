@@ -863,19 +863,15 @@ win_get_cpu(void)
 static void *
 win_network_header(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
-
-    /* Dummy implementation */
-    return NULL;
+    /* TODO: Make sure it works by traversing MDL chain */
+    return pkt->vp_head + pkt->vp_network_h;
 }
 
 static void *
 win_inner_network_header(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
-
-    /* Dummy implementation */
-    return NULL;
+    /* TODO: Make sure it works by traversing MDL chain */
+    return pkt->vp_head + pkt->vp_inner_network_h;
 }
 
 static void *
@@ -1044,6 +1040,8 @@ win_register_nic(struct vr_interface* vif)
     ASSERT(vif != NULL);
 
     switch (vif->vif_type) {
+    case VIF_TYPE_GATEWAY:
+    case VIF_TYPE_HOST:
     case VIF_TYPE_VIRTUAL:
     {
         struct vr_assoc* assoc = vr_get_assoc_by_name(vif->vif_name);
@@ -1062,24 +1060,12 @@ win_register_nic(struct vr_interface* vif)
         break;
     }
 
-    case VIF_TYPE_HOST:
-    {
-        vif->vif_port = WIN_VHOST_PORTID;
-        vif->vif_nic = WIN_VHOST_NICID;
-        break;
-    }
-
     case VIF_TYPE_PHYSICAL:
     {
-        vif->vif_port = WIN_PHYSICAL_PORTID;
-        vif->vif_nic = WIN_PHYSICAL_NICID;
-        break;
-    }
+        struct vr_assoc* assoc = win_get_physical();
+        vif->vif_port = assoc->port_id;
+        vif->vif_nic = assoc->nic_index;
 
-    case VIF_TYPE_GATEWAY:
-    {
-        vif->vif_port = WIN_VHOST_PORTID;
-        vif->vif_nic = WIN_VHOST_NICID;
         break;
     }
 
