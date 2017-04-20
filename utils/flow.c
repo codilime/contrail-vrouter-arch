@@ -17,20 +17,11 @@
 #include <sys/stat.h>
 
 #if defined(__linux__)
-
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/mman.h>
 #include <asm/types.h>
 
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
-#include <net/if.h>
 #include <netinet/ether.h>
 #endif
 
@@ -46,6 +37,15 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp);
 #define CLEAN_SCREEN            "cls"
 #else
 #define CLEAN_SCREEN            "clear"
+
+#include <unistd.h>
+#include <getopt.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <sys/mman.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 #endif
 
 #include "vr_types.h"
@@ -1982,14 +1982,11 @@ flow_make_flow_req_perf(vr_flow_req *req)
 
     struct msghdr msg;
     memset(&msg, 0, sizeof(msg));
-#endif
 
-#if defined (__linux__)
+#ifdef (__linux__)
     msg.msg_name = cl->cl_sa;
     msg.msg_namelen = cl->cl_sa_len;
 #endif
-
-#ifndef _WINDOWS
 
     msg.msg_iov = iov;
     msg.msg_iovlen = count;

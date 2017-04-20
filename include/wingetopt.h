@@ -75,21 +75,21 @@ extern "C" {
 #define	REPLACE_GETOPT		/* use this getopt as the system getopt(3) */
 
 #ifdef REPLACE_GETOPT
-    int	opterr = 1;		/* if error message should be printed */
-    int	optind = 1;		/* index into parent argv vector */
-    int	optopt = '?';		/* character checked for validity */
-#undef	optreset		/* see getopt.h */
+    int     opterr = 1;         /* if error message should be printed */
+    int     optind = 1;         /* index into parent argv vector */
+    int     optopt = '?';       /* character checked for validity */
+#undef	optreset        /* see getopt.h */
 #define	optreset		__mingw_optreset
-    int	optreset;		/* reset getopt */
-    char    *optarg;		/* argument associated with option */
+    int     optreset;           /* reset getopt */
+    char   *optarg;             /* argument associated with option */
 #endif
 
-                            //extern int optind;		/* index of first non-option in argv      */
-                            //extern int optopt;		/* single option character, as parsed     */
-                            //extern int opterr;		/* flag to enable built-in diagnostics... */
-                            //				/* (user may set to zero, to suppress)    */
+                            //extern int optind;        /* index of first non-option in argv      */
+                            //extern int optopt;        /* single option character, as parsed     */
+                            //extern int opterr;        /* flag to enable built-in diagnostics... */
+                            //                          /* (user may set to zero, to suppress)    */
                             //
-                            //extern char *optarg;		/* pointer to argument of current option  */
+                            //extern char *optarg;      /* pointer to argument of current option  */
 
 #define PRINT_ERROR	((opterr) && (*options != ':'))
 
@@ -97,7 +97,7 @@ extern "C" {
 #define FLAG_ALLARGS	0x02	/* treat non-options as args to option "-1" */
 #define FLAG_LONGONLY	0x04	/* operate as getopt_long_only */
 
-                            /* return values */
+/* return values */
 #define	BADCH		(int)'?'
 #define	BADARG		((*options == ':') ? (int)':' : (int)'?')
 #define	INORDER 	(int)1

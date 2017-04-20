@@ -12,8 +12,6 @@
 #include <netinet/in.h>
 #endif
 
-#pragma warning(disable:4996)
-
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -39,6 +37,10 @@
 
 #define VROUTER_GENETLINK_FAMILY_NAME "vrouter"
 #define GENL_ID_VROUTER         (NLMSG_MIN_TYPE + 0x10)
+
+#if defined(_WINDOWS)
+#pragma warning(disable:4996)
+#endif
 
 extern struct nl_response *nl_parse_gen(struct nl_client *);
 

@@ -24,7 +24,6 @@
 #include <net/ethernet.h>
 #endif
 
-#pragma warning(disable:4996)
 
 #include "vr_types.h"
 #include "nl_util.h"
@@ -36,6 +35,10 @@
 #include "vr_route.h"
 #include "vr_bridge.h"
 #include "ini_parser.h"
+
+#if defined(_WINDOWS)
+#pragma warning(disable:4996)
+#endif
 
 /* Suppress NetLink error messages */
 bool vr_ignore_nl_errors = false;
