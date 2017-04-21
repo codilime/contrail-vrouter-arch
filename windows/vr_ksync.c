@@ -77,7 +77,7 @@ _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
 _Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
 _Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
-_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH KsyncDeviceControl;
+_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH KsyncDispatchDeviceControl;
 _Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH KsyncDispatchCleanup;
 
 _Use_decl_annotations_ NTSTATUS
@@ -285,7 +285,7 @@ KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
 }
 
 _Use_decl_annotations_ NTSTATUS
-KsyncDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
+KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
@@ -381,7 +381,7 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
         DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
         DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
         DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
-        DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDeviceControl;
+        DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDispatchDeviceControl;
         DriverObject->MajorFunction[IRP_MJ_CLEANUP] = KsyncDispatchCleanup;
 #pragma prefast(pop)
 
