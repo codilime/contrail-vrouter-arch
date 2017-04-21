@@ -50,6 +50,7 @@ struct iov_iter {
 
 #ifdef _WINDOWS
 extern struct ether_addr *ether_aton(const char *asc);
+extern char *ether_ntoa(const struct ether_addr *addr);
 #endif
 
 #endif /* __UTILS_TEMP__ */

@@ -6,14 +6,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <getopt.h>
 #include <inttypes.h>
 
+#ifndef _WINDOWS
+#include <unistd.h>
+#include <getopt.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -23,6 +24,9 @@
 #include <netinet/ether.h>
 #else
 #include <net/ethernet.h>
+#endif
+#else
+#include <wingetopt.h>
 #endif
 
 #include "vr_types.h"
@@ -83,6 +87,16 @@ struct vr_util_flags bridge_flags[] = {
     {VR_BE_FLOOD_DHCP_FLAG,     "Df",   "DHCP flood"    },
 };
 
+void rt_response_process(void *s);
+void rt_route_req_process(void *s_req);
+
+void
+rt_fill_nl_callbacks()
+{
+    nl_cb.vr_response_process = rt_response_process;
+    nl_cb.vr_route_req_process = rt_route_req_process;
+}
+
 static void
 dump_legend(int family)
 {
@@ -131,7 +145,7 @@ family_string_to_id(char *fname)
 }
 
 void
-vr_route_req_process(void *s_req)
+rt_route_req_process(void *s_req)
 {
     int ret = 0, i;
     char addr[INET6_ADDRSTRLEN];
@@ -197,7 +211,7 @@ vr_route_req_process(void *s_req)
         memcpy(rt_marker, rt->rtr_mac, VR_ETHER_ALEN);
         rt_marker_plen = VR_ETHER_ALEN;
 
-        bzero(flags, sizeof(flags));
+        memset(flags, 0, sizeof(flags));
         if (rt->rtr_label_flags & VR_BE_LABEL_VALID_FLAG)
             strcat(flags, "L");
         if (rt->rtr_label_flags & VR_BE_FLOOD_DHCP_FLAG)
@@ -230,7 +244,7 @@ vr_route_req_process(void *s_req)
 }
 
 void
-vr_response_process(void *s)
+rt_response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
@@ -308,7 +322,7 @@ op_retry:
                 rt_marker, rt_marker_plen);
         break;
 
-    case SANDESH_OP_DELETE:
+    case SANDESH_OP_DEL:
         ret = vr_send_route_delete(cl, 0, cmd_vrf_id, cmd_family_id,
                 cmd_prefix, cmd_plen, cmd_nh_id, cmd_label, cmd_dst_mac,
                 cmd_replace_plen, flags);
@@ -392,7 +406,7 @@ validate_options(void)
 
         break;
 
-    case SANDESH_OP_DELETE:
+    case SANDESH_OP_DEL:
         if ((cmd_family_id == AF_INET) || (cmd_family_id == AF_INET6)) {
 
             if (cmd_replace_plen == 0xFFFFFFFF)
@@ -583,6 +597,8 @@ main(int argc, char *argv[])
     int option_index;
     struct ether_addr *cmd_eth;
 
+    rt_fill_nl_callbacks();
+
     cmd_nh_id = -255;
     cmd_label = -1;
     cmd_family_id = AF_INET;
@@ -601,7 +617,7 @@ main(int argc, char *argv[])
                 if (cmd_op >= 0) {
                     usage_internal();
                 }
-                cmd_op = SANDESH_OP_DELETE;
+                cmd_op = SANDESH_OP_DEL;
                 break;
 
             case 'b':
