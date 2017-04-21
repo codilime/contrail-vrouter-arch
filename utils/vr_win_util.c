@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <strsafe.h>
 #include <stdbool.h>
+#include "vr_defs.h"
 #include "nl_util.h"
 
 #define ETHER_ADDR_LEN	   (6)
@@ -157,13 +158,7 @@ ether_ntoa(const struct ether_addr *addr)
     static char buffer[ETHER_ADDR_STR_LEN];
 
     memset(buffer, 0, sizeof(buffer));
-    int ret = snprintf(buffer, sizeof(buffer), "%02x:%02x:%02x:%02x:%02x:%02x",
-             addr->ether_addr_octet[0],
-             addr->ether_addr_octet[1],
-             addr->ether_addr_octet[2],
-             addr->ether_addr_octet[3],
-             addr->ether_addr_octet[4],
-             addr->ether_addr_octet[5]);
+    int ret = snprintf(buffer, sizeof(buffer), MAC_FORMAT, MAC_VALUE(addr->ether_addr_octet));
     assert(ret == ETHER_ADDR_STR_LEN - 1);  // ETHER_ADDR_STR_LEN includes '\0' byte
 
     return buffer;
