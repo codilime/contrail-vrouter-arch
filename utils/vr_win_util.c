@@ -1,9 +1,11 @@
+#include <assert.h>
 #include <strsafe.h>
 #include <stdbool.h>
+#include "vr_defs.h"
 #include "nl_util.h"
 
-#define ETHER_ADDR_LEN       6
-#define KSYNC_MAX_WRITE_COUNT (NL_MSG_DEFAULT_SIZE)
+#define ETHER_ADDR_LEN	   (6)
+#define ETHER_ADDR_STR_LEN (ETHER_ADDR_LEN * 3)
 
 // nl_*_sendmsg and nl_*_recvmsg functions use sendmsg and recvmsg
 // and they return -1 on error.
@@ -15,18 +17,6 @@ const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
 struct ether_addr {
     u_char ether_addr_octet[ETHER_ADDR_LEN];
 };
-char dest[18];
-char* ether_ntoa(unsigned char* etheraddr)
-{
-    snprintf(dest, sizeof(dest), "%02x:%02x:%02x:%02x:%02x:%02x",
-      (unsigned)etheraddr[0],
-      (unsigned)etheraddr[1],
-      (unsigned)etheraddr[2],
-      (unsigned)etheraddr[3],
-      (unsigned)etheraddr[4],
-      (unsigned)etheraddr[5]);
-    return dest;
-}
 
 int gettimeofday(struct timeval * tp, struct timezone * tzp)
 {
@@ -176,8 +166,20 @@ struct ether_addr *
 * Re-entrant version (GNU extensions)
 */
 struct ether_addr *
-    ether_aton(const char *asc)
+ether_aton(const char *asc)
 {
     static struct ether_addr addr;
     return ether_aton_r(asc, &addr);
+}
+
+char *
+ether_ntoa(const struct ether_addr *addr)
+{
+    static char buffer[ETHER_ADDR_STR_LEN];
+
+    memset(buffer, 0, sizeof(buffer));
+    int ret = snprintf(buffer, sizeof(buffer), MAC_FORMAT, MAC_VALUE(addr->ether_addr_octet));
+    assert(ret == ETHER_ADDR_STR_LEN - 1);  // ETHER_ADDR_STR_LEN includes '\0' byte
+
+    return buffer;
 }
