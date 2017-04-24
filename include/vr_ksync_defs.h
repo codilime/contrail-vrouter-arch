@@ -43,4 +43,13 @@ struct ksync_device_context {
 // Returns true if response header contains a response, parseable by sandesh.
 #define IS_KSYNC_RESPONSE_VALID(hdr) ((hdr)->type == KSYNC_RESPONSE_SINGLE || (hdr)->type == KSYNC_RESPONSE_MULTIPLE)
 
+#define SIOCTL_TYPE 40000
+#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
+CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
+
+struct mem_wrapper
+{
+    PVOID       pBuffer;
+};
+
 #endif /* __VR_KSYNC_DEFS_H__ */

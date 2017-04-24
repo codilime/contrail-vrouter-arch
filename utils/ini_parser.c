@@ -22,6 +22,10 @@
 
 #define BUF_LENGTH 256
 
+#if defined(_WINDOWS)
+#pragma warning(disable:4996)
+#endif
+
 static char value[BUF_LENGTH];
 static char *ini_data = NULL;
 static char ini_file[] = "/etc/contrail/contrail-vrouter-agent.conf";

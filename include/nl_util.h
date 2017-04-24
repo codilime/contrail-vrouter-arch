@@ -44,6 +44,7 @@ struct nl_client {
     struct nl_response resp;
     unsigned int cl_resp_buf_len;
     uint8_t *cl_resp_buf;
+    uint8_t *cl_attr;
     int cl_socket_domain;
     int cl_socket_type;
     int cl_socket_proto;
@@ -117,6 +118,7 @@ extern int nl_get_attr_hdr_size();
 extern uint8_t *nl_get_buf_ptr(struct nl_client *cl);
 extern uint32_t nl_get_buf_len(struct nl_client *cl);
 extern void nl_build_attr(struct nl_client *cl, int len, int attr);
+extern void nl_update_attr_len(struct nl_client *, int);
 extern int vrouter_get_family_id(struct nl_client *cl);
 extern int get_vrouter_pid(void);
 
@@ -132,7 +134,7 @@ extern struct nl_client *vr_get_nl_client(unsigned int);
 
 extern int vr_response_common_process(vr_response *, bool *);
 
-extern unsigned long vr_sum_drop_stats(vr_drop_stats_req *);
+extern uint64_t vr_sum_drop_stats(vr_drop_stats_req *);
 extern void vr_drop_stats_req_destroy(vr_drop_stats_req *);
 extern vr_drop_stats_req *vr_drop_stats_req_get_copy(vr_drop_stats_req *);
 extern int vr_send_drop_stats_get(struct nl_client *, unsigned int, int);
