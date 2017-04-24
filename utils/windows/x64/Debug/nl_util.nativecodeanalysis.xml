@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DEFECTS>
+  <DEFECT>
+    <SFA>
+      <FILEPATH>c:\gits\vnc\vrouter\utils\</FILEPATH>
+      <FILENAME>nl_util.c</FILENAME>
+      <LINE>440</LINE>
+      <COLUMN>13</COLUMN>
+    </SFA>
+    <DEFECTCODE>28278</DEFECTCODE>
+    <DESCRIPTION>Function close appears with no prototype in scope.  Only limited analysis can be performed. Include the appropriate header or add a prototype. This warning also occurs if parameter or return types are omitted in a function definition.</DESCRIPTION>
+    <FUNCTION>nl_free</FUNCTION>
+    <DECORATED>nl_free</DECORATED>
+    <FUNCLINE>437</FUNCLINE>
+    <PATH></PATH>
+  </DEFECT>
+</DEFECTS>
