@@ -18,8 +18,8 @@ function RestartExtension {
     }
 }
 
-$nr = 0
-Get-ChildItem -Path $TestsFolder -Filter *.xml -Recurse | % {
+$tests = Get-ChildItem -Path $TestsFolder -Filter *.xml -Recurse
+$tests | % {
     RestartExtension
     Invoke-Expression "$($vtestPath) $($_.FullName)"
     If ($LASTEXITCODE -ne 0) {
@@ -29,4 +29,4 @@ Get-ChildItem -Path $TestsFolder -Filter *.xml -Recurse | % {
     $nr = $nr + 1
 }
 RestartExtension
-Write-Host "vtest: all($($nr)) tests passed"
+Write-Host "vtest: all($($($tests | measure).Count)) tests passed"
