@@ -77,6 +77,10 @@ KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
+    struct ksync_device_context *pListHead = (struct ksync_device_context *)ExAllocatePoolWithTag(PagedPool, sizeof(struct ksync_device_context), 'ELOS');
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    pStack->FileObject->FsContext = pListHead;
+
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return STATUS_SUCCESS;
@@ -102,7 +106,8 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     BOOLEAN multiple_responses;
     enum ksync_response_type response_type;
 
-    ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    ctx = pStack->FileObject->FsContext;
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PCHAR WriteDataBuffer = NULL;
@@ -203,7 +208,8 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
     PCHAR ReadDataBuffer = NULL;
     struct ksync_device_context *ctx;
 
-    ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    ctx = pStack->FileObject->FsContext;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
     if (Irp->MdlAddress == NULL)
@@ -333,9 +339,9 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
     struct ksync_device_context *ctx;
     struct ksync_response *resp;
 
-    MmUnmapLockedPages(user_virtual_address, mdl_mem);
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    ctx = pStack->FileObject->FsContext;
 
-    ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
     while ((resp = KsyncPopResponse(ctx))) {
         KsyncResponseDelete(resp);
     }
@@ -351,7 +357,6 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
     UNICODE_STRING _DeviceSymLink;
     PDEVICE_OBJECT DeviceObject = NULL;
     NTSTATUS Status;
-    struct ksync_device_context *ctx = NULL;
 
     Status = RtlUnicodeStringInit(&_DeviceName, DeviceName);
     if (!NT_SUCCESS(Status)) {
@@ -365,15 +370,12 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, sizeof(struct ksync_device_context), &_DeviceName,
+    Status = IoCreateDevice(DriverObject, 0, &_DeviceName,
                             FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
                             FALSE, &DeviceObject);
     if (NT_SUCCESS(Status))
     {
         KsyncDeviceObject = DeviceObject;
-
-        ctx = (struct ksync_device_context *)KsyncDeviceObject->DeviceExtension;
-        ctx->responses = NULL;
 
 #pragma prefast(push)
 #pragma prefast(disable:28175, "we're just setting it, it's allowed")
