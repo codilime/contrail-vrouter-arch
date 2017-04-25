@@ -11,7 +11,6 @@ linux/*.o
 
 # Not sure where this is generated
 .tmp_versions
-utils/windows/flow/x64/*
 
 # vrouter module stuff
 .vrouter.ko.cmd
