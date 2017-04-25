@@ -109,6 +109,7 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     struct ksync_response *ksync_response;
     BOOLEAN multiple_responses;
     enum ksync_response_type response_type;
+    UINT32 msg_seq;
 
     ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
 
@@ -136,10 +137,10 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     struct genlmsghdr* p_genlmsghdr = (struct genlmsghdr*)(WriteDataBuffer + sizeof(struct nlmsghdr));
     struct nlattr *p_nlattrr = (struct nlattr*)(WriteDataBuffer + sizeof(struct nlmsghdr) + sizeof(struct genlmsghdr));
 
+    msg_seq = p_nlmsghdr->nlmsg_seq;
     request.vr_message_buf = NLA_DATA(p_nlattrr);
     request.vr_message_len = NLA_LEN(p_nlattrr);
 
-    DBG_UNREFERENCED_LOCAL_VARIABLE(p_nlmsghdr);
     DBG_UNREFERENCED_LOCAL_VARIABLE(p_genlmsghdr);
 
     ret = vr_message_request(&request);
@@ -161,6 +162,7 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
             goto failure;
 
         ksync_response->header.type = response_type;
+        ksync_response->header.seq = msg_seq;
         ksync_response->header.len = response->vr_message_len;
         RtlCopyMemory(ksync_response->buffer, response->vr_message_buf, ksync_response->header.len);
 
