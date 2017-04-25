@@ -36,14 +36,17 @@
 #include "vr_bridge.h"
 #include "ini_parser.h"
 
+#if defined(_WINDOWS)
+#pragma warning(disable:4996)
+#endif
+
 /* Suppress NetLink error messages */
 bool vr_ignore_nl_errors = false;
 
 char *
 vr_extract_token(char *string, char token_separator)
 {
-    int ret;
-    unsigned int length;
+    size_t length;
 
     char *sep;
 
@@ -375,10 +378,10 @@ vr_response_common_process(vr_response *resp, bool *dump_pending)
 }
 
 /* dropstats start */
-unsigned long
+uint64_t
 vr_sum_drop_stats(vr_drop_stats_req *req)
 {
-    unsigned long sum = 0;
+    uint64_t sum = 0;
 
     sum += req->vds_discard;
     sum += req->vds_pull;
