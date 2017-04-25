@@ -13,7 +13,6 @@ const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
-PVOID user_virtual_address = NULL;
 
 static struct ksync_response *
 KsyncResponseCreate()
@@ -77,15 +76,39 @@ KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
+    struct ksync_device_context *ctx = (struct ksync_device_context *)ExAllocatePoolWithTag(PagedPool, sizeof(struct ksync_device_context), KsyncAllocationTag);
+
+    if (ctx == NULL)
+    {
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    ctx->user_virtual_address = NULL;
+    ctx->responses = NULL;
+
+    pStack->FileObject->FsContext = ctx;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return STATUS_SUCCESS;
+
 }
 
 _Use_decl_annotations_ NTSTATUS
 KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
+
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    struct ksync_device_context *ctx = pStack->FileObject->FsContext;
+
+    if (ctx->user_virtual_address)
+    {
+        MmUnmapLockedPages(ctx->user_virtual_address, mdl_mem);
+    }
+
+    ExFreePoolWithTag(pStack->FileObject->FsContext, KsyncAllocationTag);
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
@@ -102,7 +125,8 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
     BOOLEAN multiple_responses;
     enum ksync_response_type response_type;
 
-    ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    ctx = pStack->FileObject->FsContext;
 
     PIO_STACK_LOCATION IoStackIrp = NULL;
     PCHAR WriteDataBuffer = NULL;
@@ -170,7 +194,7 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
         KsyncAppendResponse(ctx, ksync_response);
     }
-    
+
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = IoStackIrp->Parameters.Write.Length;
 
@@ -203,7 +227,8 @@ KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
     PCHAR ReadDataBuffer = NULL;
     struct ksync_device_context *ctx;
 
-    ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
+    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(Irp);
+    ctx = pStack->FileObject->FsContext;
 
     IoStackIrp = IoGetCurrentIrpStackLocation(Irp);
     if (Irp->MdlAddress == NULL)
@@ -285,6 +310,7 @@ KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     PIO_STACK_LOCATION irpSp;
     struct mem_wrapper returnedValue;
     PVOID buffer = NULL;
+    struct ksync_device_context *ctx = NULL;
 
     irpSp = IoGetCurrentIrpStackLocation(Irp);
 
@@ -292,7 +318,9 @@ KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     {
         case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
 
-            user_virtual_address = MmMapLockedPagesSpecifyCache(
+            ctx = irpSp->FileObject->FsContext;
+
+            ctx->user_virtual_address = MmMapLockedPagesSpecifyCache(
                 mdl_mem,
                 UserMode,
                 MmNonCached,
@@ -308,7 +336,7 @@ KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
                 return STATUS_INSUFFICIENT_RESOURCES;
             }
 
-            returnedValue.pBuffer = user_virtual_address;
+            returnedValue.pBuffer = ctx->user_virtual_address;
             RtlCopyMemory(buffer, &returnedValue, sizeof(struct mem_wrapper));
             Irp->IoStatus.Information = sizeof(struct mem_wrapper);
             ntStatus = STATUS_SUCCESS;
@@ -330,16 +358,7 @@ KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
 _Use_decl_annotations_ NTSTATUS
 KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
-    struct ksync_device_context *ctx;
-    struct ksync_response *resp;
-
-    MmUnmapLockedPages(user_virtual_address, mdl_mem);
-
-    ctx = (struct ksync_device_context *)DriverObject->DeviceExtension;
-    while ((resp = KsyncPopResponse(ctx))) {
-        KsyncResponseDelete(resp);
-    }
-
+    UNREFERENCED_PARAMETER(DriverObject);
     return STATUS_SUCCESS;
 }
 
@@ -351,7 +370,6 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
     UNICODE_STRING _DeviceSymLink;
     PDEVICE_OBJECT DeviceObject = NULL;
     NTSTATUS Status;
-    struct ksync_device_context *ctx = NULL;
 
     Status = RtlUnicodeStringInit(&_DeviceName, DeviceName);
     if (!NT_SUCCESS(Status)) {
@@ -365,15 +383,12 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, sizeof(struct ksync_device_context), &_DeviceName,
+    Status = IoCreateDevice(DriverObject, 0, &_DeviceName,
                             FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
                             FALSE, &DeviceObject);
     if (NT_SUCCESS(Status))
     {
         KsyncDeviceObject = DeviceObject;
-
-        ctx = (struct ksync_device_context *)KsyncDeviceObject->DeviceExtension;
-        ctx->responses = NULL;
 
 #pragma prefast(push)
 #pragma prefast(disable:28175, "we're just setting it, it's allowed")
