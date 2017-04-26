@@ -26,6 +26,7 @@ enum ksync_response_type {
 struct ksync_response_header {
     enum ksync_response_type type;
     ULONG len;
+    UINT32 seq;
 };
 
 struct ksync_response {
