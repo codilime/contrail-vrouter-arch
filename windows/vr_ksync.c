@@ -340,6 +340,8 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
         KsyncResponseDelete(resp);
     }
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
 
