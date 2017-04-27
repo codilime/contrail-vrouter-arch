@@ -133,6 +133,17 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 static NDIS_STATUS
 UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
 {
+    /* The structure is as follows:
+     * PortID 1: Nic 0: vhost
+     * PortID 2: Nic 0: Default external interface
+     * PortID 2: Nic 1+: Specific external interfaces
+     * PortID 3+: Containers/VMs
+     */
+    if (Nic->PortId <= 2)
+        // These don't have to be handled here
+        return NDIS_STATUS_SUCCESS;
+
+    // This happens only for VMs/containers
     char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
     NDIS_STATUS status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
     if (status != NDIS_STATUS_SUCCESS) {
@@ -167,6 +178,7 @@ UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
     else {
         return NDIS_STATUS_RESOURCES;
     }
+
     return NDIS_STATUS_SUCCESS;
 }
 
@@ -387,6 +399,14 @@ SxExtRestartSwitch(
 
     struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
 
+    PNDIS_SWITCH_NIC_ARRAY array;
+    SxLibGetNicArrayUnsafe(Switch, &array);
+
+    for (unsigned i = 0; i < array->NumElements; i++){
+        PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
+        UpdateNics(element, TRUE);
+    }
+
     ctx->restart = FALSE;
 
     return 0;
@@ -472,11 +492,9 @@ SxExtConnectNic(
         NdisMSleep(100);
     }
 
-    if (Nic->NicType == NdisSwitchNicTypeInternal) {
-        NDIS_STATUS status = UpdateNics(Nic, TRUE);
+    NDIS_STATUS status = UpdateNics(Nic, TRUE);
 
-        ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
-    }
+    ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
 }
 
 VOID
@@ -884,6 +902,8 @@ SxExtStartNetBufferListsIngress(
     PNET_BUFFER_LIST curNbl = NULL;
     PNET_BUFFER_LIST nextNbl = NULL;
 
+    struct vrouter *router = vrouter_get(0);
+
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
     if (sameSource) {
@@ -913,8 +933,16 @@ SxExtStartNetBufferListsIngress(
         NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
         NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
         windows_host.hos_printf("%s: port %d and interface id %d\n", __func__, source_port, source_nic);
-        struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
-        struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
+
+        struct vr_interface *vif;
+        if (source_port == 1)
+            vif = router->vr_host_if;
+        else if (source_port == 2)
+            vif = router->vr_eth_if;
+        else {
+            struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
+            vif = (assoc_entry ? assoc_entry->interface : NULL);
+        }
 
         if (!vif) {
             /* If no vif attached yet, then drop NBL. */

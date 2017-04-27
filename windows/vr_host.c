@@ -7,6 +7,11 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
+#define WIN_VHOST_PORTID 1
+#define WIN_VHOST_NICID 0
+#define WIN_PHYSICAL_PORTID 2
+#define WIN_PHYSICAL_NICID 0
+
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -1033,26 +1038,58 @@ win_soft_reset(struct vrouter *router)
     return;
 }
 
-void
+static void
 win_register_nic(struct vr_interface* vif)
 {
     ASSERT(vif != NULL);
 
-    struct vr_assoc* assoc = vr_get_assoc_by_name(vif->vif_name);
+    switch (vif->vif_type) {
+    case VIF_TYPE_VIRTUAL:
+    {
+        struct vr_assoc* assoc = vr_get_assoc_by_name(vif->vif_name);
 
-    ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
+        ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
 
-    assoc->interface = vif;
-
-    if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
-        vif->vif_port = assoc->port_id;
-        vif->vif_nic = assoc->nic_index;
-
-        assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
         assoc->interface = vif;
 
-        vif_attach(vif);
+        if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
+            vif->vif_port = assoc->port_id;
+            vif->vif_nic = assoc->nic_index;
+
+            assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
+            assoc->interface = vif;
+        }
+        break;
     }
+
+    case VIF_TYPE_HOST:
+    {
+        vif->vif_port = WIN_VHOST_PORTID;
+        vif->vif_nic = WIN_VHOST_NICID;
+        break;
+    }
+
+    case VIF_TYPE_PHYSICAL:
+    {
+        vif->vif_port = WIN_PHYSICAL_PORTID;
+        vif->vif_nic = WIN_PHYSICAL_NICID;
+        break;
+    }
+
+    case VIF_TYPE_GATEWAY:
+    {
+        vif->vif_port = WIN_VHOST_PORTID;
+        vif->vif_nic = WIN_VHOST_NICID;
+        break;
+    }
+
+    default:
+    {
+        ASSERTMSG("Non-supported VIF type", FALSE);
+    }
+    }
+
+    vif_attach(vif);
 }
 
 struct host_os windows_host = {
