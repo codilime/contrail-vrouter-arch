@@ -133,18 +133,17 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 static NDIS_STATUS
 UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
 {
+    // TODO JW-448: Change when implementing NIC teaming.
+    if (Nic->NicType == NdisSwitchNicTypeExternal && Nic->NicIndex == 0)
+        return NDIS_STATUS_SUCCESS;
+
     struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(Nic->PortId, Nic->NicIndex);
+    if (assoc_by_ids == NULL)
+        return NDIS_STATUS_RESOURCES;
 
     if (Nic->NicType == NdisSwitchNicTypeExternal) {
-        if (Nic->NicIndex != 0) {
-            if (assoc_by_ids == NULL)
-                return NDIS_STATUS_RESOURCES;
-
-            win_set_physical(assoc_by_ids);
-            return NDIS_STATUS_SUCCESS;
-        } else {
-            return NDIS_STATUS_SUCCESS;
-        }
+        win_set_physical(assoc_by_ids);
+        return NDIS_STATUS_SUCCESS;
     }
 
     char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
@@ -154,7 +153,7 @@ UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
     }
 
     struct vr_assoc* assoc_by_name = vr_get_assoc_by_name(nic_name);
-    if (assoc_by_name != NULL && assoc_by_ids != NULL) {
+    if (assoc_by_name != NULL) {
         NTSTATUS status_set = vr_assoc_set_string(assoc_by_ids, nic_name);
         if (!NT_SUCCESS(status_set)) {
             return status_set;
@@ -938,6 +937,11 @@ SxExtStartNetBufferListsIngress(
 
         struct vr_interface *vif = NULL;
         struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
+        if (assoc_entry == NULL) {
+            windows_host.hos_printf("%s: Critical Error: Out of memory", __func__);
+            continue;
+        }
+
         if (assoc_entry->interface)
             vif = assoc_entry->interface;
         else if (assoc_entry == win_get_physical())

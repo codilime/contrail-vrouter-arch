@@ -47,24 +47,14 @@ static struct vr_assoc* ids_map[MAP_SIZE];
 static struct vr_assoc* physical;
 static struct vr_assoc* host;
 
-void win_set_physical(struct vr_assoc* assoc)
-{
-    physical = assoc;
-}
-
-void win_set_host(struct vr_assoc* assoc)
-{
-    host = assoc;
-}
-
 struct vr_assoc* win_get_physical()
 {
     return physical;
 }
 
-struct vr_assoc* win_get_host()
+void win_set_physical(struct vr_assoc* assoc)
 {
-    return host;
+    physical = assoc;
 }
 
 NDIS_STATUS vr_get_name_from_friendly_name(
@@ -75,6 +65,8 @@ NDIS_STATUS vr_get_name_from_friendly_name(
     UNICODE_STRING friendly_unicode_str;
     ANSI_STRING friendly_ansi_str;
     NTSTATUS status;
+
+    friendly.String[friendly.Length] = '\0';
 
     friendly_ansi_str.Buffer = name;
     friendly_ansi_str.MaximumLength = name_buffer_size;

@@ -864,6 +864,10 @@ static void *
 win_network_header(struct vr_packet *pkt)
 {
     /* TODO: Make sure it works by traversing MDL chain */
+    /* Do this if a bug with incorrect IP header arises*/
+    /* What if the data is not continuous? We'd have to
+       allocate a buffer for it, but there is no guarantee
+       it would be freed later*/
     return pkt->vp_head + pkt->vp_network_h;
 }
 
@@ -871,6 +875,10 @@ static void *
 win_inner_network_header(struct vr_packet *pkt)
 {
     /* TODO: Make sure it works by traversing MDL chain */
+    /* Do this if a bug with incorrect IP header arises*/
+    /* What if the data is not continuous? We'd have to
+       allocate a buffer for it, but there is no guarantee
+       it would be freed later*/
     return pkt->vp_head + pkt->vp_inner_network_h;
 }
 
@@ -1037,14 +1045,14 @@ win_soft_reset(struct vrouter *router)
 static void
 win_register_nic(struct vr_interface* vif)
 {
+    struct vr_assoc* assoc;
     ASSERT(vif != NULL);
 
     switch (vif->vif_type) {
     case VIF_TYPE_GATEWAY:
     case VIF_TYPE_HOST:
     case VIF_TYPE_VIRTUAL:
-    {
-        struct vr_assoc* assoc = vr_get_assoc_by_name(vif->vif_name);
+        assoc = vr_get_assoc_by_name(vif->vif_name);
 
         ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
 
@@ -1058,21 +1066,16 @@ win_register_nic(struct vr_interface* vif)
             assoc->interface = vif;
         }
         break;
-    }
 
     case VIF_TYPE_PHYSICAL:
-    {
-        struct vr_assoc* assoc = win_get_physical();
+        assoc = win_get_physical();
         vif->vif_port = assoc->port_id;
         vif->vif_nic = assoc->nic_index;
 
         break;
-    }
 
     default:
-    {
         ASSERTMSG("Non-supported VIF type", FALSE);
-    }
     }
 
     vif_attach(vif);

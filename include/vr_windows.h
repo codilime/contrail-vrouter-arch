@@ -97,8 +97,6 @@ void delete_unbound_nbl(NET_BUFFER_LIST* nbl, unsigned long flags);
 
 struct vr_assoc* win_get_physical();
 void win_set_physical(struct vr_assoc* assoc);
-/*struct vr_assoc* win_get_host();
-void win_set_host(struct vr_assoc* assoc);*/
 
 extern struct host_os windows_host;
 
