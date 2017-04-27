@@ -31,6 +31,8 @@ struct vr_switch_context {
     BOOLEAN                 restart;
 
     BOOLEAN                 vrouter_up;
+    BOOLEAN                 ksync_up;
+    BOOLEAN                 pkt0_up;
     BOOLEAN                 device_up;
     BOOLEAN                 assoc_up;
     BOOLEAN                 message_up;

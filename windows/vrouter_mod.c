@@ -1,6 +1,6 @@
 #include "precomp.h"
 #include "vr_windows.h"
-#include "vr_ksync.h"
+#include "vr_devices.h"
 #include "vrouter.h"
 #include "vr_packet.h"
 #include "vr_sandesh.h"
@@ -200,16 +200,32 @@ SxExtUninitializeVRouter(struct vr_switch_context* ctx)
         memory_exit();
 
     if (ctx->device_up)
+        VRouterUninitializeDevices(SxDriverObject);
+
+    if (ctx->pkt0_up)
+        Pkt0DestroyDevice(SxDriverObject);
+
+    if (ctx->ksync_up)
         KsyncDestroyDevice(SxDriverObject);
 }
 
 NDIS_STATUS
 SxExtInitializeVRouter(struct vr_switch_context* ctx)
 {
-    if (ctx->vrouter_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
+    if (ctx->vrouter_up || ctx->ksync_up || ctx->pkt0_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
         return NDIS_STATUS_FAILURE;
 
-    ctx->device_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
+    ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
+
+    if (!ctx->ksync_up)
+        goto cleanup;
+
+    ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(SxDriverObject));
+
+    if (!ctx->pkt0_up)
+        goto cleanup;
+
+    ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(SxDriverObject));
 
     if (!ctx->device_up)
         goto cleanup;

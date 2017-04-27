@@ -338,7 +338,7 @@
     <ClInclude Include="include\vr_stats.h" />
     <ClInclude Include="include\vr_vxlan.h" />
     <ClInclude Include="include\vr_windows.h" />
-    <ClInclude Include="include\vr_ksync.h" />
+    <ClInclude Include="include\vr_devices.h" />
     <ClInclude Include="include\windows_builtins.h" />
     <ClInclude Include="windows\include\windows_builtins.h" />
     <ClInclude Include="windows\precomp.h" />
@@ -460,11 +460,17 @@
     <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_assoc.c" />
+    <ClCompile Include="windows\vr_devices.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="windows\vr_ksync.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\vr_host_interface.c" />
     <ClCompile Include="windows\vr_mem.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="windows\vr_pkt0.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\windows_random.c">
