@@ -7,11 +7,6 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
-#define WIN_VHOST_PORTID 1
-#define WIN_VHOST_NICID 0
-#define WIN_PHYSICAL_PORTID 2
-#define WIN_PHYSICAL_NICID 0
-
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -863,8 +858,8 @@ win_get_cpu(void)
 static void *
 win_network_header(struct vr_packet *pkt)
 {
-    /* TODO: Make sure it works by traversing MDL chain */
-    /* Do this if a bug with incorrect IP header arises*/
+    /* This should work, but an issue where the packet
+       header is fragmented might arise */
     /* What if the data is not continuous? We'd have to
        allocate a buffer for it, but there is no guarantee
        it would be freed later*/
@@ -874,8 +869,8 @@ win_network_header(struct vr_packet *pkt)
 static void *
 win_inner_network_header(struct vr_packet *pkt)
 {
-    /* TODO: Make sure it works by traversing MDL chain */
-    /* Do this if a bug with incorrect IP header arises*/
+    /* This should work, but an issue where the packet
+       header is fragmented might arise */
     /* What if the data is not continuous? We'd have to
        allocate a buffer for it, but there is no guarantee
        it would be freed later*/
