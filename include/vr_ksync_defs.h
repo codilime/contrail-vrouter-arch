@@ -38,6 +38,7 @@ struct ksync_response {
 // TODO: JW-261 Implement multiple queues to handle multiple processes
 //       opening a pipe
 struct ksync_device_context {
+    PVOID user_virtual_address;
     struct ksync_response *responses; // responses queue
 };
 
