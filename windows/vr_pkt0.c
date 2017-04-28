@@ -14,6 +14,8 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* TODO(sodar): Implement */
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = FILE_OPENED;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
@@ -25,6 +27,7 @@ Pkt0DispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* TODO(sodar): Implement */
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
@@ -36,6 +39,7 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* TODO(sodar): Implement */
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
@@ -47,6 +51,8 @@ Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* TODO(sodar): Implement */
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
@@ -58,6 +64,8 @@ Pkt0DispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* TODO(sodar): Implement */
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
@@ -70,6 +78,7 @@ Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* TODO(sodar): Implement */
 
+    Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
