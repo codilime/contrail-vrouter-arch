@@ -4,7 +4,7 @@
 #include "vr_os.h"
 #include "vr_windows.h"
 
-struct vr_device_dispatch_callbacks {
+struct _VR_DEVICE_DISPATCH_CALLBACKS {
     PDRIVER_DISPATCH create;
     PDRIVER_DISPATCH close;
     PDRIVER_DISPATCH cleanup;
@@ -12,6 +12,9 @@ struct vr_device_dispatch_callbacks {
     PDRIVER_DISPATCH read;
     PDRIVER_DISPATCH device_control;
 };
+
+typedef struct _VR_DEVICE_DISPATCH_CALLBACKS VR_DEVICE_DISPATCH_CALLBACKS;
+typedef struct _VR_DEVICE_DISPATCH_CALLBACKS *PVR_DEVICE_DISPATCH_CALLBACKS;
 
 NTSTATUS KsyncCreateDevice(PDRIVER_OBJECT DriverObject);
 VOID KsyncDestroyDevice(PDRIVER_OBJECT DriverObject);
@@ -25,7 +28,7 @@ VOID VRouterUninitializeDevices(PDRIVER_OBJECT DriverObject);
 NTSTATUS VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
                                      _In_ PCWSTR DeviceName,
                                      _In_ PCWSTR DeviceSymlink,
-                                     _In_ struct vr_device_dispatch_callbacks *Callbacks,
+                                     _In_ PVR_DEVICE_DISPATCH_CALLBACKS Callbacks,
                                      _Out_ PDEVICE_OBJECT *DeviceObject,
                                      _Out_ PBOOLEAN SymlinkCreated);
 VOID VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,

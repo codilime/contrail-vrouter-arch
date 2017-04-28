@@ -77,7 +77,7 @@ Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS
 Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
 {
-    struct vr_device_dispatch_callbacks callbacks = {
+    VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
         .create         = Pkt0DispatchCreate,
         .close          = Pkt0DispatchClose,
         .cleanup        = Pkt0DispatchCleanup,
@@ -89,7 +89,7 @@ Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
     return VRouterSetUpNamedPipeServer(DriverObject,
                                        Pkt0DeviceName,
                                        Pkt0DeviceSymLink,
-                                       &callbacks,
+                                       &Callbacks,
                                        &Pkt0DeviceObject,
                                        &Pkt0SymlinkCreated);
 }

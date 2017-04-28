@@ -212,8 +212,13 @@ SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 NDIS_STATUS
 SxExtInitializeVRouter(struct vr_switch_context* ctx)
 {
-    if (ctx->vrouter_up || ctx->ksync_up || ctx->pkt0_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
-        return NDIS_STATUS_FAILURE;
+    ASSERT(!ctx->ksync_up);
+    ASSERT(!ctx->pkt0_up);
+    ASSERT(!ctx->device_up);
+    ASSERT(!ctx->memory_up);
+    ASSERT(!ctx->message_up);
+    ASSERT(!ctx->vrouter_up);
+    ASSERT(!ctx->assoc_up);
 
     ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
 

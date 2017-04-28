@@ -2,7 +2,7 @@
 #include <Ntstrsafe.h>
 #include "vr_devices.h"
 
-#define DEVICE_CTX_CALLBACKS(Device) ( (struct vr_device_dispatch_callbacks *)((Device)->DeviceExtension) )
+#define DEVICE_CTX_CALLBACKS(Device) ( (PVR_DEVICE_DISPATCH_CALLBACKS)((Device)->DeviceExtension) )
 
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH VRouterDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH VRouterDispatchClose;
@@ -73,14 +73,14 @@ NTSTATUS
 VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
                             _In_ PCWSTR DeviceName,
                             _In_ PCWSTR DeviceSymlink,
-                            _In_ struct vr_device_dispatch_callbacks *Callbacks,
+                            _In_ PVR_DEVICE_DISPATCH_CALLBACKS Callbacks,
                             _Out_ PDEVICE_OBJECT *DeviceObject,
                             _Out_ PBOOLEAN SymlinkCreated)
 {
     UNICODE_STRING _DeviceName;
     UNICODE_STRING _DeviceSymlink;
     PDEVICE_OBJECT _DeviceObject = NULL;
-    struct vr_device_dispatch_callbacks *_Callbacks = NULL;
+    PVR_DEVICE_DISPATCH_CALLBACKS _Callbacks = NULL;
     NTSTATUS Status;
 
     ASSERT(Callbacks->create != NULL);
@@ -100,14 +100,14 @@ VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, sizeof(struct vr_device_dispatch_callbacks), &_DeviceName,
+    Status = IoCreateDevice(DriverObject, sizeof(VR_DEVICE_DISPATCH_CALLBACKS), &_DeviceName,
                             FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
                             FALSE, &_DeviceObject);
     if (NT_SUCCESS(Status)) {
         *DeviceObject = _DeviceObject;
 
-        _Callbacks = (struct vr_device_dispatch_callbacks *)(*DeviceObject)->DeviceExtension;
-        RtlCopyMemory(_Callbacks, Callbacks, sizeof(struct vr_device_dispatch_callbacks));
+        _Callbacks = DEVICE_CTX_CALLBACKS(*DeviceObject);
+        RtlCopyMemory(_Callbacks, Callbacks, sizeof(*_Callbacks));
 
         (*DeviceObject)->Flags |= DO_DIRECT_IO;
         (*DeviceObject)->Flags &= (~DO_DEVICE_INITIALIZING);

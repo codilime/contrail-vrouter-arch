@@ -346,7 +346,7 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
 NTSTATUS
 KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
 {
-    struct vr_device_dispatch_callbacks callbacks = {
+    VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
         .create         = KsyncDispatchCreate,
         .close          = KsyncDispatchClose,
         .cleanup        = KsyncDispatchCleanup,
@@ -358,7 +358,7 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
     return VRouterSetUpNamedPipeServer(DriverObject,
                                        KsyncDeviceName,
                                        KsyncDeviceSymLink,
-                                       &callbacks,
+                                       &Callbacks,
                                        &KsyncDeviceObject,
                                        &KsyncSymlinkCreated);
 }

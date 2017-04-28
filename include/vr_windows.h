@@ -30,13 +30,14 @@ struct vr_switch_context {
     PNDIS_RW_LOCK_EX        lock;
     BOOLEAN                 restart;
 
-    BOOLEAN                 vrouter_up;
+    /* Following flags are ordered in module initialization order */
     BOOLEAN                 ksync_up;
     BOOLEAN                 pkt0_up;
     BOOLEAN                 device_up;
-    BOOLEAN                 assoc_up;
-    BOOLEAN                 message_up;
     BOOLEAN                 memory_up;
+    BOOLEAN                 message_up;
+    BOOLEAN                 vrouter_up;
+    BOOLEAN                 assoc_up;
 };
 
 struct vr_assoc {
