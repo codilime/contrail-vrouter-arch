@@ -34,5 +34,6 @@ modules.order
 /test/cmocka
 /test/atomic-test/x64
 /utils/vtest/x64
+/windows/installer/*/x64
 /windows/installer/*/Debug
 /windows/installer/*/Release
