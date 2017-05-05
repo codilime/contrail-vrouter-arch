@@ -538,6 +538,7 @@ SxExtDisconnectNic(
     }
 
     if (Nic->NicType == NdisSwitchNicTypeInternal) {
+        win_if_lock();
         NDIS_STATUS status = UpdateNics(Nic, FALSE);
         ASSERTMSG("Disconnecting a NIC failed", status == NDIS_STATUS_SUCCESS);
 
@@ -548,6 +549,7 @@ SxExtDisconnectNic(
         status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
         if (status == NDIS_STATUS_SUCCESS)
             vr_delete_assoc_by_name(nic_name);
+        win_if_unlock();
     }
 }
 

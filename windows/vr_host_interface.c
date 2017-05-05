@@ -8,13 +8,13 @@ extern PSX_SWITCH_OBJECT SxSwitchObject;
 static PNDIS_RW_LOCK_EX win_if_mutex;
 static LOCK_STATE_EX win_if_mutex_state;
 
-static void
+void
 win_if_lock(void)
 {
     NdisAcquireRWLockWrite(win_if_mutex, &win_if_mutex_state, 0);
 }
 
-static void
+void
 win_if_unlock(void)
 {
     NdisReleaseRWLock(win_if_mutex, &win_if_mutex_state);
@@ -48,14 +48,14 @@ win_if_del(struct vr_interface *vif)
     struct vr_assoc *assoc_by_name;
     struct vr_assoc *assoc_by_ids;
 
-    assoc_by_name = vr_get_assoc_by_name(vif->vif_name);
-    if (assoc_by_name != NULL) {
-        assoc_by_name->interface = NULL;
-    }
-
-    assoc_by_ids = vr_get_assoc_ids(vif->vif_port, vif->vif_nic);
+    assoc_by_ids = vr_find_assoc_ids(vif->vif_port, vif->vif_nic);
     if (assoc_by_ids != NULL) {
         assoc_by_ids->interface = NULL;
+
+        assoc_by_name = vr_find_assoc_by_name(assoc_by_ids->string);
+        if (assoc_by_name != NULL) {
+            assoc_by_name->interface = NULL;
+        }
     }
 
     return 0;

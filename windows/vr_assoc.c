@@ -103,6 +103,20 @@ NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_strin
     return copy_status;
 }
 
+static struct vr_assoc **
+vr_walk_assoc(struct vr_assoc **field, compareFunc cmp, const struct criteria *params)
+{
+    ASSERT(field != NULL);
+
+    while (*field != NULL) {
+        if (cmp(*field, params) == 1)
+            break;
+        field = &((*field)->next);
+    }
+
+    return field;
+}
+
 struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc hash, compareFunc cmp, const struct criteria* params)
 {
     unsigned int calculated_hash = hash(params);
@@ -114,13 +128,7 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
     }
 
     struct vr_assoc** field = map + calculated_hash;
-
-    while (*field != NULL)
-    {
-        if (cmp(*field, params) == 1)
-            break;
-        field = &((*field)->next);
-    }
+    field = vr_walk_assoc(field, cmp, params);
 
     if (*field == NULL)
     {
@@ -135,17 +143,25 @@ struct vr_assoc* vr_get_assoc(struct vr_assoc** map, setterFunc setter, hashFunc
     return (*field);
 }
 
+struct vr_assoc *vr_find_assoc(struct vr_assoc **map, hashFunc hash, compareFunc cmp, const struct criteria *params)
+{
+    struct vr_assoc **field;
+    unsigned int calculated_hash;
+
+    calculated_hash = hash(params);
+    ASSERTMSG("calculated hash out of bounds", calculated_hash < MAP_SIZE);
+
+    field = map + calculated_hash;
+    field = vr_walk_assoc(field, cmp, params);
+
+    return (*field);
+}
+
 void vr_delete_assoc(struct vr_assoc** map, hashFunc hash, compareFunc cmp, const struct criteria* params)
 {
     // This is a pointer to a pointer. Therefore at the start in points to the pointer in the hasharray and then it points to the "next" field of the previous list entry.
     struct vr_assoc** field = map + hash(params);
-
-    while (*field != NULL)
-    {
-        if (cmp(*field, params) == 1)
-            break;
-        field = &((*field)->next);
-    }
+    field = vr_walk_assoc(field, cmp, params);
 
     if (*field == NULL)
         return; // Such entry did not exist
@@ -196,6 +212,21 @@ struct vr_assoc* vr_get_assoc_by_name(const char *interface_name)
     // This is because the requested element can be lazy-created
     NdisAcquireRWLockWrite(name_lock, &lock, 0);
     struct vr_assoc* ret = vr_get_assoc(name_map, setter_name, hash_name, cmp_name, &params);
+    NdisReleaseRWLock(name_lock, &lock);
+
+    return ret;
+}
+
+struct vr_assoc* vr_find_assoc_by_name(const char *interface_name)
+{
+    LOCK_STATE_EX lock;
+    struct criteria params;
+    struct vr_assoc* ret;
+
+    params.name = interface_name;
+
+    NdisAcquireRWLockWrite(name_lock, &lock, 0);
+    ret = vr_find_assoc(name_map, hash_name, cmp_name, &params);
     NdisReleaseRWLock(name_lock, &lock);
 
     return ret;
@@ -270,6 +301,23 @@ struct vr_assoc* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_
 
     struct vr_assoc* ret = vr_get_assoc(ids_map, setter_ids, hash_ids, cmp_ids, &params);
 
+    NdisReleaseRWLock(ids_lock, &lock);
+
+    return ret;
+}
+
+struct vr_assoc *vr_find_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index)
+{
+    LOCK_STATE_EX lock;
+    struct criteria params;
+    struct vr_assoc* ret;
+
+    params.nic_index = nic_index;
+    params.port_id = port_id;
+
+    // This is because the requested element can be lazy-created
+    NdisAcquireRWLockWrite(ids_lock, &lock, 0);
+    ret = vr_find_assoc(ids_map, hash_ids, cmp_ids, &params);
     NdisReleaseRWLock(ids_lock, &lock);
 
     return ret;

@@ -78,10 +78,12 @@ struct genlmsghdr {
 NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string);
 
 struct vr_assoc* vr_get_assoc_by_name(const char *interface_name);
+struct vr_assoc* vr_find_assoc_by_name(const char *interface_name);
 void vr_set_assoc_by_name(const char *interface_name, struct vr_interface* interface);
 void vr_delete_assoc_by_name(const char *interface_name);
 
 struct vr_assoc* vr_get_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index);
+struct vr_assoc* vr_find_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index);
 void vr_set_assoc_oid_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index, struct vr_interface* interface);
 void vr_delete_assoc_ids(const NDIS_SWITCH_PORT_ID port_id, const NDIS_SWITCH_NIC_INDEX nic_index);
 
@@ -99,6 +101,9 @@ int win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER src, unsigned int offset, 
 void delete_unbound_nbl(NET_BUFFER_LIST* nbl, unsigned long flags);
 
 extern struct host_os windows_host;
+
+extern void win_if_lock(void);
+extern void win_if_unlock(void);
 
 #ifdef __cplusplus
 }

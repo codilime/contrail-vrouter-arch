@@ -125,8 +125,8 @@ VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
     return STATUS_SUCCESS;
 
 Failure:
-    if (*DeviceObject) {
-        IoDeleteDevice(*DeviceObject);
+    if (_DeviceObject) {
+        IoDeleteDevice(_DeviceObject);
         *DeviceObject = NULL;
     }
 
