@@ -858,19 +858,23 @@ win_get_cpu(void)
 static void *
 win_network_header(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
-
-    /* Dummy implementation */
-    return NULL;
+    /* This should work, but an issue where the packet
+       header is fragmented might arise */
+    /* What if the data is not continuous? We'd have to
+       allocate a buffer for it, but there is no guarantee
+       it would be freed later*/
+    return pkt->vp_head + pkt->vp_network_h;
 }
 
 static void *
 win_inner_network_header(struct vr_packet *pkt)
 {
-    UNREFERENCED_PARAMETER(pkt);
-
-    /* Dummy implementation */
-    return NULL;
+    /* This should work, but an issue where the packet
+       header is fragmented might arise */
+    /* What if the data is not continuous? We'd have to
+       allocate a buffer for it, but there is no guarantee
+       it would be freed later*/
+    return pkt->vp_head + pkt->vp_inner_network_h;
 }
 
 static void *
@@ -1033,26 +1037,43 @@ win_soft_reset(struct vrouter *router)
     return;
 }
 
-void
+static void
 win_register_nic(struct vr_interface* vif)
 {
+    struct vr_assoc* assoc;
     ASSERT(vif != NULL);
 
-    struct vr_assoc* assoc = vr_get_assoc_by_name(vif->vif_name);
+    switch (vif->vif_type) {
+    case VIF_TYPE_GATEWAY:
+    case VIF_TYPE_HOST:
+    case VIF_TYPE_VIRTUAL:
+        assoc = vr_get_assoc_by_name(vif->vif_name);
 
-    ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
+        ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
 
-    assoc->interface = vif;
+        assoc->interface = vif;
 
-    if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
+        if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
+            vif->vif_port = assoc->port_id;
+            vif->vif_nic = assoc->nic_index;
+
+            assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
+            assoc->interface = vif;
+        }
+        break;
+
+    case VIF_TYPE_PHYSICAL:
+        assoc = win_get_physical();
         vif->vif_port = assoc->port_id;
         vif->vif_nic = assoc->nic_index;
 
-        assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
-        assoc->interface = vif;
+        break;
 
-        vif_attach(vif);
+    default:
+        ASSERTMSG("Non-supported VIF type", FALSE);
     }
+
+    vif_attach(vif);
 }
 
 struct host_os windows_host = {
