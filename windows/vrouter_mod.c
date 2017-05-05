@@ -494,9 +494,11 @@ SxExtConnectNic(
     }
 
     if (Nic->NicType == NdisSwitchNicTypeInternal) {
+        win_if_lock();
         NDIS_STATUS status = UpdateNics(Nic, TRUE);
 
         ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
+        win_if_unlock();
     }
 }
 
