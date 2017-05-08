@@ -408,6 +408,8 @@ SxExtRestartSwitch(
         UpdateNics(element, TRUE);
     }
 
+    ExFreePoolWithTag(array, SxExtAllocationTag);
+
     ctx->restart = FALSE;
 
     return 0;
