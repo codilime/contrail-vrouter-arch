@@ -15,19 +15,7 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_0037834C200B4E19B05A18786590CF8C"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_1EBBED7C01E14479B81BCB0600BDD055"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_5F2758B31AC545E3A7EB158FB9FF32E5"
+        "MsmKey" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -39,13 +27,19 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_C0ED3719395D44FB9D18784590478A6D"
+        "MsmKey" = "8:_8AEB2E87ABF0487181611D09D47D7B8F"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_CD67412964414D2C8B6FD380F6676787"
+        "MsmKey" = "8:_B75676D45E8B46F899B54B2F14751DDE"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_C0ED3719395D44FB9D18784590478A6D"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -122,31 +116,31 @@
     {
         "CustomAction"
         {
-            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_2BCB6CD8E4054710856B16A145349EB5"
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_55F6A90B5B754EDA9B005AE6B3E0213F"
             {
-            "Name" = "8:Primary Output from vrouterCustomAction (Active)"
+            "Name" = "8:Primary Output from customAction (Active)"
             "Condition" = "8:"
-            "Object" = "8:_1EBBED7C01E14479B81BCB0600BDD055"
-            "FileType" = "3:1"
-            "InstallAction" = "3:2"
-            "Arguments" = "8:"
-            "EntryPoint" = "8:Commit"
-            "Sequence" = "3:1"
-            "Identifier" = "8:_349781E1_C677_4243_B4F2_498393036BB6"
-            "InstallerClass" = "11:FALSE"
-            "CustomActionData" = "8:[TARGETDIR]"
-            }
-            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_EE8F8742627E4B44BB3E82889BB5999E"
-            {
-            "Name" = "8:Primary Output from vrouterCustomAction (Active)"
-            "Condition" = "8:"
-            "Object" = "8:_1EBBED7C01E14479B81BCB0600BDD055"
+            "Object" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
             "FileType" = "3:1"
             "InstallAction" = "3:4"
             "Arguments" = "8:"
             "EntryPoint" = "8:Uninstall"
             "Sequence" = "3:1"
-            "Identifier" = "8:_38CA212C_E6EA_4506_AC71_4F83E2D27AD9"
+            "Identifier" = "8:_1556DE7A_D37B_4C87_82E3_2F8FEAAF7A45"
+            "InstallerClass" = "11:FALSE"
+            "CustomActionData" = "8:[TARGETDIR]"
+            }
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_782AB5C35FFC4E7C848FD20B59969A17"
+            {
+            "Name" = "8:Primary Output from customAction (Active)"
+            "Condition" = "8:"
+            "Object" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
+            "FileType" = "3:1"
+            "InstallAction" = "3:2"
+            "Arguments" = "8:"
+            "EntryPoint" = "8:Commit"
+            "Sequence" = "3:1"
+            "Identifier" = "8:_6E3D2ED3_E476_484D_9B7F_CFB3BA7F8AEB"
             "InstallerClass" = "11:FALSE"
             "CustomActionData" = "8:[TARGETDIR]"
             }
@@ -165,10 +159,10 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0037834C200B4E19B05A18786590CF8C"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8AEB2E87ABF0487181611D09D47D7B8F"
             {
-            "SourcePath" = "8:uninstall_vRouter.ps1"
-            "TargetName" = "8:uninstall_vRouter.ps1"
+            "SourcePath" = "8:uninstall.ps1"
+            "TargetName" = "8:uninstall.ps1"
             "Tag" = "8:"
             "Folder" = "8:_45B382742AB94F88811111EC2967B2D0"
             "Condition" = "8:"
@@ -185,10 +179,10 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_5F2758B31AC545E3A7EB158FB9FF32E5"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B75676D45E8B46F899B54B2F14751DDE"
             {
-            "SourcePath" = "8:install_vRouter.ps1"
-            "TargetName" = "8:install_vRouter.ps1"
+            "SourcePath" = "8:install.ps1"
+            "TargetName" = "8:install.ps1"
             "Tag" = "8:"
             "Folder" = "8:_45B382742AB94F88811111EC2967B2D0"
             "Condition" = "8:"
@@ -209,26 +203,6 @@
             {
             "SourcePath" = "8:..\\..\\..\\x64\\Debug\\vRouter\\vRouter.inf"
             "TargetName" = "8:vRouter.inf"
-            "Tag" = "8:"
-            "Folder" = "8:_45B382742AB94F88811111EC2967B2D0"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_CD67412964414D2C8B6FD380F6676787"
-            {
-            "SourcePath" = "8:..\\..\\..\\x64\\Debug\\vRouter.cer"
-            "TargetName" = "8:vRouter.cer"
             "Tag" = "8:"
             "Folder" = "8:_45B382742AB94F88811111EC2967B2D0"
             "Condition" = "8:"
@@ -333,7 +307,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:vRouter"
         "ProductCode" = "8:{CB877445-6E69-4BA8-9C8F-DDA1C92539B3}"
-        "PackageCode" = "8:{326E834A-3A3A-4002-982F-BA7E37881C51}"
+        "PackageCode" = "8:{619ECE99-3DB1-4106-B976-7436229E50EE}"
         "UpgradeCode" = "8:{54C1DE83-002C-4040-B6C6-93C649CF3BBA}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
@@ -852,9 +826,9 @@
         }
         "ProjectOutput"
         {
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_1EBBED7C01E14479B81BCB0600BDD055"
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_4C6703C8986A4F2BA53A55D91992D4DE"
             {
-            "SourcePath" = "8:..\\vrouterCustomAction\\x64\\Debug\\vrouterCustomAction.dll"
+            "SourcePath" = "8:..\\customAction\\x64\\Debug\\customAction.dll"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_45B382742AB94F88811111EC2967B2D0"

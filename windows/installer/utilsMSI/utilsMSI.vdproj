@@ -15,12 +15,6 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_0F7802AA4FD3FE245CCF5B3912C3F84E"
-        "OwnerKey" = "8:_E8042A48B6804AE78F83E47551A2E376"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_21CB0C765E0149D4A6A4CAE6855BA0B6"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -29,12 +23,6 @@
         {
         "MsmKey" = "8:_2224E35F9665423280323C9E64C577F6"
         "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_68BE9E589755B05D813BA6DEDD745C75"
-        "OwnerKey" = "8:_E8042A48B6804AE78F83E47551A2E376"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -63,14 +51,14 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_D9E76A3F45E84D81A32CB602FA4DF74B"
+        "MsmKey" = "8:_C29C90E620B943569F988188982416C3"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_DA3BD47C64D9461D81DACBFF778EA179"
-        "OwnerKey" = "8:_E8042A48B6804AE78F83E47551A2E376"
+        "MsmKey" = "8:_D9E76A3F45E84D81A32CB602FA4DF74B"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -146,6 +134,34 @@
     {
         "CustomAction"
         {
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_2FFF56C4729F4EF7B694BF2986115E9B"
+            {
+            "Name" = "8:Primary Output from customAction (Active)"
+            "Condition" = "8:"
+            "Object" = "8:_C29C90E620B943569F988188982416C3"
+            "FileType" = "3:1"
+            "InstallAction" = "3:4"
+            "Arguments" = "8:"
+            "EntryPoint" = "8:Uninstall"
+            "Sequence" = "3:1"
+            "Identifier" = "8:_83D89629_73CC_4FBD_B353_5C7A019E6500"
+            "InstallerClass" = "11:FALSE"
+            "CustomActionData" = "8:[TARGETDIR]"
+            }
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_B3923D9DF1064A60986730D2580CA705"
+            {
+            "Name" = "8:Primary Output from customAction (Active)"
+            "Condition" = "8:"
+            "Object" = "8:_C29C90E620B943569F988188982416C3"
+            "FileType" = "3:1"
+            "InstallAction" = "3:2"
+            "Arguments" = "8:"
+            "EntryPoint" = "8:Commit"
+            "Sequence" = "3:1"
+            "Identifier" = "8:_1AEF60D7_840B_4C6B_8D9C_5E69CBB4B5B2"
+            "InstallerClass" = "11:FALSE"
+            "CustomActionData" = "8:[TARGETDIR]"
+            }
         }
         "DefaultFeature"
         {
@@ -161,26 +177,6 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0F7802AA4FD3FE245CCF5B3912C3F84E"
-            {
-            "SourcePath" = "8:IPHLPAPI.DLL"
-            "TargetName" = "8:IPHLPAPI.DLL"
-            "Tag" = "8:"
-            "Folder" = "8:_133C173F84004FDA9784D92AFD949EC5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:TRUE"
-            "IsDependency" = "11:TRUE"
-            "IsolateTo" = "8:"
-            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_2224E35F9665423280323C9E64C577F6"
             {
             "SourcePath" = "8:..\\..\\..\\..\\third_party\\iconv-1.14-win32-x86_64\\bin\\libiconv-2.dll"
@@ -199,26 +195,6 @@
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
             "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_68BE9E589755B05D813BA6DEDD745C75"
-            {
-            "SourcePath" = "8:ucrtbased.dll"
-            "TargetName" = "8:ucrtbased.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
             "IsolateTo" = "8:"
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_AB6B390559384951A1D8E9D0C9E7F82D"
@@ -329,7 +305,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:vRouter utilities"
         "ProductCode" = "8:{299D687A-3C91-4202-92D2-47C83FD7122D}"
-        "PackageCode" = "8:{E0227CEA-C2C0-4FE0-AEBF-24AE81533B5F}"
+        "PackageCode" = "8:{9339B1B0-9715-426A-BBEC-B5E7DA28E13D}"
         "UpgradeCode" = "8:{F115A1D2-B722-44FA-9375-A9D4F3CE8E4D}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
@@ -845,20 +821,6 @@
         }
         "MergeModule"
         {
-            "{CEE29DC0-9FBA-4B99-8D47-5BC643D9B626}:_DA3BD47C64D9461D81DACBFF778EA179"
-            {
-            "UseDynamicProperties" = "11:TRUE"
-            "IsDependency" = "11:TRUE"
-            "SourcePath" = "8:microsoft_vc140_debugcrt_x64.msm"
-                "Properties"
-                {
-                }
-            "LanguageId" = "3:0"
-            "Exclude" = "11:FALSE"
-            "Folder" = "8:"
-            "Feature" = "8:"
-            "IsolateTo" = "8:"
-            }
         }
         "ProjectOutput"
         {
@@ -969,6 +931,34 @@
             "OutputConfiguration" = "8:"
             "OutputGroupCanonicalName" = "8:Built"
             "OutputProjectGuid" = "8:{E7006D0D-A698-4F3D-B1F0-2D23578847CB}"
+            "ShowKeyOutput" = "11:TRUE"
+                "ExcludeFilters"
+                {
+                }
+            }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_C29C90E620B943569F988188982416C3"
+            {
+            "SourcePath" = "8:..\\customAction\\x64\\Debug\\customAction.dll"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Built"
+            "OutputProjectGuid" = "8:{CB61212B-F768-4F69-9259-8963B222FA90}"
             "ShowKeyOutput" = "11:TRUE"
                 "ExcludeFilters"
                 {

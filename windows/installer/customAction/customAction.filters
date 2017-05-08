@@ -21,7 +21,7 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="vrouterCustomAction.cpp">
+    <ClCompile Include="customAction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
