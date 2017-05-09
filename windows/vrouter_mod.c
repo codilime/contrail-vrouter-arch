@@ -133,6 +133,19 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 static NDIS_STATUS
 UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
 {
+    // TODO JW-448: Change when implementing NIC teaming.
+    if (Nic->NicType == NdisSwitchNicTypeExternal && Nic->NicIndex == 0)
+        return NDIS_STATUS_SUCCESS;
+
+    struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(Nic->PortId, Nic->NicIndex);
+    if (assoc_by_ids == NULL)
+        return NDIS_STATUS_RESOURCES;
+
+    if (Nic->NicType == NdisSwitchNicTypeExternal) {
+        win_set_physical(assoc_by_ids);
+        return NDIS_STATUS_SUCCESS;
+    }
+
     char nic_name[VR_ASSOC_STRING_SIZE] = { 0 };
     NDIS_STATUS status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
     if (status != NDIS_STATUS_SUCCESS) {
@@ -140,8 +153,7 @@ UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
     }
 
     struct vr_assoc* assoc_by_name = vr_get_assoc_by_name(nic_name);
-    struct vr_assoc* assoc_by_ids = vr_get_assoc_ids(Nic->PortId, Nic->NicIndex);
-    if (assoc_by_name != NULL && assoc_by_ids != NULL) {
+    if (assoc_by_name != NULL) {
         NTSTATUS status_set = vr_assoc_set_string(assoc_by_ids, nic_name);
         if (!NT_SUCCESS(status_set)) {
             return status_set;
@@ -167,6 +179,7 @@ UpdateNics(PNDIS_SWITCH_NIC_PARAMETERS Nic, BOOLEAN connect)
     else {
         return NDIS_STATUS_RESOURCES;
     }
+
     return NDIS_STATUS_SUCCESS;
 }
 
@@ -408,6 +421,16 @@ SxExtRestartSwitch(
 
     struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
 
+    PNDIS_SWITCH_NIC_ARRAY array;
+    SxLibGetNicArrayUnsafe(Switch, &array);
+
+    for (unsigned i = 0; i < array->NumElements; i++){
+        PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
+        UpdateNics(element, TRUE);
+    }
+
+    ExFreePoolWithTag(array, SxExtAllocationTag);
+
     ctx->restart = FALSE;
 
     return 0;
@@ -493,13 +516,11 @@ SxExtConnectNic(
         NdisMSleep(100);
     }
 
-    if (Nic->NicType == NdisSwitchNicTypeInternal) {
-        win_if_lock();
-        NDIS_STATUS status = UpdateNics(Nic, TRUE);
+    win_if_lock();
+    NDIS_STATUS status = UpdateNics(Nic, TRUE);
 
-        ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
-        win_if_unlock();
-    }
+    ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
+    win_if_unlock();
 }
 
 VOID
@@ -909,6 +930,8 @@ SxExtStartNetBufferListsIngress(
     PNET_BUFFER_LIST curNbl = NULL;
     PNET_BUFFER_LIST nextNbl = NULL;
 
+    struct vrouter* router = vrouter_get(0);
+
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
     if (sameSource) {
@@ -938,8 +961,18 @@ SxExtStartNetBufferListsIngress(
         NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
         NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
         windows_host.hos_printf("%s: port %d and interface id %d\n", __func__, source_port, source_nic);
+
+        struct vr_interface *vif = NULL;
         struct vr_assoc *assoc_entry = vr_get_assoc_ids(source_port, source_nic);
-        struct vr_interface *vif = (assoc_entry ? assoc_entry->interface : NULL);
+        if (assoc_entry == NULL) {
+            windows_host.hos_printf("%s: Critical Error: Out of memory", __func__);
+            continue;
+        }
+
+        if (assoc_entry->interface)
+            vif = assoc_entry->interface;
+        else if (assoc_entry == win_get_physical())
+            vif = router->vr_eth_if;
 
         if (!vif) {
             /* If no vif attached yet, then drop NBL. */

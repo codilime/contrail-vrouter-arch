@@ -44,51 +44,39 @@ const static unsigned char char_map[256] = {
 
 static struct vr_assoc* name_map[MAP_SIZE];
 static struct vr_assoc* ids_map[MAP_SIZE];
+static struct vr_assoc* physical;
+static struct vr_assoc* host;
+
+struct vr_assoc* win_get_physical()
+{
+    return physical;
+}
+
+void win_set_physical(struct vr_assoc* assoc)
+{
+    physical = assoc;
+}
 
 NDIS_STATUS vr_get_name_from_friendly_name(
     NDIS_IF_COUNTED_STRING friendly,
     char *name,
     size_t name_buffer_size)
 {
-    // Ensure that string in `friendly` is null-terminated
-    unsigned int pos_past_end = friendly.Length;
-    if (pos_past_end >= IF_MAX_STRING_SIZE + 1) {
-        return NDIS_STATUS_FAILURE;
-    }
-    friendly.String[pos_past_end] = '\0';
-
     UNICODE_STRING friendly_unicode_str;
     ANSI_STRING friendly_ansi_str;
     NTSTATUS status;
 
+    friendly.String[friendly.Length] = '\0';
+
+    friendly_ansi_str.Buffer = name;
+    friendly_ansi_str.MaximumLength = name_buffer_size;
+    friendly_ansi_str.Length = 0;
+
     RtlUnicodeStringInit(&friendly_unicode_str, friendly.String);
-    status = RtlUnicodeStringToAnsiString(&friendly_ansi_str, &friendly_unicode_str, TRUE);
+    status = RtlUnicodeStringToAnsiString(&friendly_ansi_str, &friendly_unicode_str, FALSE);
     if (status != STATUS_SUCCESS) {
         return NDIS_STATUS_FAILURE;
     }
-
-    int i = friendly_ansi_str.Length;
-    // The names are in format of "Container Port a30f213f"
-    // To be the most accurate, get the last "word", speparated by a space
-    while (friendly_ansi_str.Buffer[--i] != ' ') {
-        if (i == 0) {
-            // Name is not conforming to our standards, must be not a container port
-            return NDIS_STATUS_FAILURE;
-        }
-    }
-
-    PCHAR src = friendly_ansi_str.Buffer + i + 1;
-    size_t src_max_bytes = friendly_ansi_str.Length - i - 1;
-    size_t dst_max_bytes = VR_ASSOC_STRING_SIZE;
-    if (dst_max_bytes > name_buffer_size) {
-        dst_max_bytes = name_buffer_size;
-    }
-    status = RtlStringCbCopyNA(name, dst_max_bytes, src, src_max_bytes);
-    if (status != STATUS_SUCCESS) {
-        return NDIS_STATUS_FAILURE;
-    }
-
-    RtlFreeAnsiString(&friendly_ansi_str);
 
     return NDIS_STATUS_SUCCESS;
 }
