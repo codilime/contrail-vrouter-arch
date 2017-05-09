@@ -1,6 +1,6 @@
 #include "precomp.h"
 #include "vr_windows.h"
-#include "vr_ksync.h"
+#include "vr_devices.h"
 #include "vrouter.h"
 #include "vr_packet.h"
 #include "vr_sandesh.h"
@@ -213,16 +213,37 @@ SxExtUninitializeVRouter(struct vr_switch_context* ctx)
         memory_exit();
 
     if (ctx->device_up)
+        VRouterUninitializeDevices(SxDriverObject);
+
+    if (ctx->pkt0_up)
+        Pkt0DestroyDevice(SxDriverObject);
+
+    if (ctx->ksync_up)
         KsyncDestroyDevice(SxDriverObject);
 }
 
 NDIS_STATUS
 SxExtInitializeVRouter(struct vr_switch_context* ctx)
 {
-    if (ctx->vrouter_up || ctx->device_up || ctx->message_up || ctx->assoc_up)
-        return NDIS_STATUS_FAILURE;
+    ASSERT(!ctx->ksync_up);
+    ASSERT(!ctx->pkt0_up);
+    ASSERT(!ctx->device_up);
+    ASSERT(!ctx->memory_up);
+    ASSERT(!ctx->message_up);
+    ASSERT(!ctx->vrouter_up);
+    ASSERT(!ctx->assoc_up);
 
-    ctx->device_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
+    ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
+
+    if (!ctx->ksync_up)
+        goto cleanup;
+
+    ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(SxDriverObject));
+
+    if (!ctx->pkt0_up)
+        goto cleanup;
+
+    ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(SxDriverObject));
 
     if (!ctx->device_up)
         goto cleanup;
@@ -495,9 +516,11 @@ SxExtConnectNic(
         NdisMSleep(100);
     }
 
+    win_if_lock();
     NDIS_STATUS status = UpdateNics(Nic, TRUE);
 
     ASSERTMSG("Connecting a NIC failed", status == NDIS_STATUS_SUCCESS);
+    win_if_unlock();
 }
 
 VOID
@@ -538,6 +561,7 @@ SxExtDisconnectNic(
     }
 
     if (Nic->NicType == NdisSwitchNicTypeInternal) {
+        win_if_lock();
         NDIS_STATUS status = UpdateNics(Nic, FALSE);
         ASSERTMSG("Disconnecting a NIC failed", status == NDIS_STATUS_SUCCESS);
 
@@ -548,6 +572,7 @@ SxExtDisconnectNic(
         status = vr_get_name_from_friendly_name(Nic->NicFriendlyName, nic_name, sizeof(nic_name));
         if (status == NDIS_STATUS_SUCCESS)
             vr_delete_assoc_by_name(nic_name);
+        win_if_unlock();
     }
 }
 

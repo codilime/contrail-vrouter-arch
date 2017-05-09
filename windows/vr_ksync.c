@@ -1,6 +1,5 @@
-#include "vr_os.h"
 #include "vr_mem.h"
-#include "vr_windows.h"
+#include "vr_devices.h"
 #include "Ntstrsafe.h"
 #include "vr_message.h"
 
@@ -8,8 +7,8 @@
 
 static ULONG KsyncAllocationTag = 'NYSK';
 
-const WCHAR DeviceName[] = L"\\Device\\vrouterKsync";
-const WCHAR DeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
+const WCHAR KsyncDeviceName[] = L"\\Device\\vrouterKsync";
+const WCHAR KsyncDeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static PDEVICE_OBJECT KsyncDeviceObject = NULL;
 static BOOLEAN KsyncSymlinkCreated = FALSE;
@@ -64,14 +63,7 @@ KsyncPopResponse(struct ksync_device_context *ctx)
     }
 }
 
-_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH KsyncDispatchCreate;
-_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH KsyncDispatchClose;
-_Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH KsyncDispatchWrite;
-_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH KsyncDispatchRead;
-_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH KsyncDispatchDeviceControl;
-_Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH KsyncDispatchCleanup;
-
-_Use_decl_annotations_ NTSTATUS
+NTSTATUS
 KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -95,7 +87,7 @@ KsyncDispatchCreate(PDEVICE_OBJECT DriverObject, PIRP Irp)
 
 }
 
-_Use_decl_annotations_ NTSTATUS
+NTSTATUS
 KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -115,7 +107,7 @@ KsyncDispatchClose(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-_Use_decl_annotations_ NTSTATUS
+NTSTATUS
 KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     int ret;
@@ -220,7 +212,7 @@ failure:
     return STATUS_INSUFFICIENT_RESOURCES;
 }
 
-_Use_decl_annotations_ NTSTATUS
+NTSTATUS
 KsyncDispatchRead(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -286,24 +278,7 @@ failure:
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_INSUFFICIENT_RESOURCES;
 }
-
-VOID
-KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
-{
-    UNICODE_STRING _DeviceSymLink;
-
-    if (KsyncSymlinkCreated) {
-        RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
-        IoDeleteSymbolicLink(&_DeviceSymLink);
-        KsyncSymlinkCreated = FALSE;
-    }
-    if (KsyncDeviceObject != NULL) {
-        IoDeleteDevice(KsyncDeviceObject);
-        KsyncDeviceObject = NULL;
-    }
-}
-
-_Use_decl_annotations_ NTSTATUS
+NTSTATUS
 KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -357,7 +332,7 @@ KsyncDispatchDeviceControl(PDEVICE_OBJECT DriverObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-_Use_decl_annotations_ NTSTATUS
+NTSTATUS
 KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -371,54 +346,28 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DriverObject, PIRP Irp)
 NTSTATUS
 KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
 {
-    UNICODE_STRING _DeviceName;
-    UNICODE_STRING _DeviceSymLink;
-    PDEVICE_OBJECT DeviceObject = NULL;
-    NTSTATUS Status;
+    VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
+        .create         = KsyncDispatchCreate,
+        .close          = KsyncDispatchClose,
+        .cleanup        = KsyncDispatchCleanup,
+        .write          = KsyncDispatchWrite,
+        .read           = KsyncDispatchRead,
+        .device_control = KsyncDispatchDeviceControl,
+    };
 
-    Status = RtlUnicodeStringInit(&_DeviceName, DeviceName);
-    if (!NT_SUCCESS(Status)) {
-        DbgPrint("DeviceName RtlUnicodeStringInit Error: %d\n", Status);
-        return Status;
-    }
+    return VRouterSetUpNamedPipeServer(DriverObject,
+                                       KsyncDeviceName,
+                                       KsyncDeviceSymLink,
+                                       &Callbacks,
+                                       &KsyncDeviceObject,
+                                       &KsyncSymlinkCreated);
+}
 
-    Status = RtlUnicodeStringInit(&_DeviceSymLink, DeviceSymLink);
-    if (!NT_SUCCESS(Status)) {
-        DbgPrint("DeviceSymLink RtlUnicodeStringInit Error: %d\n", Status);
-        return Status;
-    }
-
-    Status = IoCreateDevice(DriverObject, 0, &_DeviceName,
-                            FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
-                            FALSE, &DeviceObject);
-    if (NT_SUCCESS(Status))
-    {
-        KsyncDeviceObject = DeviceObject;
-
-#pragma prefast(push)
-#pragma prefast(disable:28175, "we're just setting it, it's allowed")
-
-        DriverObject->MajorFunction[IRP_MJ_CREATE] = KsyncDispatchCreate;
-        DriverObject->MajorFunction[IRP_MJ_CLOSE] = KsyncDispatchClose;
-        DriverObject->MajorFunction[IRP_MJ_WRITE] = KsyncDispatchWrite;
-        DriverObject->MajorFunction[IRP_MJ_READ] = KsyncDispatchRead;
-        DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = KsyncDispatchDeviceControl;
-        DriverObject->MajorFunction[IRP_MJ_CLEANUP] = KsyncDispatchCleanup;
-#pragma prefast(pop)
-
-        DeviceObject->Flags |= DO_DIRECT_IO;
-        DeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);
-
-        Status = IoCreateSymbolicLink(&_DeviceSymLink, &_DeviceName);
-        if (NT_SUCCESS(Status)) {
-            KsyncSymlinkCreated = TRUE;
-        } else {
-            IoDeleteDevice(DeviceObject);
-            KsyncDeviceObject = NULL;
-        }
-    } else {
-        DbgPrint("IoCreateDevice failed. Error code: %d\n", Status);
-    }
-
-    return Status;
+VOID
+KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
+{
+    VRouterTearDownNamedPipeServer(DriverObject,
+                                   KsyncDeviceSymLink,
+                                   &KsyncDeviceObject,
+                                   &KsyncSymlinkCreated);
 }

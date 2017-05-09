@@ -121,9 +121,6 @@
     <ClInclude Include="include\vr_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_ksync.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="windows\include\windows_builtins.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -137,6 +134,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\windows_builtins.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_devices.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -283,6 +283,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vr_mem.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_pkt0.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_devices.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

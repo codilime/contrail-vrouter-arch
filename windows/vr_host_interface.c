@@ -5,19 +5,18 @@
 #include "vr_windows.h"
 
 extern PSX_SWITCH_OBJECT SxSwitchObject;
-static PNDIS_RW_LOCK_EX win_if_mutex;
-static LOCK_STATE_EX win_if_mutex_state;
+static NDIS_MUTEX win_if_mutex;
 
-static void
+void
 win_if_lock(void)
 {
-    NdisAcquireRWLockWrite(win_if_mutex, &win_if_mutex_state, 0);
+    NDIS_WAIT_FOR_MUTEX(&win_if_mutex);
 }
 
-static void
+void
 win_if_unlock(void)
 {
-    NdisReleaseRWLock(win_if_mutex, &win_if_mutex_state);
+    NDIS_RELEASE_MUTEX(&win_if_mutex);
 }
 
 static int
@@ -48,14 +47,14 @@ win_if_del(struct vr_interface *vif)
     struct vr_assoc *assoc_by_name;
     struct vr_assoc *assoc_by_ids;
 
-    assoc_by_name = vr_get_assoc_by_name(vif->vif_name);
-    if (assoc_by_name != NULL) {
-        assoc_by_name->interface = NULL;
-    }
-
-    assoc_by_ids = vr_get_assoc_ids(vif->vif_port, vif->vif_nic);
+    assoc_by_ids = vr_find_assoc_ids(vif->vif_port, vif->vif_nic);
     if (assoc_by_ids != NULL) {
         assoc_by_ids->interface = NULL;
+
+        assoc_by_name = vr_find_assoc_by_name(assoc_by_ids->string);
+        if (assoc_by_name != NULL) {
+            assoc_by_name->interface = NULL;
+        }
     }
 
     return 0;
@@ -172,17 +171,13 @@ vr_host_vif_init(struct vrouter *router)
 void
 vr_host_interface_exit(void)
 {
-    NdisFreeRWLock(win_if_mutex);
+    /* Noop */
 }
 
 struct vr_host_interface_ops *
 vr_host_interface_init(void)
 {
-    win_if_mutex = NdisAllocateRWLock(SxSwitchObject->NdisFilterHandle);
-    if (!win_if_mutex) {
-        DbgPrint("%s(): RWLock could not be allocated\n", __func__);
-        return NULL;
-    }
+    NDIS_INIT_MUTEX(&win_if_mutex);
 
     return &win_host_interface_ops;
 }
