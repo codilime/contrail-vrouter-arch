@@ -200,11 +200,11 @@ SxExtUninitialize(PDRIVER_OBJECT DriverObject)
 void
 SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 {
-    if (ctx->assoc_up)
-        vr_clean_assoc();
-
     if (ctx->vrouter_up)
         vrouter_exit(false);
+
+    if (ctx->assoc_up)
+        vr_clean_assoc();
 
     if (ctx->message_up)
         vr_message_exit();
@@ -237,14 +237,14 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
     if (!ctx->message_up)
         goto cleanup;
 
-    ctx->vrouter_up = !vrouter_init();
-
-    if (!ctx->vrouter_up)
-        goto cleanup;
-
     ctx->assoc_up = !vr_init_assoc();
 
     if (!ctx->assoc_up)
+        goto cleanup;
+
+    ctx->vrouter_up = !vrouter_init();
+
+    if (!ctx->vrouter_up)
         goto cleanup;
 
     return NDIS_STATUS_SUCCESS;
