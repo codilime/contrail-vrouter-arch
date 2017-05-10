@@ -16,6 +16,14 @@ struct _VR_DEVICE_DISPATCH_CALLBACKS {
 typedef struct _VR_DEVICE_DISPATCH_CALLBACKS VR_DEVICE_DISPATCH_CALLBACKS;
 typedef struct _VR_DEVICE_DISPATCH_CALLBACKS *PVR_DEVICE_DISPATCH_CALLBACKS;
 
+struct _VR_DEVICE_CONTEXT {
+    VR_DEVICE_DISPATCH_CALLBACKS callbacks;
+    void *private_data;
+};
+
+typedef struct _VR_DEVICE_CONTEXT VR_DEVICE_CONTEXT;
+typedef struct _VR_DEVICE_CONTEXT *PVR_DEVICE_CONTEXT;
+
 NTSTATUS KsyncCreateDevice(PDRIVER_OBJECT DriverObject);
 VOID KsyncDestroyDevice(PDRIVER_OBJECT DriverObject);
 
@@ -35,5 +43,22 @@ VOID VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
                                     _In_ PCWSTR DeviceSymlink,
                                     _Inout_ PDEVICE_OBJECT *DeviceObject,
                                     _Inout_ PBOOLEAN SymlinkCreated);
+
+VOID VRouterAttachPrivateData(_Inout_ PDEVICE_OBJECT DeviceObject,
+                              _In_ PVOID Data);
+PVOID VRouterGetPrivateData(_In_ PDEVICE_OBJECT DeviceObject);
+
+/*
+ * Pkt0 related definitions
+ */
+#define PKT0_PACKET_MAX_SIZE (16 * 1024)
+
+struct pkt0_packet {
+    uint8_t buffer[PKT0_PACKET_MAX_SIZE];
+    size_t length;
+    LIST_ENTRY list_entry;
+};
+
+int pkt0_if_tx(struct vr_interface *vif, struct vr_packet *pkt);
 
 #endif /* __VR_DEVICES_H__ */

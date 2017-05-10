@@ -278,16 +278,18 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char fla
     */
     pkt->vp_data = 0;
 
-    /* vp_tail points to the end of packet data in non-paged memory */
     ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
-    pkt->vp_tail = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+
+    if (pkt->vp_win_flags & VP_WIN_CREATED) {
+        pkt->vp_tail = pkt->vp_len = 0;
+    } else {
+        pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+    }
 
     /* vp_end points to the end of accesible non-paged memory */
     pkt->vp_end = left_mdl_space;
 
-    /* vp_len is the size of non-paged data block */
-    pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
     pkt->vp_if = vif;
     pkt->vp_network_h = pkt->vp_inner_network_h = 0;
     pkt->vp_nh = NULL;
@@ -1067,6 +1069,10 @@ win_register_nic(struct vr_interface* vif)
         vif->vif_port = assoc->port_id;
         vif->vif_nic = assoc->nic_index;
 
+        break;
+
+    case VIF_TYPE_AGENT:
+        /* Nothing to do */
         break;
 
     default:
