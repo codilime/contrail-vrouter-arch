@@ -1,10 +1,15 @@
 #include <Windows.h>
-#include <exception>
 #include <Msiquery.h>
 #include <string>
+#include <sstream>
 
 // 3 minutes - chosen arbitrarily
-#define COMMAND_TIMEOUT (3 * 60 * 1000)
+#define INSTALL_SCRIPT_TIMEOUT (3 * 60 * 1000)
+
+enum class PSScriptType {
+    install,
+    uninstall,
+};
 
 std::wstring GetCustomActionData(MSIHANDLE hInstall) {
     LPWSTR szValueBuf = NULL;
@@ -14,7 +19,8 @@ std::wstring GetCustomActionData(MSIHANDLE hInstall) {
         ++cchValueBuf; // add 1 for null termination
         try {
             szValueBuf = new TCHAR[cchValueBuf];
-        } catch (const std::bad_alloc&) {
+        }
+        catch (const std::bad_alloc&) {
             return L"";
         }
         uiStat = MsiGetProperty(hInstall, L"CustomActionData", szValueBuf, &cchValueBuf);
@@ -29,17 +35,18 @@ std::wstring GetCustomActionData(MSIHANDLE hInstall) {
     return data;
 }
 
-UINT RunCommand(std::wstring command) {
+UINT RunCommand(const std::wstring &command, const DWORD timeout) {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
     bool fail = false;
+    BOOL status;
 
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
     size_t commandSize = command.size() + 1;
-    
+
     LPWSTR commandWchar;
     try {
         commandWchar = new TCHAR[commandSize];
@@ -50,12 +57,12 @@ UINT RunCommand(std::wstring command) {
     wcscpy_s(commandWchar, commandSize, command.c_str());
 
     // in future we can use CREATE_NO_WINDOW flag
-    if (!CreateProcess(NULL, commandWchar, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
-        return ERROR_INSTALL_FAILURE;
-    
+    status = CreateProcess(NULL, commandWchar, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
     delete[] commandWchar;
+    if (!status)
+        return ERROR_INSTALL_FAILURE;
 
-    if (WaitForSingleObject(pi.hProcess, COMMAND_TIMEOUT) != WAIT_OBJECT_0) {
+    if (WaitForSingleObject(pi.hProcess, timeout) != WAIT_OBJECT_0) {
         TerminateProcess(pi.hProcess, 9);
         fail = true;
     }
@@ -73,26 +80,18 @@ UINT RunCommand(std::wstring command) {
     return ERROR_SUCCESS;
 }
 
-extern "C" __declspec(dllexport) UINT __stdcall Commit(MSIHANDLE hInstall) {
-    std::wstring targetDir = GetCustomActionData(hInstall);
-    if (targetDir.empty())
-        return ERROR_INSTALL_FAILURE;
-    
-    std::wstring commandBegin(L"powershell -ExecutionPolicy \"Bypass\" \"& '");
-    std::wstring commandMiddle(L"\\install.ps1' '");
-    std::wstring commandEnd(L"'\"");
+UINT runPSScript(const std::wstring &dir, const PSScriptType type) {
+    std::wstringstream stream;
+    stream << L"powershell -ExecutionPolicy \"Bypass\" \"& '" << dir;
+    switch (type) {
+    case PSScriptType::install:
+        stream << L"\\install.ps1' '";
+        break;
+    case PSScriptType::uninstall:
+        stream << L"\\uninstall.ps1' '";
+        break;
+    }
+    stream << dir << L"'\"";
 
-    return RunCommand(commandBegin + targetDir + commandMiddle + targetDir + commandEnd);
-}
-
-extern "C" __declspec(dllexport) UINT __stdcall Uninstall(MSIHANDLE hInstall) {
-    std::wstring targetDir = GetCustomActionData(hInstall);
-    if (targetDir.empty())
-        return ERROR_INSTALL_FAILURE;
-
-    std::wstring commandBegin(L"powershell -ExecutionPolicy \"Bypass\" \"& '");
-    std::wstring commandMiddle(L"\\uninstall.ps1' '");
-    std::wstring commandEnd(L"'\"");
-
-    return RunCommand(commandBegin + targetDir + commandMiddle + targetDir + commandEnd);
+    return RunCommand(stream.str(), INSTALL_SCRIPT_TIMEOUT);
 }
