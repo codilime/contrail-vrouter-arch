@@ -278,16 +278,18 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char fla
     */
     pkt->vp_data = 0;
 
-    /* vp_tail points to the end of packet data in non-paged memory */
     ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
-    pkt->vp_tail = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+
+    if (pkt->vp_win_flags & VP_WIN_CREATED) {
+        pkt->vp_tail = pkt->vp_len = 0;
+    } else {
+        pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+    }
 
     /* vp_end points to the end of accesible non-paged memory */
     pkt->vp_end = left_mdl_space;
 
-    /* vp_len is the size of non-paged data block */
-    pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
     pkt->vp_if = vif;
     pkt->vp_network_h = pkt->vp_inner_network_h = 0;
     pkt->vp_nh = NULL;
@@ -325,26 +327,27 @@ win_palloc(unsigned int size)
     return pkt;
 }
 
+void
+win_pfree_unaccounted(struct vr_packet *pkt)
+{
+    ASSERT(pkt != NULL);
+
+    free_associated_nbl(pkt);
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
+}
+
 static void
 win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
     ASSERT(pkt != NULL);
-    unsigned int cpu;
 
     struct vrouter *router = vrouter_get(0);
-    PNET_BUFFER_LIST nbl = NULL;
-
-    nbl = pkt->vp_net_buffer_list;
-    cpu = pkt->vp_cpu;
+    unsigned int cpu = pkt->vp_cpu;
 
     if (router)
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
 
-    free_associated_nbl(pkt);
-
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
-
-    return;
+    win_pfree_unaccounted(pkt);
 }
 
 static struct vr_packet *
@@ -1067,6 +1070,10 @@ win_register_nic(struct vr_interface* vif)
         vif->vif_port = assoc->port_id;
         vif->vif_nic = assoc->nic_index;
 
+        break;
+
+    case VIF_TYPE_AGENT:
+        /* Nothing to do */
         break;
 
     default:

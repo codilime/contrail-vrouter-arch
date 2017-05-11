@@ -2,7 +2,9 @@
 #include <Ntstrsafe.h>
 #include "vr_devices.h"
 
-#define DEVICE_CTX_CALLBACKS(Device) ( (PVR_DEVICE_DISPATCH_CALLBACKS)((Device)->DeviceExtension) )
+#define DEVICE_CTX(Device) ( (PVR_DEVICE_CONTEXT)((Device)->DeviceExtension) )
+#define DEVICE_CTX_CALLBACKS(Device) \
+    ( (PVR_DEVICE_DISPATCH_CALLBACKS)(&DEVICE_CTX(Device)->callbacks) )
 
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH VRouterDispatchCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH VRouterDispatchClose;
@@ -80,7 +82,7 @@ VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
     UNICODE_STRING _DeviceName;
     UNICODE_STRING _DeviceSymlink;
     PDEVICE_OBJECT _DeviceObject = NULL;
-    PVR_DEVICE_DISPATCH_CALLBACKS _Callbacks = NULL;
+    PVR_DEVICE_CONTEXT _Context = NULL;
     NTSTATUS Status;
 
     ASSERT(Callbacks->create != NULL);
@@ -100,17 +102,18 @@ VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
         return Status;
     }
 
-    Status = IoCreateDevice(DriverObject, sizeof(VR_DEVICE_DISPATCH_CALLBACKS), &_DeviceName,
+    Status = IoCreateDevice(DriverObject, sizeof(VR_DEVICE_CONTEXT), &_DeviceName,
                             FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
                             FALSE, &_DeviceObject);
     if (NT_SUCCESS(Status)) {
         *DeviceObject = _DeviceObject;
 
-        _Callbacks = DEVICE_CTX_CALLBACKS(*DeviceObject);
-        RtlCopyMemory(_Callbacks, Callbacks, sizeof(*_Callbacks));
+        _Context = DEVICE_CTX(_DeviceObject);
+        _Context->private_data = NULL;
+        RtlCopyMemory(&_Context->callbacks, Callbacks, sizeof(_Context->callbacks));
 
-        (*DeviceObject)->Flags |= DO_DIRECT_IO;
-        (*DeviceObject)->Flags &= (~DO_DEVICE_INITIALIZING);
+        _DeviceObject->Flags |= DO_DIRECT_IO;
+        _DeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);
 
         Status = IoCreateSymbolicLink(&_DeviceSymlink, &_DeviceName);
         if (NT_SUCCESS(Status)) {
@@ -150,4 +153,16 @@ VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
         IoDeleteDevice(*DeviceObject);
         *DeviceObject = NULL;
     }
+}
+
+VOID
+VRouterAttachPrivateData(_Inout_ PDEVICE_OBJECT DeviceObject, _In_ PVOID Data)
+{
+    DEVICE_CTX(DeviceObject)->private_data = Data;
+}
+
+PVOID
+VRouterGetPrivateData(_In_ PDEVICE_OBJECT DeviceObject)
+{
+    return DEVICE_CTX(DeviceObject)->private_data;
 }

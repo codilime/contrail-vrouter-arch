@@ -3,6 +3,7 @@
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
+#include "vr_devices.h"
 
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 static NDIS_MUTEX win_if_mutex;
@@ -70,12 +71,8 @@ win_if_del_tap(struct vr_interface *vif)
 }
 
 static int
-win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
+__win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 {
-    windows_host.hos_printf("%s: Got pkt\n", __func__);
-    if (vif == NULL)
-        return 0; // Sent into /dev/null
-
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
     NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
@@ -97,6 +94,19 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
     ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
     return 0;
+}
+
+static int
+win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
+{
+    windows_host.hos_printf("%s: Got pkt\n", __func__);
+    if (vif == NULL)
+        return 0; // Sent into /dev/null
+
+    if (vif->vif_type == VIF_TYPE_AGENT)
+        return pkt0_if_tx(vif, pkt);
+    else
+        return __win_if_tx(vif, pkt);
 }
 
 static int
