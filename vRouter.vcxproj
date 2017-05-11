@@ -217,6 +217,7 @@
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);ndis.lib</AdditionalDependencies>
     </Link>
+    <DriverSign />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
