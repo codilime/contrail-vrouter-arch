@@ -327,26 +327,27 @@ win_palloc(unsigned int size)
     return pkt;
 }
 
+void
+win_pfree_unaccounted(struct vr_packet *pkt)
+{
+    ASSERT(pkt != NULL);
+
+    free_associated_nbl(pkt);
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
+}
+
 static void
 win_pfree(struct vr_packet *pkt, unsigned short reason)
 {
     ASSERT(pkt != NULL);
-    unsigned int cpu;
 
     struct vrouter *router = vrouter_get(0);
-    PNET_BUFFER_LIST nbl = NULL;
-
-    nbl = pkt->vp_net_buffer_list;
-    cpu = pkt->vp_cpu;
+    unsigned int cpu = pkt->vp_cpu;
 
     if (router)
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
 
-    free_associated_nbl(pkt);
-
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
-
-    return;
+    win_pfree_unaccounted(pkt);
 }
 
 static struct vr_packet *

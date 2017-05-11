@@ -49,9 +49,20 @@ Pkt0DispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 static NTSTATUS
 Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
+    PLIST_ENTRY entry;
+    PIRP irp;
+    KIRQL old_irql;
 
-    /* TODO(sodar): Implement */
+    KeAcquireSpinLock(&ctx->lock, &old_irql);
+    while (!IsListEmpty(&ctx->irp_queue)) {
+        entry = RemoveHeadList(&ctx->irp_queue);
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        irp->IoStatus.Status = STATUS_SUCCESS;
+        irp->IoStatus.Information = 0;
+        IoCompleteRequest(irp, IO_NO_INCREMENT);
+    }
+    KeReleaseSpinLock(&ctx->lock, old_irql);
 
     Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
@@ -184,7 +195,6 @@ Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject)
     PLIST_ENTRY entry;
     struct pkt0_context *ctx;
     struct pkt0_packet *packet;
-    PIRP irp;
     KIRQL old_irql;
 
     ctx = (struct pkt0_context *)VRouterGetPrivateData(Pkt0DeviceObject);
@@ -202,13 +212,6 @@ Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject)
         packet = CONTAINING_RECORD(entry, struct pkt0_packet, list_entry);
         free_pkt0_packet(packet);
     }
-    while (!IsListEmpty(&ctx->irp_queue)) {
-        entry = RemoveHeadList(&ctx->irp_queue);
-        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
-        irp->IoStatus.Status = STATUS_SUCCESS;
-        irp->IoStatus.Information = 0;
-        IoCompleteRequest(irp, IO_NO_INCREMENT);
-    }
     KeReleaseSpinLock(&ctx->lock, old_irql);
 
     ExFreePoolWithTag(ctx, pkt0_allocation_tag);
@@ -222,18 +225,21 @@ static struct pkt0_packet *
 alloc_pkt0_packet(struct vr_packet *vrp)
 {
     struct pkt0_packet *packet;
-    unsigned int to_copy;
+    unsigned int pkt_size = pkt_len(vrp);
     int ret;
 
     packet = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct pkt0_packet), pkt0_allocation_tag);
     if (packet == NULL)
         return NULL;
-
     RtlZeroMemory(packet, sizeof(*packet));
 
-    to_copy = pkt_len(vrp);
-    ret = vr_pcopy(packet->buffer, vrp, vrp->vp_data, to_copy);
-    if (ret < 0 || ret != to_copy) {
+    packet->buffer = ExAllocatePoolWithTag(NonPagedPoolNx, pkt_size, pkt0_allocation_tag);
+    if (packet->buffer == NULL)
+        goto failure;
+    RtlZeroMemory(packet->buffer, pkt_size);
+
+    ret = vr_pcopy(packet->buffer, vrp, vrp->vp_data, pkt_size);
+    if (ret != pkt_size) {
         goto failure;
     }
     packet->length = ret;
@@ -250,6 +256,9 @@ failure:
 static void
 free_pkt0_packet(struct pkt0_packet *packet)
 {
+    if (packet->buffer)
+        ExFreePoolWithTag(packet->buffer, pkt0_allocation_tag);
+
     ExFreePoolWithTag(packet, pkt0_allocation_tag);
 }
 
@@ -277,8 +286,8 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
     }
     KeReleaseSpinLock(&ctx->lock, old_irql);
 
-    /* Drop pkt - it won't be used anymore in dp-core */
-    vr_pfree(vrp, VP_DROP_MISC);
+    /* vr_packet is no longer needed, drop it without updating statistics */
+    win_pfree_unaccounted(vrp);
 
     return 0;
 }

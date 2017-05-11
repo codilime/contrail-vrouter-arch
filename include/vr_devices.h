@@ -51,10 +51,8 @@ PVOID VRouterGetPrivateData(_In_ PDEVICE_OBJECT DeviceObject);
 /*
  * Pkt0 related definitions
  */
-#define PKT0_PACKET_MAX_SIZE (16 * 1024)
-
 struct pkt0_packet {
-    uint8_t buffer[PKT0_PACKET_MAX_SIZE];
+    uint8_t *buffer;
     size_t length;
     LIST_ENTRY list_entry;
 };
