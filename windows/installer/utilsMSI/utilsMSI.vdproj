@@ -51,12 +51,6 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_C29C90E620B943569F988188982416C3"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_D9E76A3F45E84D81A32CB602FA4DF74B"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -64,6 +58,12 @@
         "Entry"
         {
         "MsmKey" = "8:_E8042A48B6804AE78F83E47551A2E376"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F6D90757043642A98179E72681E4ADDA"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -134,31 +134,31 @@
     {
         "CustomAction"
         {
-            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_2FFF56C4729F4EF7B694BF2986115E9B"
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_5C8604EB07154A5CBCB84D2FD4825F01"
             {
-            "Name" = "8:Primary Output from customAction (Active)"
+            "Name" = "8:Primary Output from customActionUtils (Active)"
             "Condition" = "8:"
-            "Object" = "8:_C29C90E620B943569F988188982416C3"
-            "FileType" = "3:1"
-            "InstallAction" = "3:4"
-            "Arguments" = "8:"
-            "EntryPoint" = "8:Uninstall"
-            "Sequence" = "3:1"
-            "Identifier" = "8:_83D89629_73CC_4FBD_B353_5C7A019E6500"
-            "InstallerClass" = "11:FALSE"
-            "CustomActionData" = "8:[TARGETDIR]"
-            }
-            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_B3923D9DF1064A60986730D2580CA705"
-            {
-            "Name" = "8:Primary Output from customAction (Active)"
-            "Condition" = "8:"
-            "Object" = "8:_C29C90E620B943569F988188982416C3"
+            "Object" = "8:_F6D90757043642A98179E72681E4ADDA"
             "FileType" = "3:1"
             "InstallAction" = "3:2"
             "Arguments" = "8:"
             "EntryPoint" = "8:Commit"
             "Sequence" = "3:1"
-            "Identifier" = "8:_1AEF60D7_840B_4C6B_8D9C_5E69CBB4B5B2"
+            "Identifier" = "8:_86FE0C18_EC69_4375_A699_3A3160539C07"
+            "InstallerClass" = "11:FALSE"
+            "CustomActionData" = "8:[TARGETDIR]"
+            }
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_83B9F270F5DC4E529FA7827B6182F2B7"
+            {
+            "Name" = "8:Primary Output from customActionUtils (Active)"
+            "Condition" = "8:"
+            "Object" = "8:_F6D90757043642A98179E72681E4ADDA"
+            "FileType" = "3:1"
+            "InstallAction" = "3:4"
+            "Arguments" = "8:"
+            "EntryPoint" = "8:Uninstall"
+            "Sequence" = "3:1"
+            "Identifier" = "8:_E5969189_26E7_4648_A08D_CD94DF6C078B"
             "InstallerClass" = "11:FALSE"
             "CustomActionData" = "8:[TARGETDIR]"
             }
@@ -305,7 +305,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:vRouter utilities"
         "ProductCode" = "8:{299D687A-3C91-4202-92D2-47C83FD7122D}"
-        "PackageCode" = "8:{9339B1B0-9715-426A-BBEC-B5E7DA28E13D}"
+        "PackageCode" = "8:{CFE82F69-AABE-47C3-B446-6DCC5211F377}"
         "UpgradeCode" = "8:{F115A1D2-B722-44FA-9375-A9D4F3CE8E4D}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
@@ -936,34 +936,6 @@
                 {
                 }
             }
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_C29C90E620B943569F988188982416C3"
-            {
-            "SourcePath" = "8:..\\customAction\\x64\\Debug\\customAction.dll"
-            "TargetName" = "8:"
-            "Tag" = "8:"
-            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            "ProjectOutputGroupRegister" = "3:1"
-            "OutputConfiguration" = "8:"
-            "OutputGroupCanonicalName" = "8:Built"
-            "OutputProjectGuid" = "8:{CB61212B-F768-4F69-9259-8963B222FA90}"
-            "ShowKeyOutput" = "11:TRUE"
-                "ExcludeFilters"
-                {
-                }
-            }
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_E8042A48B6804AE78F83E47551A2E376"
             {
             "SourcePath" = "8:..\\..\\..\\x64\\Debug\\flow.exe"
@@ -987,6 +959,34 @@
             "OutputConfiguration" = "8:"
             "OutputGroupCanonicalName" = "8:Built"
             "OutputProjectGuid" = "8:{D18B96EB-FA69-48AF-8C4D-C4FB4949F753}"
+            "ShowKeyOutput" = "11:TRUE"
+                "ExcludeFilters"
+                {
+                }
+            }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_F6D90757043642A98179E72681E4ADDA"
+            {
+            "SourcePath" = "8:..\\..\\..\\x64\\Debug\\customActionUtils.dll"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Built"
+            "OutputProjectGuid" = "8:{B6FD6492-6766-488F-A9DE-C0712B0B1F0A}"
             "ShowKeyOutput" = "11:TRUE"
                 "ExcludeFilters"
                 {
