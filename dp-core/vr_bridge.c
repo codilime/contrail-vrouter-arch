@@ -483,6 +483,11 @@ vr_bridge_input(struct vrouter *router, struct vr_packet *pkt,
 
     dmac = (int8_t *) pkt_data(pkt);
 
+    // DEBUG(sodar): Begin
+    if (pkt->vp_type == VP_TYPE_ARP)
+        return vr_trap(pkt, pkt->vp_if->vif_vrf, AGENT_TRAP_ARP, NULL);
+    // DEBUG(sodar): Begin
+
     pull_len = 0;
     if ((pkt->vp_type == VP_TYPE_IP) || (pkt->vp_type == VP_TYPE_IP6) ||
             (pkt->vp_type == VP_TYPE_ARP)) {

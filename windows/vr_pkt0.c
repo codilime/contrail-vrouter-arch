@@ -4,6 +4,11 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 
+#include "SxBase/SxBase.h"
+
+extern PSX_SWITCH_OBJECT SxSwitchObject;
+extern NDIS_HANDLE SxNBLPool;
+
 static const ULONG pkt0_allocation_tag = '0TKP';
 
 static const WCHAR Pkt0DeviceName[] = L"\\Device\\vrouterPkt0";
@@ -19,6 +24,9 @@ struct pkt0_context {
     KSPIN_LOCK lock;
     LIST_ENTRY pkt_queue;
     LIST_ENTRY irp_queue;
+
+    KSPIN_LOCK write_lock;
+    LIST_ENTRY irp_write_queue;
 };
 
 static NTSTATUS
@@ -69,17 +77,105 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
+static IO_WORKITEM_ROUTINE Pkt0DeferredWrite;
+
+static VOID
+Pkt0DeferredWrite(_In_ PDEVICE_OBJECT DeviceObject,
+                  _In_opt_ PVOID Context)
+{
+    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
+    PIO_WORKITEM work_item = Context;
+    PLIST_ENTRY entry = NULL;
+    PIRP irp = NULL;
+    PIO_STACK_LOCATION io_stack;
+    ULONG count;
+    unsigned char *data;
+    KIRQL old_irql;
+
+    unsigned char *pkt_data;
+    PMDL pkt_mdl;
+    PNET_BUFFER_LIST pkt_nbl;
+
+    struct vrouter *router = vrouter_get(0);
+    struct vr_interface *agent_if;
+    struct vr_packet *pkt;
+
+    agent_if = router->vr_agent_if;
+    if (agent_if == NULL)
+        goto fail;
+
+    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
+    if (!IsListEmpty(&ctx->irp_write_queue)) {
+        entry = RemoveHeadList(&ctx->irp_write_queue);
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+    }
+    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+
+    if (irp != NULL) {
+        io_stack = IoGetCurrentIrpStackLocation(irp);
+        count = io_stack->Parameters.Write.Length;
+        data = MmGetSystemAddressForMdlSafe(irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
+        if (data == NULL)
+            goto fail;
+
+        // TODO(sodar): From here, Move code somewhere else and add error handling
+        pkt_data = ExAllocatePoolWithTag(NonPagedPoolNx, count, pkt0_allocation_tag);
+        RtlCopyMemory(pkt_data, data, count);
+
+        pkt_mdl = NdisAllocateMdl(SxSwitchObject->NdisFilterHandle, pkt_data, count);
+        pkt_mdl->Next = NULL;
+
+        pkt_nbl = NdisAllocateNetBufferAndNetBufferList(SxNBLPool, 0, 0, pkt_mdl, 0, count);
+        pkt_nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+
+        SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext,
+                                                                                  pkt_nbl);
+
+        pkt = win_get_packet(pkt_nbl, agent_if, VP_WIN_CREATED);
+        pkt_pull_tail(pkt, count);
+        // TODO(sodar): To here
+
+        /* Complete IRP to unblock user space */
+        irp->IoStatus.Status = STATUS_SUCCESS;
+        irp->IoStatus.Information = count;
+        IoCompleteRequest(irp, IO_NO_INCREMENT);
+
+        agent_if->vif_rx(agent_if, pkt, VLAN_ID_INVALID);
+    }
+
+    IoFreeWorkItem(work_item);
+    return;
+
+fail:
+    irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+    IoCompleteRequest(irp, IO_NO_INCREMENT);
+    return;
+}
+
 static NTSTATUS
 Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
+    PIO_WORKITEM work_item;
+    KIRQL old_irql;
 
-    /* TODO(sodar): Implement */
+    work_item = IoAllocateWorkItem(DeviceObject);
+    if (work_item == NULL) {
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = 0;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    Irp->IoStatus.Status = STATUS_PENDING;
+    IoMarkIrpPending(Irp);
+
+    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
+    InsertTailList(&ctx->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
+    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+
+    IoQueueWorkItem(work_item, Pkt0DeferredWrite, DelayedWorkQueue, work_item);
+    
+    return STATUS_PENDING;
 }
 
 static NTSTATUS
@@ -168,6 +264,9 @@ Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
     KeInitializeSpinLock(&ctx->lock);
     InitializeListHead(&ctx->pkt_queue);
     InitializeListHead(&ctx->irp_queue);
+
+    KeInitializeSpinLock(&ctx->write_lock);
+    InitializeListHead(&ctx->irp_write_queue);
 
     /* Create and initialize named pipe server for Pkt0 */
     Status = VRouterSetUpNamedPipeServer(DriverObject,
