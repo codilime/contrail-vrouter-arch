@@ -4,17 +4,20 @@
  *  Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
+#ifndef _WINDOWS
+#include <unistd.h>
+#include <getopt.h>
+#include <net/if.h>
+#else
+#include <wingetopt.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <getopt.h>
 #include <stdbool.h>
-
 #include <sys/types.h>
-
-#include <net/if.h>
 
 #include "vr_types.h"
 #include "vr_mpls.h"
@@ -30,8 +33,19 @@ static int get_set, nh_set, label_set;
 static int help_set, cmd_set;
 static int mpls_label, mpls_op = -1, mpls_nh;
 
+void mpls_req_process(void *s_req);
+void mpls_response_process(void *s);
+
 void
-vr_mpls_req_process(void *s_req)
+mpls_fill_nl_callbacks()
+{
+    nl_cb.vr_response_process = mpls_response_process;
+    nl_cb.vr_mpls_req_process = mpls_req_process;
+}
+
+
+void
+mpls_req_process(void *s_req)
 {
    vr_mpls_req *req = (vr_mpls_req *)s_req;
 
@@ -43,7 +57,7 @@ vr_mpls_req_process(void *s_req)
 }
 
 void
-vr_response_process(void *s)
+mpls_response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
@@ -61,7 +75,7 @@ op_retry:
         ret = vr_send_mpls_add(cl, 0, mpls_label, mpls_nh);
         break;
 
-    case SANDESH_OP_DELETE:
+    case SANDESH_OP_DEL:
         ret = vr_send_mpls_delete(cl, 0, mpls_label);
         break;
 
@@ -160,7 +174,7 @@ parse_long_opts(int opt_index, char *opt_arg)
         break;
 
     case DELETE_OPT_INDEX:
-        mpls_op = SANDESH_OP_DELETE;
+        mpls_op = SANDESH_OP_DEL;
         mpls_label = strtoul(opt_arg, NULL, 0);
         if (errno)
             usage_internal();
@@ -235,7 +249,7 @@ int main(int argc, char *argv[])
                 if (mpls_op >= 0)
                     Usage();
                 delete_set = 1;
-                mpls_op = SANDESH_OP_DELETE;
+                mpls_op = SANDESH_OP_DEL;
                 break;
 
             case 'g':
