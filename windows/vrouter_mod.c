@@ -983,7 +983,7 @@ SxExtStartNetBufferListsIngress(
 
         windows_host.hos_printf("%s: VIF has port %d and interface id %d\n", __func__, vif->vif_port, vif->vif_nic);
 
-        struct vr_packet *pkt = win_get_packet(curNbl, vif, VP_WIN_RECEIVED);
+        struct vr_packet *pkt = win_get_packet(curNbl, vif);
 
         windows_host.hos_printf("%s: Got pkt\n", __func__);
         ASSERTMSG("win_get_packed failed!", pkt != NULL);
@@ -1068,19 +1068,5 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    if (NetBufferLists->NdisPoolHandle == SxNBLPool)
-    {
-        if (NetBufferLists->ParentNetBufferList == NULL)
-        {
-            NdisFreeNetBufferList(NetBufferLists);
-        }
-        else
-        {
-            NdisFreeCloneNetBufferList(NetBufferLists, 0);
-        }
-    }
-    else
-    {
-        delete_unbound_nbl(NetBufferLists, SendCompleteFlags);
-    }
+    free_nbl(NetBufferLists);
 }

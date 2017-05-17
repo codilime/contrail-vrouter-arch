@@ -185,13 +185,6 @@
 #define VP_DROP_TRAP_ORIGINAL               49
 #define VP_DROP_MAX                         50
 
-#ifdef _WINDOWS
-#define VP_WIN_CLONED                       0b0001
-#define VP_WIN_CREATED                      0b0010
-#define VP_WIN_RECEIVED                     0b0100
-#define VP_WIN_ANY_SOURCE                   (VP_WIN_RECEIVED | VP_WIN_CREATED | VP_WIN_CLONED)
-#endif
-
 struct vr_drop_stats {
     uint64_t vds_discard;
     uint64_t vds_pull;
@@ -268,7 +261,6 @@ struct vr_packet {
                   vp_notused:4;
 #ifdef _WINDOWS
     void* vp_net_buffer_list;
-    unsigned char vp_win_flags;
 #endif
 };
 

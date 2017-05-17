@@ -86,6 +86,8 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(nbl);
     fwd->IsPacketDataSafe = TRUE;
 
+    NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data, TRUE, NULL);
+
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_DEFAULT_PORT_NUMBER,
