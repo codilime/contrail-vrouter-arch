@@ -15,7 +15,7 @@ static BOOLEAN Pkt0SymlinkCreated = FALSE;
 static struct pkt0_packet *alloc_pkt0_packet(struct vr_packet *vrp);
 static void free_pkt0_packet(struct pkt0_packet * packet);
 
-static IO_WORKITEM_ROUTINE Pkt0DeferredWrite;
+static IO_WORKITEM_ROUTINE_EX Pkt0DeferredWrite;
 
 struct pkt0_context {
     KSPIN_LOCK lock;
@@ -85,15 +85,16 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return Irp->IoStatus.Status;
 }
 
 static VOID
-Pkt0DeferredWrite(_In_ PDEVICE_OBJECT DeviceObject,
-                  _In_opt_ PVOID Context)
+Pkt0DeferredWrite(_In_ PVOID IoObject,
+                  _In_opt_ PVOID Context,
+                  _In_ PIO_WORKITEM WorkItem)
 {
-    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
-    PIO_WORKITEM work_item = Context;
+    PDEVICE_OBJECT device_object = IoObject;
+    struct pkt0_context *ctx = VRouterGetPrivateData(device_object);
     PLIST_ENTRY entry = NULL;
     PIRP irp = NULL;
     PIO_STACK_LOCATION io_stack;
@@ -142,7 +143,7 @@ Pkt0DeferredWrite(_In_ PDEVICE_OBJECT DeviceObject,
 
     agent_if->vif_rx(agent_if, pkt, VLAN_ID_INVALID);
 
-    IoFreeWorkItem(work_item);
+    IoFreeWorkItem(WorkItem);
     return;
 
 fail:
@@ -153,7 +154,7 @@ fail:
         irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
         IoCompleteRequest(irp, IO_NO_INCREMENT);
     }
-    IoFreeWorkItem(work_item);
+    IoFreeWorkItem(WorkItem);
     return;
 }
 
@@ -171,14 +172,13 @@ Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    Irp->IoStatus.Status = STATUS_PENDING;
     IoMarkIrpPending(Irp);
 
     KeAcquireSpinLock(&ctx->write_lock, &old_irql);
     InsertTailList(&ctx->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
     KeReleaseSpinLock(&ctx->write_lock, old_irql);
 
-    IoQueueWorkItem(work_item, Pkt0DeferredWrite, DelayedWorkQueue, work_item);
+    IoQueueWorkItemEx(work_item, Pkt0DeferredWrite, DelayedWorkQueue, NULL);
 
     return STATUS_PENDING;
 }
