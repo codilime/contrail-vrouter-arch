@@ -77,7 +77,7 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 
     NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
 
-    if (pkt->vp_win_data > 0) {
+    if ((pkt->vp_win_flags & VP_WIN_CREATED) && pkt->vp_win_data > 0) {
         NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_win_data, FALSE, NULL);
         pkt->vp_win_data = 0;
     }
