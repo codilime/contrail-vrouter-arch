@@ -105,7 +105,9 @@ void win_set_physical(struct vr_assoc* assoc);
 
 extern struct host_os windows_host;
 
-extern void win_pfree_unaccounted(struct vr_packet *pkt);
+extern struct vr_packet *win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag);
+extern void win_free_packet(struct vr_packet *pkt);
+
 extern void win_if_lock(void);
 extern void win_if_unlock(void);
 

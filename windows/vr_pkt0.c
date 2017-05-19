@@ -287,7 +287,7 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
     KeReleaseSpinLock(&ctx->lock, old_irql);
 
     /* vr_packet is no longer needed, drop it without updating statistics */
-    win_pfree_unaccounted(vrp);
+    win_free_packet(vrp);
 
     return 0;
 }
