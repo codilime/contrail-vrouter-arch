@@ -27,6 +27,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_68BE9E589755B05D813BA6DEDD745C75"
+        "OwnerKey" = "8:_C639089A1AE7450C8FBCA2C8E0E2A7BC"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_70898DCD51EC466D83494ED30367B586"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -47,6 +53,18 @@
         {
         "MsmKey" = "8:_AB6B390559384951A1D8E9D0C9E7F82D"
         "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_C639089A1AE7450C8FBCA2C8E0E2A7BC"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_D35247351CAB4152B875DE2268731880"
+        "OwnerKey" = "8:_C639089A1AE7450C8FBCA2C8E0E2A7BC"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -197,6 +215,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_68BE9E589755B05D813BA6DEDD745C75"
+            {
+            "SourcePath" = "8:ucrtbased.dll"
+            "TargetName" = "8:ucrtbased.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:TRUE"
+            "IsDependency" = "11:TRUE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_AB6B390559384951A1D8E9D0C9E7F82D"
             {
             "SourcePath" = "8:..\\..\\..\\..\\third_party\\zlib-1.2.8-win32-x86_64\\bin\\zlib1.dll"
@@ -305,7 +343,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:vRouter utilities"
         "ProductCode" = "8:{299D687A-3C91-4202-92D2-47C83FD7122D}"
-        "PackageCode" = "8:{CFE82F69-AABE-47C3-B446-6DCC5211F377}"
+        "PackageCode" = "8:{EC2D2DA3-AD5E-4DF6-A582-9354486268B3}"
         "UpgradeCode" = "8:{F115A1D2-B722-44FA-9375-A9D4F3CE8E4D}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
@@ -821,6 +859,20 @@
         }
         "MergeModule"
         {
+            "{CEE29DC0-9FBA-4B99-8D47-5BC643D9B626}:_D35247351CAB4152B875DE2268731880"
+            {
+            "UseDynamicProperties" = "11:TRUE"
+            "IsDependency" = "11:TRUE"
+            "SourcePath" = "8:microsoft_vc140_debugcrt_x64.msm"
+                "Properties"
+                {
+                }
+            "LanguageId" = "3:0"
+            "Exclude" = "11:FALSE"
+            "Folder" = "8:"
+            "Feature" = "8:"
+            "IsolateTo" = "8:"
+            }
         }
         "ProjectOutput"
         {
@@ -931,6 +983,34 @@
             "OutputConfiguration" = "8:"
             "OutputGroupCanonicalName" = "8:Built"
             "OutputProjectGuid" = "8:{E7006D0D-A698-4F3D-B1F0-2D23578847CB}"
+            "ShowKeyOutput" = "11:TRUE"
+                "ExcludeFilters"
+                {
+                }
+            }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_C639089A1AE7450C8FBCA2C8E0E2A7BC"
+            {
+            "SourcePath" = "8:..\\..\\..\\x64\\Debug\\mpls.exe"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Built"
+            "OutputProjectGuid" = "8:{72DF5098-CAC6-47AF-8E31-640BA056404E}"
             "ShowKeyOutput" = "11:TRUE"
                 "ExcludeFilters"
                 {
