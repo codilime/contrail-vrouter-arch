@@ -1068,10 +1068,25 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
+    PNET_BUFFER nb = NULL;
+    PMDL mdl = NULL;
+    PMDL mdl_next = NULL;
+    PVOID data = NULL;
+
     if (NetBufferLists->NdisPoolHandle == SxNBLPool)
     {
         if (NetBufferLists->ParentNetBufferList == NULL)
         {
+            for (nb = NET_BUFFER_LIST_FIRST_NB(NetBufferLists); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
+                for (mdl = NET_BUFFER_FIRST_MDL(nb);
+                     mdl != NULL;
+                     mdl = mdl_next) {
+                mdl_next = mdl->Next;
+                data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
+                NdisFreeMdl(mdl);
+                if (data != NULL)
+                    ExFreePool(data); /* Test if this works */
+            }
             NdisFreeNetBufferList(NetBufferLists);
         }
         else
