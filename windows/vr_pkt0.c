@@ -15,11 +15,24 @@ static BOOLEAN Pkt0SymlinkCreated = FALSE;
 static struct pkt0_packet *alloc_pkt0_packet(struct vr_packet *vrp);
 static void free_pkt0_packet(struct pkt0_packet * packet);
 
+static IO_WORKITEM_ROUTINE_EX Pkt0DeferredWrite;
+
 struct pkt0_context {
     KSPIN_LOCK lock;
     LIST_ENTRY pkt_queue;
     LIST_ENTRY irp_queue;
+
+    KSPIN_LOCK write_lock;
+    LIST_ENTRY irp_write_queue;
 };
+
+static void
+Pkt0FinalizeIrp(PIRP irp)
+{
+    irp->IoStatus.Status = STATUS_SUCCESS;
+    irp->IoStatus.Information = 0;
+    IoCompleteRequest(irp, IO_NO_INCREMENT);
+}
 
 static NTSTATUS
 Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
@@ -58,28 +71,116 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     while (!IsListEmpty(&ctx->irp_queue)) {
         entry = RemoveHeadList(&ctx->irp_queue);
         irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
-        irp->IoStatus.Status = STATUS_SUCCESS;
-        irp->IoStatus.Information = 0;
-        IoCompleteRequest(irp, IO_NO_INCREMENT);
+        Pkt0FinalizeIrp(irp);
     }
     KeReleaseSpinLock(&ctx->lock, old_irql);
 
+    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
+    if (!IsListEmpty(&ctx->irp_write_queue)) {
+        entry = RemoveHeadList(&ctx->irp_write_queue);
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        Pkt0FinalizeIrp(irp);
+    }
+    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+
     Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return Irp->IoStatus.Status;
+}
+
+static VOID
+Pkt0DeferredWrite(_In_ PVOID IoObject,
+                  _In_opt_ PVOID Context,
+                  _In_ PIO_WORKITEM WorkItem)
+{
+    PDEVICE_OBJECT device_object = IoObject;
+    struct pkt0_context *ctx = VRouterGetPrivateData(device_object);
+    PLIST_ENTRY entry = NULL;
+    PIRP irp = NULL;
+    PIO_STACK_LOCATION io_stack;
+    ULONG count;
+    unsigned char *data = NULL;
+    unsigned char *pkt_data = NULL;
+    KIRQL old_irql;
+
+    struct vrouter *router = vrouter_get(0);
+    struct vr_interface *agent_if;
+    struct vr_packet *pkt = NULL;
+
+    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
+    if (!IsListEmpty(&ctx->irp_write_queue)) {
+        entry = RemoveHeadList(&ctx->irp_write_queue);
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+    }
+    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+    if (irp == NULL)
+        goto fail;
+
+    agent_if = router->vr_agent_if;
+    if (agent_if == NULL)
+        goto fail;
+
+    io_stack = IoGetCurrentIrpStackLocation(irp);
+    count = io_stack->Parameters.Write.Length;
+    data = MmGetSystemAddressForMdlSafe(irp->MdlAddress, LowPagePriority | MdlMappingNoExecute);
+    if (data == NULL)
+        goto fail;
+
+    pkt_data = ExAllocatePoolWithTag(NonPagedPoolNx, count, pkt0_allocation_tag);
+    if (pkt_data == NULL)
+        goto fail;
+
+    RtlCopyMemory(pkt_data, data, count);
+
+    pkt = win_allocate_packet(pkt_data, count, pkt0_allocation_tag);
+    if (pkt == NULL)
+        goto fail;
+    pkt->vp_if = agent_if;
+
+    irp->IoStatus.Status = STATUS_SUCCESS;
+    irp->IoStatus.Information = count;
+    IoCompleteRequest(irp, IO_NO_INCREMENT);
+
+    agent_if->vif_rx(agent_if, pkt, VLAN_ID_INVALID);
+
+    IoFreeWorkItem(WorkItem);
+    return;
+
+fail:
+    if (pkt_data) {
+        ExFreePoolWithTag(pkt_data, pkt0_allocation_tag);
+    }
+    if (irp) {
+        irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        IoCompleteRequest(irp, IO_NO_INCREMENT);
+    }
+    IoFreeWorkItem(WorkItem);
+    return;
 }
 
 static NTSTATUS
 Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
+    PIO_WORKITEM work_item;
+    KIRQL old_irql;
 
-    /* TODO(sodar): Implement */
+    work_item = IoAllocateWorkItem(DeviceObject);
+    if (work_item == NULL) {
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = 0;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    IoMarkIrpPending(Irp);
+
+    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
+    InsertTailList(&ctx->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
+    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+
+    IoQueueWorkItemEx(work_item, Pkt0DeferredWrite, DelayedWorkQueue, NULL);
+
+    return STATUS_PENDING;
 }
 
 static NTSTATUS
@@ -168,6 +269,9 @@ Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
     KeInitializeSpinLock(&ctx->lock);
     InitializeListHead(&ctx->pkt_queue);
     InitializeListHead(&ctx->irp_queue);
+
+    KeInitializeSpinLock(&ctx->write_lock);
+    InitializeListHead(&ctx->irp_write_queue);
 
     /* Create and initialize named pipe server for Pkt0 */
     Status = VRouterSetUpNamedPipeServer(DriverObject,
