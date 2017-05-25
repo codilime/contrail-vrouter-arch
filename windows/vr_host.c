@@ -232,13 +232,13 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
     return nbl;
 
 cleanup:
+    if (fwd_ctx) {
+        free_forwarding_context(nbl);
+    }
+
     if (nbl) {
         NdisFreeCloneNetBufferList(nbl, 0);
         original_nbl->ChildRefCount--;
-    }
-
-    if (fwd_ctx) {
-        free_forwarding_context(nbl);
     }
 
     return NULL;
