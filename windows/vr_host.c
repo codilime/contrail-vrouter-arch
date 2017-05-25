@@ -7,6 +7,9 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
+#define IS_OWNED(nbl) (nbl->NdisPoolHandle == SxNBLPool)
+#define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
+
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -129,12 +132,13 @@ void
 free_nbl(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
+    ASSERTMSG(nbl->Next == NULL, "A non-singular NBL made it's way into the process");
 
-    if (nbl->NdisPoolHandle == SxNBLPool)
-        if (nbl->ParentNetBufferList == NULL)
-            free_created_nbl(nbl);
-        else
+    if (IS_OWNED(nbl))
+        if (IS_CLONE(nbl))
             free_cloned_nbl(nbl);
+        else
+            free_created_nbl(nbl);
     else
         complete_received_nbl(nbl);
 }
@@ -168,16 +172,21 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
 {
     ASSERT(original_nbl != NULL);
 
+    BOOLEAN fwd_ctx = false;
+
     PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, SxNBLPool, NULL, 0);
 
     if (nbl == NULL)
         goto cleanup;
 
+    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
     nbl->ParentNetBufferList = original_nbl;
     original_nbl->ChildRefCount++;
 
     if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
         goto cleanup;
+
+    fwd_ctx = true;
 
     NDIS_STATUS status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(SxSwitchObject->NdisSwitchContext, nbl, original_nbl, 0);
     if (status != NDIS_STATUS_SUCCESS)
@@ -189,6 +198,10 @@ cleanup:
     if (nbl) {
         NdisFreeCloneNetBufferList(nbl, 0);
         original_nbl->ChildRefCount--;
+    }
+
+    if (fwd_ctx) {
+        free_forwarding_context(nbl);
     }
 
     return NULL;
@@ -326,11 +339,10 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
 
-    if (nbl->NdisPoolHandle == SxNBLPool && nbl->ParentNetBufferList == NULL) {
+    if (IS_OWNED(nbl) && !IS_CLONE(nbl))
         pkt->vp_tail = pkt->vp_len = 0;
-    } else {
+    else
         pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
-    }
 
     /* vp_end points to the end of accesible non-paged memory */
     pkt->vp_end = left_mdl_space;
@@ -522,10 +534,6 @@ win_pclone(struct vr_packet *pkt)
 
     if (copy_status != NDIS_STATUS_SUCCESS)
         goto cleanup_pkt;
-
-    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
-    nbl->ParentNetBufferList = original_nbl;
-    original_nbl->ChildRefCount++;
 
     return npkt;
 
