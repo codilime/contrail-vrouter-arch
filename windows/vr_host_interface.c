@@ -104,8 +104,10 @@ static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
     windows_host.hos_printf("%s: Got pkt\n", __func__);
-    if (vif == NULL)
+    if (vif == NULL) {
+        free_nbl(pkt->vp_net_buffer_list, pkt->vp_win_data_tag);
         return 0; // Sent into /dev/null
+    }
 
     if (vif->vif_type == VIF_TYPE_AGENT)
         return pkt0_if_tx(vif, pkt);
