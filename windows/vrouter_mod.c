@@ -1068,5 +1068,5 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    free_nbl(NetBufferLists);
+    free_nbl(NetBufferLists, 0);
 }

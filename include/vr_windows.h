@@ -96,17 +96,18 @@ struct host_os * vrouter_get_host(void);
 
 NDIS_HANDLE vrouter_generate_pool(void);
 void vrouter_free_pool(NDIS_HANDLE pool);
-void free_nbl(PNET_BUFFER_LIST nbl);
+void free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag);
 struct vr_packet* win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif);
 int win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER src, unsigned int offset, unsigned int len);
-void delete_unbound_nbl(NET_BUFFER_LIST* nbl, unsigned long flags);
 
 struct vr_assoc* win_get_physical();
 void win_set_physical(struct vr_assoc* assoc);
 
 extern struct host_os windows_host;
 
-extern void win_pfree_unaccounted(struct vr_packet *pkt);
+extern struct vr_packet *win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag);
+extern void win_free_packet(struct vr_packet *pkt);
+
 extern void win_if_lock(void);
 extern void win_if_unlock(void);
 

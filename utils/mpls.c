@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
     int ret;
     int opt;
     int option_index;
-
+    mpls_fill_nl_callbacks();
     while ((opt = getopt_long(argc, argv, "bcdgn:l:",
                     long_options, &option_index)) >= 0) {
             switch (opt) {

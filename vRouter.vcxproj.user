@@ -15,8 +15,7 @@
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <TestCertificate>
-    </TestCertificate>
+    <TestCertificate>..\third_party\certs\codilime.com-selfsigned-cert.pfx</TestCertificate>
     <Password>$(cerp)</Password>
   </PropertyGroup>
 </Project>
