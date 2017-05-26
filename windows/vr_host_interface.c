@@ -70,6 +70,18 @@ win_if_del_tap(struct vr_interface *vif)
     return 0;
 }
 
+static void fix_ip_csum(PNET_BUFFER_LIST nbl)
+{
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    unsigned char* mdl_data =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+
+    struct vr_ip *ip = (struct vr_ip*) (mdl_data + current_mdl_offset + sizeof(struct vr_eth));
+    ip->ip_csum = vr_ip_csum(ip);
+}
+
 static int
 __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 {
@@ -87,8 +99,9 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     fwd->IsPacketDataSafe = TRUE;
 
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
-
     pkt->vp_win_data = 0;
+
+    fix_ip_csum(nbl);
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
