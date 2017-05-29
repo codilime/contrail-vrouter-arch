@@ -87,7 +87,7 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 {
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
-    NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };        
+    NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
 
     newDestination.PortId = vif->vif_port;
     newDestination.NicIndex = vif->vif_nic;

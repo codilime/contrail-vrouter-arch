@@ -10,6 +10,8 @@
 #define IS_OWNED(nbl) (nbl->NdisPoolHandle == SxNBLPool)
 #define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
 
+#define VP_DEFAULT_INITIAL_TTL 64
+
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -457,7 +459,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     // if (skb->ip_summed == CHECKSUM_PARTIAL)
     //	pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
 
-    pkt->vp_ttl = 64;
+    pkt->vp_ttl = VP_DEFAULT_INITIAL_TTL;
     pkt->vp_type = VP_TYPE_NULL;
     pkt->vp_queue = 0;
     pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
