@@ -983,7 +983,7 @@ SxExtStartNetBufferListsIngress(
 
         windows_host.hos_printf("%s: VIF has port %d and interface id %d\n", __func__, vif->vif_port, vif->vif_nic);
 
-        struct vr_packet *pkt = win_get_packet(curNbl, vif, VP_WIN_RECEIVED);
+        struct vr_packet *pkt = win_get_packet(curNbl, vif);
 
         windows_host.hos_printf("%s: Got pkt\n", __func__);
         ASSERTMSG("win_get_packed failed!", pkt != NULL);
@@ -1068,34 +1068,13 @@ SxExtStartCompleteNetBufferListsIngress(
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    PNET_BUFFER nb = NULL;
-    PMDL mdl = NULL;
-    PMDL mdl_next = NULL;
-    PVOID data = NULL;
+    PNET_BUFFER_LIST next = NetBufferLists;
+    PNET_BUFFER_LIST current;
+    do {
+        current = next;
+        next = current->Next;
+        current->Next = NULL;
 
-    if (NetBufferLists->NdisPoolHandle == SxNBLPool)
-    {
-        if (NetBufferLists->ParentNetBufferList == NULL)
-        {
-            for (nb = NET_BUFFER_LIST_FIRST_NB(NetBufferLists); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
-                for (mdl = NET_BUFFER_FIRST_MDL(nb);
-                     mdl != NULL;
-                     mdl = mdl_next) {
-                mdl_next = mdl->Next;
-                data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
-                NdisFreeMdl(mdl);
-                if (data != NULL)
-                    ExFreePool(data);
-            }
-            NdisFreeNetBufferList(NetBufferLists);
-        }
-        else
-        {
-            NdisFreeCloneNetBufferList(NetBufferLists, 0);
-        }
-    }
-    else
-    {
-        delete_unbound_nbl(NetBufferLists, SendCompleteFlags);
-    }
+        free_nbl(current, 0);
+    } while (next != NULL);
 }

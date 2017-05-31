@@ -7,6 +7,11 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
+#define IS_OWNED(nbl) (nbl->NdisPoolHandle == SxNBLPool)
+#define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
+
+#define VP_DEFAULT_INITIAL_TTL 64
+
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
@@ -38,7 +43,7 @@ create_forwarding_context(PNET_BUFFER_LIST nbl)
 }
 
 static void
-delete_forwarding_context(PNET_BUFFER_LIST nbl)
+free_forwarding_context(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
     SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
@@ -105,42 +110,46 @@ fail:
 }
 
 static void
-delete_cloned_nbl(PNET_BUFFER_LIST nbl)
+free_cloned_nbl(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
 
-    delete_forwarding_context(nbl);
+    free_forwarding_context(nbl);
+
+    PNET_BUFFER_LIST original_nbl = nbl->ParentNetBufferList;
     
     NdisFreeCloneNetBufferList(nbl, 0);
+
+    original_nbl->ChildRefCount--;
+
+    if (original_nbl->ChildRefCount == 0)
+        free_nbl(original_nbl, 0);
 }
 
 static void
-delete_created_nbl(PNET_BUFFER_LIST nbl_to_delete, ULONG data_allocation_tag)
+free_created_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
 {
-    ASSERT(nbl_to_delete != NULL);
+    ASSERT(nbl != NULL);
+    ASSERT(nbl->Next == NULL);
 
-    PNET_BUFFER_LIST nbl = NULL;
     PNET_BUFFER nb = NULL;
     PMDL mdl = NULL;
     PMDL mdl_next = NULL;
     PVOID data = NULL;
 
-    delete_forwarding_context(nbl_to_delete);
+    free_forwarding_context(nbl);
 
     /* Free MDLs associated with NET_BUFFERS */
-    for (nbl = nbl_to_delete; nbl != NULL; nbl = NET_BUFFER_LIST_NEXT_NBL(nbl))
-        for (nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
-            for (mdl = NET_BUFFER_FIRST_MDL(nb);
-                 mdl != NULL;
-                 mdl = mdl_next) {
-                mdl_next = mdl->Next;
-                data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
-                NdisFreeMdl(mdl);
-                if (data != NULL)
-                    ExFreePoolWithTag(data, data_allocation_tag);
-            }
+    for (nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
+        for (mdl = NET_BUFFER_FIRST_MDL(nb); mdl != NULL; mdl = mdl_next) {
+            mdl_next = mdl->Next;
+            data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
+            NdisFreeMdl(mdl);
+            if (data != NULL)
+                ExFreePoolWithTag(data, data_allocation_tag);
+        }
 
-    NdisFreeNetBufferList(nbl_to_delete);
+    NdisFreeNetBufferList(nbl);
 }
 
 static void
@@ -148,10 +157,29 @@ complete_received_nbl(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
 
+    // Cannot complete an NBL with children
+    if (nbl->ChildRefCount != 0)
+        return;
+
     /* Flag SINGLE_SOURCE is used, because of singular NBLS */
     NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP);
+}
+
+void
+free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
+{
+    ASSERT(nbl != NULL);
+    ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
+
+    if (IS_OWNED(nbl))
+        if (IS_CLONE(nbl))
+            free_cloned_nbl(nbl);
+        else
+            free_created_nbl(nbl, data_allocation_tag);
+    else
+        complete_received_nbl(nbl);
 }
 
 static void
@@ -159,18 +187,11 @@ free_associated_nbl(struct vr_packet* pkt)
 {
     ASSERT(pkt != NULL);
 
-    ASSERTMSG("vr_packet which doesn't have any source flag set", (pkt->vp_win_flags & VP_WIN_ANY_SOURCE) > 0);
-
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
     ASSERT(nbl != NULL);
 
-    if (pkt->vp_win_flags & VP_WIN_RECEIVED)
-        complete_received_nbl(nbl);
-    else if (pkt->vp_win_flags & VP_WIN_CLONED)
-        delete_cloned_nbl(nbl);
-    else if (pkt->vp_win_flags & VP_WIN_CREATED)
-        delete_created_nbl(nbl, pkt->vp_win_data_tag);
+    free_nbl(nbl, pkt->vp_win_data_tag);
 
     pkt->vp_net_buffer_list = NULL;
 }
@@ -185,73 +206,43 @@ delete_unbound_nbl(PNET_BUFFER_LIST nbl, unsigned long flags)
         flags);
 }
 
-struct vr_packet *
-win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif, unsigned char flags)
+PNET_BUFFER_LIST
+clone_nbl(PNET_BUFFER_LIST original_nbl)
 {
-    ASSERT(nbl != NULL);
+    ASSERT(original_nbl != NULL);
 
-    ASSERTMSG("No source provided", (flags & VP_WIN_ANY_SOURCE) != 0);
+    BOOLEAN fwd_ctx = false;
 
-    DbgPrint("%s()\n", __func__);
-    /* Allocate NDIS context, which will store vr_packet pointer */
-    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
-    if (!pkt)
-        return NULL;
+    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, SxNBLPool, NULL, 0);
 
-    RtlZeroMemory(pkt, sizeof(struct vr_packet));
+    if (nbl == NULL)
+        goto cleanup;
 
-    pkt->vp_win_flags = flags;
+    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+    nbl->ParentNetBufferList = original_nbl;
+    original_nbl->ChildRefCount++;
 
-    pkt->vp_net_buffer_list = nbl;
-    pkt->vp_cpu = (unsigned char)win_get_cpu();
+    if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
+        goto cleanup;
 
-    /* vp_head points to the beginning of accesible non-paged memory of the packet */
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    ULONG current_mdl_count = MmGetMdlByteCount(current_mdl);
-    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    unsigned char* mdl_data =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
-    if (!mdl_data)
-        goto drop;
-    pkt->vp_head = mdl_data + current_mdl_offset;
-    /* vp_data is the offset from vp_head, where packet begins.
-       TODO: When packet encapsulation comes into play, then vp_data should differ.
-             There should be enough room between vp_head and vp_data to add packet headers.
-    */
-    pkt->vp_data = 0;
-    pkt->vp_win_data = 0;
+    fwd_ctx = true;
 
-    ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
-    ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
+    NDIS_STATUS status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(SxSwitchObject->NdisSwitchContext, nbl, original_nbl, 0);
+    if (status != NDIS_STATUS_SUCCESS)
+        goto cleanup;
 
-    if (pkt->vp_win_flags & VP_WIN_CREATED) {
-        pkt->vp_tail = pkt->vp_len = 0;
-    } else {
-        pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+    return nbl;
+
+cleanup:
+    if (fwd_ctx) {
+        free_forwarding_context(nbl);
     }
 
-    /* vp_end points to the end of accesible non-paged memory */
-    pkt->vp_end = left_mdl_space;
+    if (nbl) {
+        NdisFreeCloneNetBufferList(nbl, 0);
+        original_nbl->ChildRefCount--;
+    }
 
-    pkt->vp_if = vif;
-    pkt->vp_network_h = pkt->vp_inner_network_h = 0;
-    pkt->vp_nh = NULL;
-    pkt->vp_flags = 0;
-
-    // If a problem arises concerning IP checksums, tinker with:
-    // if (skb->ip_summed == CHECKSUM_PARTIAL)
-    //	pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
-
-    pkt->vp_ttl = 64;
-    pkt->vp_type = VP_TYPE_NULL;
-    pkt->vp_queue = 0;
-    pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
-
-    return pkt;
-
-drop:
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
     return NULL;
 }
 
@@ -276,7 +267,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
     if (nbl == NULL)
         goto fail;
 
-    pkt = win_get_packet(nbl, NULL, VP_WIN_CREATED);
+    pkt = win_get_packet(nbl, NULL);
     if (pkt == NULL)
         goto fail;
 
@@ -298,7 +289,7 @@ fail:
     if (pkt)
         ExFreePoolWithTag(pkt, SxExtAllocationTag);
     if (nbl)
-        delete_created_nbl(nbl, allocation_tag);
+        free_created_nbl(nbl, allocation_tag);
     return NULL;
 }
 
@@ -416,6 +407,79 @@ win_page_free(void *address, unsigned int size)
     return;
 }
 
+struct vr_packet *
+win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
+{
+    ASSERT(nbl != NULL);
+
+    DbgPrint("%s()\n", __func__);
+    /* Allocate NDIS context, which will store vr_packet pointer */
+    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    if (!pkt)
+        return NULL;
+
+    RtlZeroMemory(pkt, sizeof(struct vr_packet));
+
+    pkt->vp_net_buffer_list = nbl;
+    pkt->vp_cpu = (unsigned char)win_get_cpu();
+
+    /* vp_head points to the beginning of accesible non-paged memory of the packet */
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_count = MmGetMdlByteCount(current_mdl);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    unsigned char* mdl_data =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    if (!mdl_data)
+        goto drop;
+    pkt->vp_head = mdl_data + current_mdl_offset;
+    /* vp_data is the offset from vp_head, where packet begins.
+       TODO: When packet encapsulation comes into play, then vp_data should differ.
+             There should be enough room between vp_head and vp_data to add packet headers.
+    */
+    pkt->vp_data = 0;
+
+    ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
+
+    if (IS_OWNED(nbl) && !IS_CLONE(nbl))
+        pkt->vp_tail = pkt->vp_len = 0;
+    else
+        pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+
+    /* vp_end points to the end of accesible non-paged memory */
+    pkt->vp_end = left_mdl_space;
+
+    pkt->vp_if = vif;
+    pkt->vp_network_h = pkt->vp_inner_network_h = 0;
+    pkt->vp_nh = NULL;
+    pkt->vp_flags = 0;
+
+    // If a problem arises concerning IP checksums, tinker with:
+    // if (skb->ip_summed == CHECKSUM_PARTIAL)
+    //	pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
+
+    pkt->vp_ttl = VP_DEFAULT_INITIAL_TTL;
+    pkt->vp_type = VP_TYPE_NULL;
+    pkt->vp_queue = 0;
+    pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
+
+    return pkt;
+
+drop:
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
+    return NULL;
+}
+
+void
+win_pfree_unaccounted(struct vr_packet *pkt)
+{
+    ASSERT(pkt != NULL);
+
+    free_associated_nbl(pkt);
+    ExFreePoolWithTag(pkt, SxExtAllocationTag);
+}
+
 static struct vr_packet *
 win_palloc(unsigned int size)
 {
@@ -445,10 +509,10 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     if (nb_head == NULL)
         return NULL;
 
-    struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if, VP_WIN_CREATED);
+    struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
-        delete_created_nbl(nb_head, SxExtAllocationTag);
+        free_created_nbl(nb_head, SxExtAllocationTag);
         return NULL;
     }
 
@@ -467,11 +531,18 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 {
     ASSERT(pkt != NULL);
 
-    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
-    if (nbl == NULL)
+    PNET_BUFFER_LIST original_nbl = pkt->vp_net_buffer_list;
+    if (original_nbl == NULL)
         return NULL;
 
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PNET_BUFFER_LIST new_nbl = clone_nbl(original_nbl);
+
+    if (new_nbl == NULL)
+        goto cleanup;
+
+    pkt->vp_net_buffer_list = new_nbl;
+
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(new_nbl);
     if (nb == NULL)
         return NULL;
 
@@ -480,14 +551,22 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 
     pkt->vp_head =
         (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute) + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    pkt->vp_data += (unsigned short)hspace;
-    pkt->vp_tail += (unsigned short)hspace;
-    pkt->vp_end += (unsigned short)hspace;
+    pkt->vp_data = (unsigned short)hspace;
+    pkt->vp_tail = (unsigned short)hspace;
+    pkt->vp_end = (unsigned short)hspace;
+
+    pkt->vp_len = 0; // The old data is guaranteed to be on another MDL.
 
     pkt->vp_network_h += (unsigned short)hspace;
     pkt->vp_inner_network_h += (unsigned short)hspace;
 
     return pkt;
+
+cleanup:
+    if (new_nbl)
+        free_cloned_nbl(new_nbl);
+
+    return NULL;
 }
 
 static void
@@ -522,20 +601,14 @@ win_pclone(struct vr_packet *pkt)
 
     ASSERT(original_nbl != NULL);
 
-    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, SxNBLPool, NULL, 0);
+    PNET_BUFFER_LIST nbl = clone_nbl(original_nbl);
     if (nbl == NULL)
         return NULL;
 
-    if (create_forwarding_context(nbl) != NDIS_STATUS_SUCCESS)
-        goto cleanup_nbl;
-
     struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
     if (npkt == NULL)
-        goto cleanup_ctx;
+        goto cleanup_nbl;
     *npkt = *pkt;
-
-    npkt->vp_win_flags &= ~(VP_WIN_CREATED | VP_WIN_RECEIVED);
-    npkt->vp_win_flags |= VP_WIN_CLONED;
 
     npkt->vp_net_buffer_list = nbl;
 
@@ -550,20 +623,13 @@ win_pclone(struct vr_packet *pkt)
     if (copy_status != NDIS_STATUS_SUCCESS)
         goto cleanup_pkt;
 
-    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
-    nbl->ParentNetBufferList = original_nbl;
-    original_nbl->ChildRefCount++;
-
     return npkt;
 
 cleanup_pkt:
     ExFreePoolWithTag(npkt, SxExtAllocationTag);
 
-cleanup_ctx:
-    delete_forwarding_context(nbl);
-
 cleanup_nbl:
-    NdisFreeCloneNetBufferList(nbl, 0);
+    free_cloned_nbl(nbl);
 
     return NULL;
 }
@@ -702,6 +768,21 @@ win_pfrag_len(struct vr_packet *pkt)
     } else {
         return overall_len - nb_mdl_data_len;
     }
+}
+
+static void *
+win_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
+{
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+
+    NdisAdvanceNetBufferDataStart(nb, pkt->vp_data, FALSE, NULL);
+    // This will return NULL in case of an error so it's okay
+    void* ret = NdisGetDataBuffer(nb, hdr_len, buf, 1, 0);
+    NdisRetreatNetBufferDataStart(nb, pkt->vp_data, 0, NULL);
+
+    return ret;
 }
 
 static unsigned short
@@ -977,16 +1058,6 @@ win_data_at_offset(struct vr_packet *pkt, unsigned short off)
     return NULL;
 }
 
-static void *
-win_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
-{
-    UNREFERENCED_PARAMETER(pkt);
-    UNREFERENCED_PARAMETER(hdr_len);
-    UNREFERENCED_PARAMETER(buf);
-
-    return NULL;
-}
-
 static int
 win_pull_inner_headers(struct vr_packet *pkt,
     unsigned short ip_proto, unsigned short *reason,
@@ -997,8 +1068,9 @@ win_pull_inner_headers(struct vr_packet *pkt,
     UNREFERENCED_PARAMETER(reason);
     UNREFERENCED_PARAMETER(tunnel_type_cb);
 
-    /* Dummy implementation */
-    return 0;
+    //TODO: Implement
+
+    return 1;
 }
 
 static int

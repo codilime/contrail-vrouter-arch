@@ -70,17 +70,24 @@ win_if_del_tap(struct vr_interface *vif)
     return 0;
 }
 
+static void fix_ip_csum(PNET_BUFFER_LIST nbl)
+{
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    unsigned char* mdl_data =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+
+    struct vr_ip *ip = (struct vr_ip*) (mdl_data + current_mdl_offset + sizeof(struct vr_eth));
+    ip->ip_csum = vr_ip_csum(ip);
+}
+
 static int
 __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 {
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
     NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
-
-    if ((pkt->vp_win_flags & VP_WIN_CREATED) && pkt->vp_win_data > 0) {
-        NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_win_data, FALSE, NULL);
-        pkt->vp_win_data = 0;
-    }
 
     newDestination.PortId = vif->vif_port;
     newDestination.NicIndex = vif->vif_nic;
@@ -90,6 +97,11 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 
     PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(nbl);
     fwd->IsPacketDataSafe = TRUE;
+
+    NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
+    pkt->vp_win_data = 0;
+
+    fix_ip_csum(nbl);
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
@@ -105,8 +117,10 @@ static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
     windows_host.hos_printf("%s: Got pkt\n", __func__);
-    if (vif == NULL)
+    if (vif == NULL) {
+        free_nbl(pkt->vp_net_buffer_list, pkt->vp_win_data_tag);
         return 0; // Sent into /dev/null
+    }
 
     if (vif->vif_type == VIF_TYPE_AGENT)
         return pkt0_if_tx(vif, pkt);
