@@ -261,7 +261,7 @@ struct vr_packet {
                   vp_notused:4;
 #ifdef _WINDOWS
     void* vp_net_buffer_list;
-
+    void* vp_nbl_free_after_send;
     unsigned short vp_win_data;
     ULONG vp_win_data_tag; /* Allocation tag used when vr_packet is CREATED */
 #endif

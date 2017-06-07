@@ -19,7 +19,7 @@ extern "C" {
 #define VR_INIT_ASSOC_OK        0
 #define VR_INIT_ASSOC_FAILED    1
 
-#define VR_ASSOC_STRING_MAX_LEN 63
+#define VR_ASSOC_STRING_MAX_LEN 31
 #define VR_ASSOC_STRING_SIZE    (VR_ASSOC_STRING_MAX_LEN + 1)
 
 struct vr_interface; // Forward declaration

@@ -109,6 +109,9 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
         NDIS_DEFAULT_PORT_NUMBER,
         0);
 
+    if (pkt->vp_nbl_free_after_send)
+        free_nbl(pkt->vp_nbl_free_after_send, SxExtAllocationTag);
+
     ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
     return 0;

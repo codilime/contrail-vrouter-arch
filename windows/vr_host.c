@@ -121,9 +121,6 @@ free_cloned_nbl(PNET_BUFFER_LIST nbl)
     NdisFreeCloneNetBufferList(nbl, 0);
 
     original_nbl->ChildRefCount--;
-
-    if (original_nbl->ChildRefCount == 0)
-        free_nbl(original_nbl, 0);
 }
 
 static void
@@ -156,10 +153,6 @@ static void
 complete_received_nbl(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
-
-    // Cannot complete an NBL with children
-    if (nbl->ChildRefCount != 0)
-        return;
 
     /* Flag SINGLE_SOURCE is used, because of singular NBLS */
     NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
@@ -541,6 +534,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
         goto cleanup;
 
     pkt->vp_net_buffer_list = new_nbl;
+    pkt->vp_nbl_free_after_send = original_nbl;
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(new_nbl);
     if (nb == NULL)
@@ -1206,6 +1200,13 @@ win_register_nic(struct vr_interface* vif)
     ASSERT(vif != NULL);
 
     switch (vif->vif_type) {
+    case VIF_TYPE_PHYSICAL:
+        assoc = win_get_physical();
+        vif->vif_port = assoc->port_id;
+        vif->vif_nic = assoc->nic_index;
+
+        break;
+
     case VIF_TYPE_GATEWAY:
     case VIF_TYPE_HOST:
     case VIF_TYPE_VIRTUAL:
@@ -1222,13 +1223,6 @@ win_register_nic(struct vr_interface* vif)
             assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
             assoc->interface = vif;
         }
-        break;
-
-    case VIF_TYPE_PHYSICAL:
-        assoc = win_get_physical();
-        vif->vif_port = assoc->port_id;
-        vif->vif_nic = assoc->nic_index;
-
         break;
 
     case VIF_TYPE_AGENT:
