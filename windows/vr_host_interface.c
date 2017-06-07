@@ -101,7 +101,7 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
     pkt->vp_win_data = 0;
 
-    if (pkt->vp_type == VP_TYPE_IP)
+    if (pkt->vp_type == VP_TYPE_IP || pkt->vp_type == VP_TYPE_IPOIP || pkt->vp_type == VP_TYPE_IP6OIP)
         fix_ip_csum(nbl);
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
