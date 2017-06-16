@@ -70,7 +70,7 @@ win_if_del_tap(struct vr_interface *vif)
     return 0;
 }
 
-static void fix_ip_csum(PNET_BUFFER_LIST nbl)
+static void fix_tunneled_ip_csum(PNET_BUFFER_LIST nbl, ULONG offloading)
 {
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
@@ -79,7 +79,10 @@ static void fix_ip_csum(PNET_BUFFER_LIST nbl)
         (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
 
     struct vr_ip *ip = (struct vr_ip*) (mdl_data + current_mdl_offset + sizeof(struct vr_eth));
-    ip->ip_csum = vr_ip_csum(ip);
+    if (offloading)
+        ip->ip_csum = 0;
+    else
+        ip->ip_csum = vr_ip_csum(ip);
 }
 
 static int
@@ -101,8 +104,11 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
     pkt->vp_win_data = 0;
 
-    if (pkt->vp_type == VP_TYPE_IP)
-        fix_ip_csum(nbl);
+    if (pkt->vp_type == VP_TYPE_IPOIP || pkt->vp_type == VP_TYPE_IP6OIP) {
+        NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumInfo;
+        checksumInfo.Value = NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
+        fix_tunneled_ip_csum(nbl, checksumInfo.Transmit.IpHeaderChecksum);
+    }
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
