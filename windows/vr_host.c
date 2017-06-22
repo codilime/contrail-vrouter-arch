@@ -1051,11 +1051,12 @@ win_inner_network_header(struct vr_packet *pkt)
 static void *
 win_data_at_offset(struct vr_packet *pkt, unsigned short off)
 {
-    UNREFERENCED_PARAMETER(pkt);
-    UNREFERENCED_PARAMETER(off);
-
-    /* Dummy implementation */
-    return NULL;
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    unsigned char* mdl_data = (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, HighPagePriority | MdlMappingNoExecute);
+    return mdl_data + current_mdl_offset + off;
 }
 
 static int

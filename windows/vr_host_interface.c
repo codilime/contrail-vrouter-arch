@@ -70,19 +70,41 @@ win_if_del_tap(struct vr_interface *vif)
     return 0;
 }
 
-static void fix_tunneled_ip_csum(PNET_BUFFER_LIST nbl, ULONG offloading)
+static void
+fix_ip_csum_at_offset(struct vr_packet *pkt, unsigned offset)
 {
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    unsigned char* mdl_data =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    struct vr_ip *iph;
 
-    struct vr_ip *ip = (struct vr_ip*) (mdl_data + current_mdl_offset + sizeof(struct vr_eth));
+    ASSERT(0 < offset);
+
+    iph = (struct vr_ip *)pkt_data_at_offset(pkt, offset);
+    iph->ip_csum = vr_ip_csum(iph);
+}
+
+static void
+zero_ip_csum_at_offset(struct vr_packet *pkt, unsigned offset)
+{
+    struct vr_ip *iph;
+
+    ASSERT(0 < offset);
+
+    iph = (struct vr_ip *)pkt_data_at_offset(pkt, offset);
+    iph->ip_csum = 0;
+}
+
+static void
+fix_tunneled_ip_csum(struct vr_packet *pkt, ULONG offloading)
+{
+    // doesn't compute inner UDP/TCP checksum
+    // for more info look inside dpdk_sw_checksum_at_offset
+
     if (offloading)
-        ip->ip_csum = 0;
+        zero_ip_csum_at_offset(pkt, sizeof(struct vr_eth));
     else
-        ip->ip_csum = vr_ip_csum(ip);
+        fix_ip_csum_at_offset(pkt, sizeof(struct vr_eth));
+
+    if (pkt->vp_type == VP_TYPE_IPOIP)
+        fix_ip_csum_at_offset(pkt, pkt_get_inner_network_header_off(pkt));
 }
 
 static int
@@ -104,10 +126,10 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
     pkt->vp_win_data = 0;
 
-    if (pkt->vp_type == VP_TYPE_IPOIP || pkt->vp_type == VP_TYPE_IP6OIP) {
+    if (vr_pkt_type_is_overlay(pkt->vp_type)) {
         NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumInfo;
         checksumInfo.Value = NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
-        fix_tunneled_ip_csum(nbl, checksumInfo.Transmit.IpHeaderChecksum);
+        fix_tunneled_ip_csum(pkt, checksumInfo.Transmit.IpHeaderChecksum);
     }
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
