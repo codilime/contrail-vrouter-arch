@@ -98,13 +98,14 @@ fix_tunneled_ip_csum(struct vr_packet *pkt, ULONG offloading)
     // doesn't compute inner UDP/TCP checksum
     // for more info look inside dpdk_sw_checksum_at_offset
 
-    if (offloading)
+    if (offloading) {
         zero_ip_csum_at_offset(pkt, sizeof(struct vr_eth));
+
+        if (pkt->vp_type == VP_TYPE_IPOIP)
+            fix_ip_csum_at_offset(pkt, pkt_get_inner_network_header_off(pkt));
+    }
     else
         fix_ip_csum_at_offset(pkt, sizeof(struct vr_eth));
-
-    if (pkt->vp_type == VP_TYPE_IPOIP)
-        fix_ip_csum_at_offset(pkt, pkt_get_inner_network_header_off(pkt));
 }
 
 static int
