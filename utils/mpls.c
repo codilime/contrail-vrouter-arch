@@ -33,17 +33,6 @@ static int get_set, nh_set, label_set;
 static int help_set, cmd_set;
 static int mpls_label, mpls_op = -1, mpls_nh;
 
-void mpls_req_process(void *s_req);
-void mpls_response_process(void *s);
-
-void
-mpls_fill_nl_callbacks()
-{
-    nl_cb.vr_response_process = mpls_response_process;
-    nl_cb.vr_mpls_req_process = mpls_req_process;
-}
-
-
 void
 mpls_req_process(void *s_req)
 {
@@ -61,6 +50,13 @@ mpls_response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
+}
+
+void
+mpls_fill_nl_callbacks()
+{
+    nl_cb.vr_response_process = mpls_response_process;
+    nl_cb.vr_mpls_req_process = mpls_req_process;
 }
 
 static int

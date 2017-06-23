@@ -49,7 +49,7 @@ print_and_get_error_code()
                    FORMAT_MESSAGE_FROM_SYSTEM |
                    FORMAT_MESSAGE_IGNORE_INSERTS);
     DWORD lang_id = MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT);
-    DWORD ret = FormatMessage(flags, NULL, error, lang_id, (LPTSTR)message, 0, NULL);
+    DWORD ret = FormatMessage(flags, NULL, error, lang_id, message, 0, NULL);
 
     if (ret != 0) {
         printf("Error: %ws [%d]\r\n", message, error);
