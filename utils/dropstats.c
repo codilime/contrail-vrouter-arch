@@ -5,18 +5,13 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <getopt.h>
 
 #include <sys/types.h>
-#include <sys/socket.h>
-
-#include <net/if.h>
 
 #include "ini_parser.h"
 #include "vr_os.h"
@@ -26,12 +21,21 @@
 #include "nl_util.h"
 #include "ini_parser.h"
 
+#ifndef _WINDOWS
+#include <unistd.h>
+#include <getopt.h>
+#include <net/if.h>
+#include <sys/socket.h>
+#else
+#include <wingetopt.h>
+#endif
+
 static struct nl_client *cl;
 static int help_set, core_set;
 static unsigned int core = (unsigned)-1;
 
 void
-vr_drop_stats_req_process(void *s_req)
+drop_stats_req_process(void *s_req)
 {
     vr_drop_stats_req *stats = (vr_drop_stats_req *)s_req;
     int platform = get_platform();
@@ -159,6 +163,12 @@ vr_drop_stats_req_process(void *s_req)
     return;
 }
 
+void
+dropstats_fill_nl_callbacks()
+{
+    nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
+}
+
 static int
 vr_get_drop_stats(struct nl_client *cl)
 {
@@ -241,6 +251,8 @@ main(int argc, char *argv[])
 {
     char opt;
     int ret, option_index;
+
+    dropstats_fill_nl_callbacks();
 
     while (((opt = getopt_long(argc, argv, "h:c:",
                         long_options, &option_index)) >= 0)) {
