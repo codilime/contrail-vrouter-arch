@@ -164,7 +164,7 @@ drop_stats_req_process(void *s_req)
 }
 
 void
-mpls_fill_nl_callbacks()
+dropstats_fill_nl_callbacks()
 {
     nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
 }
@@ -252,7 +252,7 @@ main(int argc, char *argv[])
     char opt;
     int ret, option_index;
 
-    mpls_fill_nl_callbacks();
+    dropstats_fill_nl_callbacks();
 
     while (((opt = getopt_long(argc, argv, "h:c:",
                         long_options, &option_index)) >= 0)) {
