@@ -1049,14 +1049,24 @@ win_inner_network_header(struct vr_packet *pkt)
 }
 
 static void *
-win_data_at_offset(struct vr_packet *pkt, unsigned short off)
+win_data_at_offset(struct vr_packet *pkt, unsigned short offset)
 {
+    // THIS FUNCTION IS NOT SECURE
+    // DP-CORE assumes all headers will be 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    unsigned char* mdl_data = (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, HighPagePriority | MdlMappingNoExecute);
-    return mdl_data + current_mdl_offset + off;
+    int length = MmGetMdlByteCount(current_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    while (length < offset) {
+        /* Get the pointer to the beginning of data represented in current MDL. */
+        offset -= length;
+
+        current_mdl = current_mdl->Next;
+
+        length = MmGetMdlByteCount(current_mdl);
+    }
+
+    return (uint8_t*) MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority) + offset;
 }
 
 static int
