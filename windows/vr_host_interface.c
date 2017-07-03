@@ -112,7 +112,6 @@ ipv6_pseudoheader_csum(struct vr_ip6* hdr)
 
     csum += calc_csum(hdr->ip6_src, 32); // Both source and destination, source is before desination
     csum += hdr->NextHeader;
-
     csum += ntohs(hdr->PayloadLength);
 
     return trim_pseudoheader_csum(csum);
@@ -140,7 +139,7 @@ zero_ip_csum_at_offset(struct vr_packet *pkt, unsigned offset)
     iph->ip_csum = 0;
 }
 
-static void fix_udp_csum(struct vr_packet *pkt, unsigned offset)
+static bool fix_udp_csum(struct vr_packet *pkt, unsigned offset)
 {
     struct vr_udp* udp;
     uint32_t csum;
@@ -151,36 +150,38 @@ static void fix_udp_csum(struct vr_packet *pkt, unsigned offset)
 
     void* packet_data_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, NET_BUFFER_DATA_LENGTH(nb), SxExtAllocationTag);
 
-    // Copy the packet
+    // Copy the packet. This function will not fail if ExAllocatePoolWithTag succeeded.
+    // So no need to clean it up.
     uint8_t* packet_data = NdisGetDataBuffer(nb, NET_BUFFER_DATA_LENGTH(nb), packet_data_buffer, 1, 0);
+
+    if (packet_data == NULL)
+        // No need for free
+        return false;
 
     if (pkt->vp_type == VP_TYPE_IP6 || pkt->vp_type == VP_TYPE_IP6OIP) {
         struct vr_ip6 *hdr = (struct vr_ip6*) (packet_data + offset);
         csum = ipv6_pseudoheader_csum(hdr);
-
         offset += sizeof(struct vr_ip6);
-
         size = ntohs(hdr->PayloadLength);
     } else {
         struct vr_ip *hdr = (struct vr_ip*) &packet_data[offset];
         csum = ipv4_pseudoheader_csum(hdr);
-
         offset += hdr->ip_hl * 4;
-
         size = ntohs(hdr->ip_len) - 4 * hdr->ip_hl;
     }
 
     udp = (struct vr_udp*) &packet_data[offset];
-
     udp->udp_csum = 0;
-
     csum += calc_csum((uint8_t*) udp, ntohs(udp->udp_length));
-
-    ExFreePoolWithTag(packet_data, SxExtAllocationTag);
 
     // This time it's the "real" packet. Header being contiguous is guaranteed, but nothing else
     udp = (struct vr_udp*) pkt_data_at_offset(pkt, offset);
     udp->udp_csum = htons(~(trim_pseudoheader_csum(csum)));
+
+    if (packet_data_buffer)
+        ExFreePoolWithTag(packet_data_buffer, SxExtAllocationTag);
+
+    return true;
 }
 
 static void
@@ -209,15 +210,20 @@ fix_tunneled_csum(struct vr_packet *pkt)
 
     if (settings.Transmit.UdpChecksum) {
         //Calculate the data and turn off HW acceleration
-        fix_udp_csum(pkt, pkt->vp_inner_network_h);
-        settings.Transmit.UdpChecksum = 0;
-        NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
+        if (fix_udp_csum(pkt, pkt->vp_inner_network_h)) {
+            settings.Transmit.UdpChecksum = 0;
+            NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
+        }
+        // else try to offload it even though it's tunneled.
     }
 }
 
 static int
 __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 {
+    if (vr_pkt_type_is_overlay(pkt->vp_type))
+        fix_tunneled_csum(pkt);
+
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
     NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
@@ -233,9 +239,6 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
     pkt->vp_win_data = 0;
-
-    if (vr_pkt_type_is_overlay(pkt->vp_type))
-        fix_tunneled_csum(pkt);
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
