@@ -139,11 +139,11 @@ zero_ip_csum_at_offset(struct vr_packet *pkt, unsigned offset)
     iph->ip_csum = 0;
 }
 
-static bool fix_udp_csum(struct vr_packet *pkt, unsigned offset)
+static bool fix_csum(struct vr_packet *pkt, unsigned offset)
 {
-    struct vr_udp* udp;
     uint32_t csum;
     uint16_t size;
+    uint8_t type;
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
@@ -160,23 +160,31 @@ static bool fix_udp_csum(struct vr_packet *pkt, unsigned offset)
 
     if (pkt->vp_type == VP_TYPE_IP6 || pkt->vp_type == VP_TYPE_IP6OIP) {
         struct vr_ip6 *hdr = (struct vr_ip6*) (packet_data + offset);
-        csum = ipv6_pseudoheader_csum(hdr);
+        //csum = ipv6_pseudoheader_csum(hdr);
         offset += sizeof(struct vr_ip6);
         size = ntohs(hdr->PayloadLength);
+
+        type = hdr->NextHeader;
     } else {
         struct vr_ip *hdr = (struct vr_ip*) &packet_data[offset];
-        csum = ipv4_pseudoheader_csum(hdr);
+        //csum = ipv4_pseudoheader_csum(hdr);
         offset += hdr->ip_hl * 4;
         size = ntohs(hdr->ip_len) - 4 * hdr->ip_hl;
+
+        type = hdr->ip_proto;
     }
 
-    udp = (struct vr_udp*) &packet_data[offset];
-    udp->udp_csum = 0;
-    csum += calc_csum((uint8_t*) udp, ntohs(udp->udp_length));
+    uint8_t* payload = &packet_data[offset];
+    csum = calc_csum((uint8_t*) payload, size);
 
     // This time it's the "real" packet. Header being contiguous is guaranteed, but nothing else
-    udp = (struct vr_udp*) pkt_data_at_offset(pkt, offset);
-    udp->udp_csum = htons(~(trim_pseudoheader_csum(csum)));
+    if (type == VR_IP_PROTO_UDP) {
+        struct vr_udp* udp = (struct vr_udp*) pkt_data_at_offset(pkt, offset);
+        udp->udp_csum = htons(~(trim_pseudoheader_csum(csum)));
+    } else if (type == VR_IP_PROTO_TCP) {
+        struct vr_tcp* tcp = (struct vr_tcp*) pkt_data_at_offset(pkt, offset);
+        tcp->tcp_csum = htons(~(trim_pseudoheader_csum(csum)));
+    }
 
     if (packet_data_buffer)
         ExFreePoolWithTag(packet_data_buffer, SxExtAllocationTag);
@@ -203,14 +211,18 @@ fix_tunneled_csum(struct vr_packet *pkt)
     }
 
     if (settings.Transmit.TcpChecksum) {
-        // The data to calculate everything is the same, just shift it.
-        settings.Transmit.TcpHeaderOffset += pkt->vp_end;
-        NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
+        //Calculate the data and turn off HW acceleration
+        if (fix_csum(pkt, pkt->vp_inner_network_h)) {
+            settings.Transmit.TcpChecksum = 0;
+            settings.Transmit.TcpHeaderOffset = 0;
+            NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
+        }
+        // else try to offload it even though it's tunneled.
     }
 
     if (settings.Transmit.UdpChecksum) {
         //Calculate the data and turn off HW acceleration
-        if (fix_udp_csum(pkt, pkt->vp_inner_network_h)) {
+        if (fix_csum(pkt, pkt->vp_inner_network_h)) {
             settings.Transmit.UdpChecksum = 0;
             NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
         }
