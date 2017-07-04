@@ -128,8 +128,10 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
 
     void* packet_data_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, NET_BUFFER_DATA_LENGTH(nb), SxExtAllocationTag);
 
-    // Copy the packet. This function will not fail if ExAllocatePoolWithTag succeeded.
-    // So no need to clean it up.
+    // Copy the packet. This function will not fail if ExAllocatePoolWithTag succeeded
+    // So no need to clean it up
+    // If ExAllocatePoolWithTag failed (packet_data_buffer== NULL),
+    // this function will work okay if the data is contigous.
     uint8_t* packet_data = NdisGetDataBuffer(nb, NET_BUFFER_DATA_LENGTH(nb), packet_data_buffer, 1, 0);
 
     if (packet_data == NULL)
@@ -187,7 +189,7 @@ fix_tunneled_csum(struct vr_packet *pkt)
     }
 
     if (settings.Transmit.TcpChecksum) {
-        //Calculate the data and turn off HW acceleration
+        // Calculate the header/data csum and turn off HW acceleration
         if (fix_csum(pkt, pkt->vp_inner_network_h)) {
             settings.Transmit.TcpChecksum = 0;
             settings.Transmit.TcpHeaderOffset = 0;
@@ -197,7 +199,7 @@ fix_tunneled_csum(struct vr_packet *pkt)
     }
 
     if (settings.Transmit.UdpChecksum) {
-        //Calculate the data and turn off HW acceleration
+        // Calculate the header/data csum and turn off HW acceleration
         if (fix_csum(pkt, pkt->vp_inner_network_h)) {
             settings.Transmit.UdpChecksum = 0;
             NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
