@@ -71,7 +71,7 @@ win_if_del_tap(struct vr_interface *vif)
 }
 
 static uint16_t
-trim_pseudoheader_csum(uint32_t csum)
+trim_csum(uint32_t csum)
 {
     while (csum & 0xffff0000)
         csum = (csum >> 16) + (csum & 0x0000ffff);
@@ -92,29 +92,7 @@ calc_csum(uint8_t* ptr, size_t size)
             csum += ptr[i] << 8;
     }
 
-    return trim_pseudoheader_csum(csum);
-}
-
-static uint16_t
-ipv4_pseudoheader_csum(struct vr_ip* hdr)
-{
-    uint32_t csum = calc_csum((uint8_t*) &hdr->ip_saddr, 8);
-    csum += hdr->ip_proto;
-    csum += ntohs(hdr->ip_len) - 4 * hdr->ip_hl;
-
-    return trim_pseudoheader_csum(csum);
-}
-
-static uint16_t
-ipv6_pseudoheader_csum(struct vr_ip6* hdr)
-{
-    uint32_t csum = 0;
-
-    csum += calc_csum(hdr->ip6_src, 32); // Both source and destination, source is before desination
-    csum += hdr->NextHeader;
-    csum += ntohs(hdr->PayloadLength);
-
-    return trim_pseudoheader_csum(csum);
+    return trim_csum(csum);
 }
 
 static void
@@ -160,14 +138,12 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
 
     if (pkt->vp_type == VP_TYPE_IP6 || pkt->vp_type == VP_TYPE_IP6OIP) {
         struct vr_ip6 *hdr = (struct vr_ip6*) (packet_data + offset);
-        //csum = ipv6_pseudoheader_csum(hdr);
         offset += sizeof(struct vr_ip6);
         size = ntohs(hdr->PayloadLength);
 
         type = hdr->NextHeader;
     } else {
         struct vr_ip *hdr = (struct vr_ip*) &packet_data[offset];
-        //csum = ipv4_pseudoheader_csum(hdr);
         offset += hdr->ip_hl * 4;
         size = ntohs(hdr->ip_len) - 4 * hdr->ip_hl;
 
@@ -180,10 +156,10 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     // This time it's the "real" packet. Header being contiguous is guaranteed, but nothing else
     if (type == VR_IP_PROTO_UDP) {
         struct vr_udp* udp = (struct vr_udp*) pkt_data_at_offset(pkt, offset);
-        udp->udp_csum = htons(~(trim_pseudoheader_csum(csum)));
+        udp->udp_csum = htons(~(trim_csum(csum)));
     } else if (type == VR_IP_PROTO_TCP) {
         struct vr_tcp* tcp = (struct vr_tcp*) pkt_data_at_offset(pkt, offset);
-        tcp->tcp_csum = htons(~(trim_pseudoheader_csum(csum)));
+        tcp->tcp_csum = htons(~(trim_csum(csum)));
     }
 
     if (packet_data_buffer)
