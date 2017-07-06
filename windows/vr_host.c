@@ -1043,13 +1043,33 @@ win_inner_network_header(struct vr_packet *pkt)
 }
 
 static void *
-win_data_at_offset(struct vr_packet *pkt, unsigned short off)
+win_data_at_offset(struct vr_packet *pkt, unsigned short offset)
 {
-    UNREFERENCED_PARAMETER(pkt);
-    UNREFERENCED_PARAMETER(off);
+    // THIS FUNCTION IS NOT SECURE
+    // DP-CORE assumes all headers will be contigous, ie. pointers
+    // of type (struct vr_headertype*), when pointing to the beginning
+    // of the header, will be valid for it's entiriety
 
-    /* Dummy implementation */
-    return NULL;
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    unsigned length = MmGetMdlByteCount(current_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    while (length < offset) {
+        /* Get the pointer to the beginning of data represented in current MDL. */
+        offset -= length;
+
+        current_mdl = current_mdl->Next;
+        if (current_mdl == NULL)
+            return NULL;
+
+        length = MmGetMdlByteCount(current_mdl);
+    }
+
+    void* ret = MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority);
+    if (ret == NULL)
+        return NULL;
+
+    return (uint8_t*) ret + offset;
 }
 
 static int

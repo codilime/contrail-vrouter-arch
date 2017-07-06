@@ -70,24 +70,150 @@ win_if_del_tap(struct vr_interface *vif)
     return 0;
 }
 
-static void fix_tunneled_ip_csum(PNET_BUFFER_LIST nbl, ULONG offloading)
+static uint16_t
+trim_csum(uint32_t csum)
 {
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    unsigned char* mdl_data =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    while (csum & 0xffff0000)
+        csum = (csum >> 16) + (csum & 0x0000ffff);
 
-    struct vr_ip *ip = (struct vr_ip*) (mdl_data + current_mdl_offset + sizeof(struct vr_eth));
-    if (offloading)
-        ip->ip_csum = 0;
-    else
-        ip->ip_csum = vr_ip_csum(ip);
+    return (uint16_t)csum;
+}
+
+static uint16_t
+calc_csum(uint8_t* ptr, size_t size)
+{
+    uint32_t csum;
+    // Checksum based on payload
+    for (int i = 0; i < size; i++)
+    {
+        if (i & 1)
+            csum += ptr[i];
+        else
+            csum += ptr[i] << 8;
+    }
+
+    return trim_csum(csum);
+}
+
+static void
+fix_ip_csum_at_offset(struct vr_packet *pkt, unsigned offset)
+{
+    struct vr_ip *iph;
+
+    ASSERT(0 < offset);
+
+    iph = (struct vr_ip *)pkt_data_at_offset(pkt, offset);
+    iph->ip_csum = vr_ip_csum(iph);
+}
+
+static void
+zero_ip_csum_at_offset(struct vr_packet *pkt, unsigned offset)
+{
+    struct vr_ip *iph;
+
+    ASSERT(0 < offset);
+
+    iph = (struct vr_ip *)pkt_data_at_offset(pkt, offset);
+    iph->ip_csum = 0;
+}
+
+static bool fix_csum(struct vr_packet *pkt, unsigned offset)
+{
+    uint32_t csum;
+    uint16_t size;
+    uint8_t type;
+
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+
+    void* packet_data_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, NET_BUFFER_DATA_LENGTH(nb), SxExtAllocationTag);
+
+    // Copy the packet. This function will not fail if ExAllocatePoolWithTag succeeded
+    // So no need to clean it up
+    // If ExAllocatePoolWithTag failed (packet_data_buffer== NULL),
+    // this function will work okay if the data is contigous.
+    uint8_t* packet_data = NdisGetDataBuffer(nb, NET_BUFFER_DATA_LENGTH(nb), packet_data_buffer, 1, 0);
+
+    if (packet_data == NULL)
+        // No need for free
+        return false;
+
+    if (pkt->vp_type == VP_TYPE_IP6 || pkt->vp_type == VP_TYPE_IP6OIP) {
+        struct vr_ip6 *hdr = (struct vr_ip6*) (packet_data + offset);
+        offset += sizeof(struct vr_ip6);
+        size = ntohs(hdr->PayloadLength);
+
+        type = hdr->NextHeader;
+    } else {
+        struct vr_ip *hdr = (struct vr_ip*) &packet_data[offset];
+        offset += hdr->ip_hl * 4;
+        size = ntohs(hdr->ip_len) - 4 * hdr->ip_hl;
+
+        type = hdr->ip_proto;
+    }
+
+    uint8_t* payload = &packet_data[offset];
+    csum = calc_csum((uint8_t*) payload, size);
+
+    // This time it's the "real" packet. Header being contiguous is guaranteed, but nothing else
+    if (type == VR_IP_PROTO_UDP) {
+        struct vr_udp* udp = (struct vr_udp*) pkt_data_at_offset(pkt, offset);
+        udp->udp_csum = htons(~(trim_csum(csum)));
+    } else if (type == VR_IP_PROTO_TCP) {
+        struct vr_tcp* tcp = (struct vr_tcp*) pkt_data_at_offset(pkt, offset);
+        tcp->tcp_csum = htons(~(trim_csum(csum)));
+    }
+
+    if (packet_data_buffer)
+        ExFreePoolWithTag(packet_data_buffer, SxExtAllocationTag);
+
+    return true;
+}
+
+static void
+fix_tunneled_csum(struct vr_packet *pkt)
+{
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO settings;
+    settings.Value = NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
+
+    if (settings.Transmit.IpHeaderChecksum) {
+        // Zero the outer checksum, it'll be offloaded
+        zero_ip_csum_at_offset(pkt, sizeof(struct vr_eth));
+        // Fix the inner checksum, it will not be offloaded
+        fix_ip_csum_at_offset(pkt, pkt->vp_inner_network_h);
+    } else {
+        // Fix the outer checksum
+        fix_ip_csum_at_offset(pkt, sizeof(struct vr_eth));
+        // Inner checksum is OK
+    }
+
+    if (settings.Transmit.TcpChecksum) {
+        // Calculate the header/data csum and turn off HW acceleration
+        if (fix_csum(pkt, pkt->vp_inner_network_h)) {
+            settings.Transmit.TcpChecksum = 0;
+            settings.Transmit.TcpHeaderOffset = 0;
+            NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
+        }
+        // else try to offload it even though it's tunneled.
+    }
+
+    if (settings.Transmit.UdpChecksum) {
+        // Calculate the header/data csum and turn off HW acceleration
+        if (fix_csum(pkt, pkt->vp_inner_network_h)) {
+            settings.Transmit.UdpChecksum = 0;
+            NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo) = settings.Value;
+        }
+        // else try to offload it even though it's tunneled.
+    }
 }
 
 static int
 __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 {
+    if (vr_pkt_type_is_overlay(pkt->vp_type))
+        fix_tunneled_csum(pkt);
+
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
     NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
@@ -103,12 +229,6 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data + pkt->vp_win_data, TRUE, NULL);
     pkt->vp_win_data = 0;
-
-    if (pkt->vp_type == VP_TYPE_IPOIP || pkt->vp_type == VP_TYPE_IP6OIP) {
-        NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumInfo;
-        checksumInfo.Value = NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
-        fix_tunneled_ip_csum(nbl, checksumInfo.Transmit.IpHeaderChecksum);
-    }
 
     NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
         nbl,
