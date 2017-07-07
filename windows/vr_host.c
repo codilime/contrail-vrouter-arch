@@ -794,12 +794,16 @@ win_pset_data(struct vr_packet *pkt, unsigned short offset)
      * If dp-core calls vr_pset_data() it expects that underlying OS pointers will correctly
      * resemble packet structure. We cannot directly use Advance()/Retreat() there, because it breaks old
      * pointer references used throughout dp-core (i.e. pkt->vp_head).
+     *
+     * NBL will be modified on TX path by using offset located in `vp_data`.
+     * Thus Windows implementation assumes that `vp_data` will point to the beginning
+     * of the transmited packet.
      */
 
     if (pkt == NULL)
         return;
 
-    pkt->vp_win_data = offset;
+    ASSERT(pkt->vp_data == offset);
 }
 
 static unsigned int
