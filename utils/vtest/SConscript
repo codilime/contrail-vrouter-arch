@@ -2,6 +2,8 @@
 # Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
 #
 import os
+import sys
+
 Import('VRutilsEnv')
 env = VRutilsEnv.Clone()
 VTestEnv = env;
@@ -15,13 +17,18 @@ system_header_path = GetOption('system-header-path')
 if system_header_path:
     env.Append(CPPPATH = system_header_path + '/include/')
 
-env.Append(CPPPATH = ['./include', build_dir, '/usr/include/libxml2', build_root+'/../include'])
-xml_cpppath = os.popen('xml2-config --cflags | sed \'s/\-I//g\'').read()
-#env.Append(CPPPATH = xml_cpppath)
+env.Append(CPPPATH = ['./include', build_dir, build_root+'/../include'])
+if sys.platform.startswith('win'):
+    env.Prepend(CPPPATH = '#/build/include/libxml2')
+else:
+    env.Append(CPPPATH = '/usr/include/libxml2')
+    xml_cpppath = os.popen('xml2-config --cflags | sed \'s/\-I//g\'').read()
+    #env.Append(CPPPATH = xml_cpppath)
 
-# CFLAGS
-env.Append(CCFLAGS = '-g -std=gnu99')
-
+if sys.platform.startswith('win'):
+    env.Append(CPPDEFINES='_WINDOWS')
+else:
+    env.Append(CCFLAGS = '-g -std=gnu99')
 
 libvrutil = 'vrutil'
 libvrutil_objs = [env.Object('nl_util.lo', '../nl_util.c'), 
@@ -29,11 +36,18 @@ libvrutil_objs = [env.Object('nl_util.lo', '../nl_util.c'),
                   env.Object('ini_parser.lo', '../ini_parser.c'),
                   env.Object('vr_util.lo', '../vr_util.c')]
 
-env.StaticLibrary(libvrutil, libvrutil_objs)
+if sys.platform.startswith('win'):
+    libvrutil_objs.append(env.Object('vr_win_util.lo', '../vr_win_util.c'))
+
+    env.StaticLibrary(libvrutil, libvrutil_objs)
 
 env.Replace(LIBPATH = env['TOP_LIB'])
 env.Append(LIBPATH = ['.', '../../sandesh', './vhost/lib/'])
-env.Replace(LIBS = [libvrutil, 'sandesh-c', 'dp_sandesh_c', 'jnprvnet', 'xml2', 'pcap', 'rt', 'nl-3', 'nl-genl-3' ])
+env.Replace(LIBS = [libvrutil, 'sandesh-c', 'dp_sandesh_c'])
+if sys.platform.startswith('win'):
+    env.Append(LIBS = ['ws2_32', 'Iphlpapi', 'libxml2'])
+else:
+    env.Append(LIBS = ['jnprvnet', 'xml2', 'pcap', 'rt', 'nl-3', 'nl-genl-3'])
 
 sandesh_gen = env.Program('sandesh_gen.c')
 
@@ -44,7 +58,6 @@ sandesh_gen_output = env.Command('sandesh_gen_output', sandesh_gen,
 vtest_src = [
                 'vt_main.c',
                 'vt_message.c',
-                'vt_packet.c',
                 'vt_gen_lib.c',
                 'vt_gen_message_modules.c',
                 'vt_gen_sandesh.c',
@@ -53,8 +66,11 @@ vtest_src = [
                 'vt_process_xml.c',
             ]
 
+if not sys.platform.startswith('win'):
+    vtest_src.append('vt_packet.c')
+    
+    env.Command('libjnprvnet.a', None, 'make', chdir=src_root+'/vrouter/utils/vtest/vhost')
 
-env.Command('libjnprvnet.a', None, 'make', chdir=src_root+'/vrouter/utils/vtest/vhost')
 vtest = env.Program('vtest', vtest_src)
 env.Requires(vtest, sandesh_gen_output)
 
