@@ -1,7 +1,7 @@
 ﻿param(
     [Parameter(Mandatory=$true)][string]$VMSwitchName,
     [Parameter(Mandatory=$true)][string]$TestsFolder,
-    [Parameter()][string]$vtestPath = ".\vtest.exe",
+    [Parameter()][string]$vtestPath = "vtest.exe",
     [Parameter()][string]$ExtensionName = "vRouter forwarding extension"
 )
 
