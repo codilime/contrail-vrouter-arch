@@ -39,7 +39,7 @@ libvrutil_objs = [env.Object('nl_util.lo', '../nl_util.c'),
 if sys.platform.startswith('win'):
     libvrutil_objs.append(env.Object('vr_win_util.lo', '../vr_win_util.c'))
 
-    env.StaticLibrary(libvrutil, libvrutil_objs)
+env.StaticLibrary(libvrutil, libvrutil_objs)
 
 env.Replace(LIBPATH = env['TOP_LIB'])
 env.Append(LIBPATH = ['.', '../../sandesh', './vhost/lib/'])
