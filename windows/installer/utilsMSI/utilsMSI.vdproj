@@ -21,12 +21,6 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_2224E35F9665423280323C9E64C577F6"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_70898DCD51EC466D83494ED30367B586"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -51,19 +45,13 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_AB6B390559384951A1D8E9D0C9E7F82D"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_C639089A1AE7450C8FBCA2C8E0E2A7BC"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_D9E76A3F45E84D81A32CB602FA4DF74B"
+        "MsmKey" = "8:_E20A487AB4084423A76D6AD689332B90"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -189,50 +177,10 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_2224E35F9665423280323C9E64C577F6"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_E20A487AB4084423A76D6AD689332B90"
             {
-            "SourcePath" = "8:..\\..\\..\\..\\third_party\\iconv-1.14-win32-x86_64\\bin\\libiconv-2.dll"
-            "TargetName" = "8:libiconv-2.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_AB6B390559384951A1D8E9D0C9E7F82D"
-            {
-            "SourcePath" = "8:..\\..\\..\\..\\third_party\\zlib-1.2.8-win32-x86_64\\bin\\zlib1.dll"
-            "TargetName" = "8:zlib1.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D9E76A3F45E84D81A32CB602FA4DF74B"
-            {
-            "SourcePath" = "8:..\\..\\..\\..\\third_party\\libxml2-2.9.3-win32-x86_64\\bin\\libxml2-2.dll"
-            "TargetName" = "8:libxml2-2.dll"
+            "SourcePath" = "8:..\\..\\..\\..\\third_party\\libxml2-2.9.4\\win32\\bin.msvc\\libxml2.dll"
+            "TargetName" = "8:libxml2.dll"
             "Tag" = "8:"
             "Folder" = "8:_3BBE1D49B5F4490D9569D907BC23CB17"
             "Condition" = "8:"
