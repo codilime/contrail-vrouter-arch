@@ -221,7 +221,7 @@ Pkt0DispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     KeAcquireSpinLock(&ctx->lock, &old_irql);
     if (IsListEmpty(&ctx->pkt_queue)) {
-        InsertHeadList(&ctx->irp_queue, &Irp->Tail.Overlay.ListEntry);
+        InsertTailList(&ctx->irp_queue, &Irp->Tail.Overlay.ListEntry);
         IoMarkIrpPending(Irp);
         status = STATUS_PENDING;
     } else {
@@ -382,7 +382,7 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
 
     KeAcquireSpinLock(&ctx->lock, &old_irql);
     if (IsListEmpty(&ctx->irp_queue)) {
-        InsertHeadList(&ctx->pkt_queue, &pkt->list_entry);
+        InsertTailList(&ctx->pkt_queue, &pkt->list_entry);
     } else {
         entry = RemoveHeadList(&ctx->irp_queue);
         irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);

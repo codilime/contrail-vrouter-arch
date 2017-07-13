@@ -100,7 +100,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>..\..\..\third_party\libxml2-2.9.3-win32-x86_64\lib;..\..\..\third_party\npcap-sdk\Lib\x64;..\..\..\third_party\iconv-1.14-win32-x86_64\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>..\..\..\third_party\libxml2-2.9.4\win32\bin.msvc;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -133,12 +133,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>sandesh-temp;..\..\..\third_party\iconv-1.14-win32-x86_64\include;..\..\..\third_party\zlib-1.2.8-win32-x86_64\include;..\..\..\third_party\libxml2-2.9.3-win32-x86_64\include\libxml2;include;..\..\..\tools\sandesh\library\c;..\..\..\tools;..\..\windows\sandesh-temp;..\..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>sandesh-temp;..\..\..\third_party\libxml2-2.9.4\include;include;..\..\..\tools\sandesh\library\c;..\..\..\tools;..\..\windows\sandesh-temp;..\..\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_WINDOWS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ws2_32.lib;libxml2.dll.a;libiconv.dll.a;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;libxml2.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>10000000</StackReserveSize>
     </Link>
   </ItemDefinitionGroup>
