@@ -53,7 +53,7 @@
     <ProjectGuid>{E7006D0D-A698-4F3D-B1F0-2D23578847CB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>nh</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <ProjectName>nh</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

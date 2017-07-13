@@ -22,7 +22,7 @@
     <ProjectGuid>{CB61212B-F768-4F69-9259-8963B222FA90}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>customActionPowershell</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <ProjectName>customActionPowershell</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

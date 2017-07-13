@@ -21,6 +21,8 @@ vrouter.mod.c
 vrouter.mod.o
 vrouter.o
 
+dp-core/vr_buildinfo.c
+
 Module.symvers
 modules.order
 /x64
@@ -37,3 +39,4 @@ modules.order
 /windows/installer/*/x64
 /windows/installer/*/Debug
 /windows/installer/*/Release
+
