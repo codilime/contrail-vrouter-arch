@@ -72,8 +72,8 @@ if not sys.platform.startswith('win'):
     env.Command('libjnprvnet.a', None, 'make', chdir=src_root+'/vrouter/utils/vtest/vhost')
 
 vtest = env.Program('vtest', vtest_src)
+Export('vtest')
 env.Requires(vtest, sandesh_gen_output)
-
 # Local Variables:
 # mode: python
 # End:
