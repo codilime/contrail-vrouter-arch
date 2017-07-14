@@ -36,4 +36,3 @@ modules.order
 /windows/installer/*/x64
 /windows/installer/*/Debug
 /windows/installer/*/Release
-
