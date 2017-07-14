@@ -29,13 +29,10 @@ modules.order
 .vs
 *.VC.db
 *.VC.VC.opendb
-/utils/windows/*/x64
 /ipch/
 /sandesh/gen-c/*
-/utils/*obj
 /test/cmocka
 /test/atomic-test/x64
-/utils/vtest/x64
 /windows/installer/*/x64
 /windows/installer/*/Debug
 /windows/installer/*/Release
