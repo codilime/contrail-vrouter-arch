@@ -10,37 +10,37 @@
                     <Directory Id="INSTALLDIR" Name="vRouter utilities">
                         <Component Id="DropstatsFiles" Guid="CB895D26-EC64-498E-8FA4-E578A3C6EA49" Win64="yes">
                             <File Id="DropstatsExe" Source="../dropstats.exe"/>
-							<ServiceInstall Id="CreateDropstats" Name="dropstats" DisplayName="dropstats" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateDropstats" Name="dropstats" DisplayName="dropstats" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteDropstats" Name="dropstats" Remove="uninstall"/>
                         </Component>
-						<Component Id="FlowFiles" Guid="7DFC49B8-962E-4E10-86BC-FE4627383B31" Win64="yes">
+                        <Component Id="FlowFiles" Guid="7DFC49B8-962E-4E10-86BC-FE4627383B31" Win64="yes">
                             <File Id="FlowExe" Source="../flow.exe"/>
-							<ServiceInstall Id="CreateFlow" Name="flow" DisplayName="flow" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateFlow" Name="flow" DisplayName="flow" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteFlow" Name="flow" Remove="uninstall"/>
                         </Component>
-						<Component Id="MplsFiles" Guid="7F7E9D6A-3F4E-431C-A7B6-9C395DF823D9" Win64="yes">
+                        <Component Id="MplsFiles" Guid="7F7E9D6A-3F4E-431C-A7B6-9C395DF823D9" Win64="yes">
                             <File Id="MplsExe" Source="../mpls.exe"/>
-							<ServiceInstall Id="CreateMpls" Name="mpls" DisplayName="mpls" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateMpls" Name="mpls" DisplayName="mpls" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteMpls" Name="mpls" Remove="uninstall"/>
                         </Component>
-						<Component Id="NhFiles" Guid="5CFD6201-BF29-46FA-9AC5-5B19C0C86A0F" Win64="yes">
+                        <Component Id="NhFiles" Guid="5CFD6201-BF29-46FA-9AC5-5B19C0C86A0F" Win64="yes">
                             <File Id="NhExe" Source="../nh.exe"/>
-							<ServiceInstall Id="CreateNh" Name="nh" DisplayName="nh" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateNh" Name="nh" DisplayName="nh" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteNh" Name="nh" Remove="uninstall"/>
                         </Component>
-						<Component Id="RtFiles" Guid="975CFEFB-0AF0-42A8-87FB-9E5ACC9272FF" Win64="yes">
+                        <Component Id="RtFiles" Guid="975CFEFB-0AF0-42A8-87FB-9E5ACC9272FF" Win64="yes">
                             <File Id="RtExe" Source="../rt.exe"/>
-							<ServiceInstall Id="CreateRt" Name="rt" DisplayName="rt" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateRt" Name="rt" DisplayName="rt" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteRt" Name="rt" Remove="uninstall"/>
                         </Component>
-						<Component Id="VifFiles" Guid="28A4316D-7216-4818-B2EF-8A3A9C9CF717" Win64="yes">
+                        <Component Id="VifFiles" Guid="28A4316D-7216-4818-B2EF-8A3A9C9CF717" Win64="yes">
                             <File Id="VifExe" Source="../vif.exe"/>
-							<ServiceInstall Id="CreateVif" Name="vif" DisplayName="vif" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateVif" Name="vif" DisplayName="vif" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteVif" Name="vif" Remove="uninstall"/>
                         </Component>
-						<Component Id="VtestFiles" Guid="13BFC527-4B1B-44F4-80E7-975FA16EA99A" Win64="yes">
+                        <Component Id="VtestFiles" Guid="13BFC527-4B1B-44F4-80E7-975FA16EA99A" Win64="yes">
                             <File Id="VtestExe" Source="../vtest/vtest.exe"/>
-							<ServiceInstall Id="CreateVtest" Name="vtest" DisplayName="vtest" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                            <ServiceInstall Id="CreateVtest" Name="vtest" DisplayName="vtest" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteVtest" Name="vtest" Remove="uninstall"/>
                         </Component>
                         <Component Id="VrouterUtilsDLL" Guid="611FF57B-D728-4F23-8D2A-7F80509A9606" Win64="yes">
@@ -48,11 +48,11 @@
                             <ServiceInstall Id="CreateDLL" Name="dll" DisplayName="dll" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteDLL" Name="dll" Remove="uninstall"/>
                         </Component>
-						<Component Id="VRouterUtilsPath" Guid="C1341B97-2801-4C4E-8938-D1693FAA843B" Win64="yes" KeyPath="yes">
-							<Environment Id="PATH" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="yes" />
-							<ServiceInstall Id="CreateUtilsPath" Name="path" DisplayName="path" Type="shareProcess" Start="auto" ErrorControl="normal"/>
+                        <Component Id="VRouterUtilsPath" Guid="C1341B97-2801-4C4E-8938-D1693FAA843B" Win64="yes" KeyPath="yes">
+                            <Environment Id="PATH" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="yes" />
+                            <ServiceInstall Id="CreateUtilsPath" Name="path" DisplayName="path" Type="shareProcess" Start="auto" ErrorControl="normal"/>
                             <ServiceControl Id="DeleteUtilsPath" Name="path" Remove="uninstall"/>
-						</Component>
+                        </Component>
                     </Directory>
                 </Directory>
             </Directory>
@@ -60,13 +60,13 @@
  
         <Feature Id="DefaultFeature" Level="1">
             <ComponentRef Id="DropstatsFiles"/>
-			<ComponentRef Id="FlowFiles"/>
-			<ComponentRef Id="MplsFiles"/>
-			<ComponentRef Id="NhFiles"/>
-			<ComponentRef Id="RtFiles"/>
-			<ComponentRef Id="VifFiles"/>
-			<ComponentRef Id="VtestFiles"/>
-			<ComponentRef Id="VRouterUtilsPath"/>
+            <ComponentRef Id="FlowFiles"/>
+            <ComponentRef Id="MplsFiles"/>
+            <ComponentRef Id="NhFiles"/>
+            <ComponentRef Id="RtFiles"/>
+            <ComponentRef Id="VifFiles"/>
+            <ComponentRef Id="VtestFiles"/>
+            <ComponentRef Id="VRouterUtilsPath"/>
             <ComponentRef Id="VrouterUtilsDLL"/>
         </Feature>
     </Product>
