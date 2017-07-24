@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="CB877445-6E69-4BA8-9C8F-DDA1C92539B3" UpgradeCode="54C1DE83-002C-4040-B6C6-93C649CF3BBA" Name="vRouter" Version="1.0.0" Manufacturer="Juniper Networks" Language="1033">
+        <Package InstallerVersion="200" Compressed="yes" Comments="Windows Installer Package" Platform="x64"/>
+        <Media Id="1" Cabinet="product.cab" EmbedCab="yes"/>
+ 
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="ManufacturerFolder" Name="Juniper Networks">
+                    <Directory Id="INSTALLDIR" Name="vRouter">
+                        <Component Id="CatFiles" Guid="6713787B-9C83-474E-871C-BA00D82CB089" Win64="yes">
+                            <File Id="CatFile" Source="vrouter/x64/Debug/vRouter/vRouter.cat"/>
+                        </Component>
+                        <Component Id="InfFiles" Guid="B2F8E871-FFE1-4FCF-926D-8DBB8402162D" Win64="yes">
+                            <File Id="InfFile" Source="vrouter/x64/Debug/vRouter/vRouter.inf"/>
+                        </Component>
+                        <Component Id="SysFiles" Guid="7416EFFA-231D-4972-88F6-75A3B5DFD910" Win64="yes">
+                            <File Id="SysFile" Source="vrouter/x64/Debug/vRouter/vRouter.sys"/>
+                        </Component>
+                        <CustomAction Id = "InstallCmd" Value = "netcfg -l 'C:\Program Files\Juniper Networks\vRouter\vRouter.inf' -c s -i vRouter"
+                    </Directory>
+                </Directory>
+            </Directory>
+        </Directory>
+ 
+        <Feature Id="DefaultFeature" Level="1">
+            <ComponentRef Id="CatFiles"/>
+            <ComponentRef Id="InfFiles"/>
+            <ComponentRef Id="SysFiles"/>
+        </Feature>
+    </Product>
+</Wix>
+
