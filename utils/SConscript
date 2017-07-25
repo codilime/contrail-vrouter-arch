@@ -16,7 +16,14 @@ if system_header_path:
     env.Append(CPPPATH = system_header_path + '/include/')
 
 # CFLAGS
-env.Append(CCFLAGS = '-g')
+if sys.platform.startswith('win'):
+    env.Append(CPPDEFINES='_WINDOWS')
+    #env.Append(CCFLAGS = '/MTd')
+    newCCFLAGS = str(env['CCFLAGS'])
+    newCCFLAGS.replace("/MDd", "/MTd")
+    env.Replace(CCFLAGS = newCCFLAGS)
+else:
+    env.Append(CCFLAGS = '-g')
 
 if 'install' in COMMAND_LINE_TARGETS:
     VRutilsEnv.Append(SRC_INSTALL_TARGET = '/utils/')
