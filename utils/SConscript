@@ -18,10 +18,7 @@ if system_header_path:
 # CFLAGS
 if sys.platform.startswith('win'):
     env.Append(CPPDEFINES='_WINDOWS')
-    #env.Append(CCFLAGS = '/MTd')
-    newCCFLAGS = str(env['CCFLAGS'])
-    newCCFLAGS.replace("/MDd", "/MTd")
-    env.Replace(CCFLAGS = newCCFLAGS)
+    env.Append(CCFLAGS = '/MTd')
 else:
     env.Append(CCFLAGS = '-g')
 
