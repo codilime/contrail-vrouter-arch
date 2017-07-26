@@ -45,19 +45,6 @@ win_if_add_tap(struct vr_interface* vif)
 static int
 win_if_del(struct vr_interface *vif)
 {
-    struct vr_assoc *assoc_by_name;
-    struct vr_assoc *assoc_by_ids;
-
-    assoc_by_ids = vr_find_assoc_ids(vif->vif_port, vif->vif_nic);
-    if (assoc_by_ids != NULL) {
-        assoc_by_ids->interface = NULL;
-
-        assoc_by_name = vr_find_assoc_by_name(assoc_by_ids->string);
-        if (assoc_by_name != NULL) {
-            assoc_by_name->interface = NULL;
-        }
-    }
-
     return 0;
 }
 

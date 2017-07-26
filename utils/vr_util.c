@@ -37,6 +37,7 @@
 #include "ini_parser.h"
 
 #if defined(_WINDOWS)
+#include <Iphlpapi.h>
 #pragma warning(disable:4996)
 #endif
 
@@ -682,6 +683,15 @@ vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
     if (vif_type == VIF_TYPE_HOST) {
         req.vifr_cross_connect_idx = vif_xconnect_index;
     }
+
+#ifdef _WINDOWS
+    NET_LUID luid;
+    GUID guid;
+    ConvertInterfaceNameToLuidA(req.vifr_name, &luid);
+    ConvertInterfaceLuidToGuid(&luid, &guid);
+    req.vifr_if_guid = (uint8_t*) &guid;
+    req.vifr_if_guid_size = sizeof(guid);
+#endif
 
     return vr_sendmsg(cl, &req, "vr_interface_req");
 }

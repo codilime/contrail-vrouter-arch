@@ -1,5 +1,7 @@
 #include "precomp.h"
 
+//#include <Netioapi.h>
+
 #include <errno.h>
 #include "vr_os.h"
 #include "vr_packet.h"
@@ -1218,44 +1220,32 @@ win_soft_reset(struct vrouter *router)
 }
 
 static void
-win_register_nic(struct vr_interface* vif)
+win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
 {
-    struct vr_assoc* assoc;
-    ASSERT(vif != NULL);
+    PNDIS_SWITCH_NIC_ARRAY array;
 
-    switch (vif->vif_type) {
-    case VIF_TYPE_PHYSICAL:
-        assoc = win_get_physical();
-        vif->vif_port = assoc->port_id;
-        vif->vif_nic = assoc->nic_index;
+    win_if_lock();
 
-        break;
+    SxLibGetNicArrayUnsafe(SxSwitchObject, &array);
 
-    case VIF_TYPE_GATEWAY:
-    case VIF_TYPE_HOST:
-    case VIF_TYPE_VIRTUAL:
-        assoc = vr_get_assoc_by_name(vif->vif_name);
+    for (unsigned i = 0; i < array->NumElements; i++){
+        PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
 
-        ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
+        // "Fake" interface pointing to the default interface, it's not needed.
+        if (element->NicType == NdisSwitchNicTypeExternal && element->NicIndex == 0)
+            continue;
 
-        assoc->interface = vif;
+        if (memcmp(&element->NetCfgInstanceId, vifr->vifr_if_guid, sizeof(element->NetCfgInstanceId)) == 0) {
+            vif->vif_port = element->PortId;
+            vif->vif_nic = element->NicIndex;
 
-        if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
-            vif->vif_port = assoc->port_id;
-            vif->vif_nic = assoc->nic_index;
-
-            assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
-            assoc->interface = vif;
+            break;
         }
-        break;
-
-    case VIF_TYPE_AGENT:
-        /* Nothing to do */
-        break;
-
-    default:
-        ASSERTMSG("Non-supported VIF type", FALSE);
     }
+
+    ExFreePoolWithTag(array, SxExtAllocationTag);
+
+    win_if_unlock();
 
     vif_attach(vif);
 }
