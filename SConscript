@@ -252,6 +252,21 @@ if sys.platform != 'darwin':
     libmod_dir += '/lib/modules/%s/extra/net/vrouter' % kern_version
     env.Alias('build-kmodule', env.Install(libmod_dir, kern))
 
+if sys.platform.startswith('win'):
+    def build_vrouter_for_windows(target, source, env):
+        msbuild = [os.environ['MSBUILD'], 'vRouter.vcxproj']
+        subprocess.call(msbuild, cwd=Dir('#/vrouter').abspath)
+    
+    vrouter_source = Dir('#/vrouter')
+    vrouter_target = Dir('#/vrouter/x64/Debug')
+    msi_source = Dir('#vrouter/x64/Debug')
+    msi_target = File('#/vrouter/windows/installer/vrouterMSI/Debug/vRouter.msi')
+    vrouter_command = env.Command(vrouter_target, vrouter_source, build_vrouter_for_windows)
+    msi_command = env.WiX('vRouter.msi', ['windows/installer/vrouter_msi.wxs'])
+    env.Depends(msi_command, vrouter_command)
+    env.Alias('vrouter', vrouter_command)
+    env.Alias('vrouter.msi', msi_command)
+
 # Local Variables:
 # mode: python
 # End:
