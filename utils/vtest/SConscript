@@ -19,7 +19,8 @@ if system_header_path:
 
 env.Append(CPPPATH = ['./include', build_dir, build_root+'/../include'])
 if sys.platform.startswith('win'):
-    env.Prepend(CPPPATH = '#/build/include/libxml2')
+    env.Append(CPPPATH = '#/build/include/libxml2')
+    env.Append(LINKFLAGS = '/STACK:"10000000"')
 else:
     env.Append(CPPPATH = '/usr/include/libxml2')
     xml_cpppath = os.popen('xml2-config --cflags | sed \'s/\-I//g\'').read()
