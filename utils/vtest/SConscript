@@ -28,7 +28,6 @@ else:
 
 if sys.platform.startswith('win'):
     env.Append(CPPDEFINES='_WINDOWS')
-    env.Append(CCFLAGS = '/MTd')
 else:
     env.Append(CCFLAGS = '-g -std=gnu99')
 
