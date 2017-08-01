@@ -19,7 +19,8 @@ if system_header_path:
 
 env.Append(CPPPATH = ['./include', build_dir, build_root+'/../include'])
 if sys.platform.startswith('win'):
-    env.Prepend(CPPPATH = '#/build/include/libxml2')
+    env.Append(CPPPATH = '#/build/include/libxml2')
+    env.Append(LINKFLAGS = '/STACK:"10000000"')
 else:
     env.Append(CPPPATH = '/usr/include/libxml2')
     xml_cpppath = os.popen('xml2-config --cflags | sed \'s/\-I//g\'').read()
@@ -72,6 +73,7 @@ if not sys.platform.startswith('win'):
     env.Command('libjnprvnet.a', None, 'make', chdir=src_root+'/vrouter/utils/vtest/vhost')
 
 vtest = env.Program('vtest', vtest_src)
+Export('vtest')
 env.Requires(vtest, sandesh_gen_output)
 
 # Local Variables:

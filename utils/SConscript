@@ -16,7 +16,10 @@ if system_header_path:
     env.Append(CPPPATH = system_header_path + '/include/')
 
 # CFLAGS
-env.Append(CCFLAGS = '-g')
+if sys.platform.startswith('win'):
+    env.Append(CPPDEFINES='_WINDOWS')
+else:
+    env.Append(CCFLAGS = '-g')
 
 if 'install' in COMMAND_LINE_TARGETS:
     VRutilsEnv.Append(SRC_INSTALL_TARGET = '/utils/')
@@ -87,10 +90,19 @@ if not sys.platform.startswith('win'):
     qosmap_sources = ['qosmap.c']
     qosmap = env.Program(target = 'qosmap', source = qosmap_sources)
     
-    libvrutil_objs.append([mirror, vrfstats, vxlan, vrouter, vrmemstats, qosmap])
+    binaries.append([mirror, vrfstats, vxlan, vrouter, vrmemstats, qosmap])
 
 scripts  = ['vifdump']
 env.Default(binaries)
+
+if sys.platform.startswith('win'):
+    # Use WiX for MSI generation
+    utils_msi = env.WiX('utils.msi', ['windows/utils_msi.wxs'])
+    
+    Import('vtest')
+    env.Depends(utils_msi, binaries + vtest)
+    env.Default(utils_msi)
+
 env.Alias('install', env.Install(env['INSTALL_BIN'], binaries + scripts))
 # Local Variables:
 # mode: python
