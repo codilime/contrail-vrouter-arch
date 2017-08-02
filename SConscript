@@ -11,6 +11,12 @@ import re
 env = DefaultEnvironment(TARGET_ARCH='x86').Clone()
 VRouterEnv = env
 
+vr_root = './'
+dp_dir = Dir(vr_root).srcnode().abspath + '/'
+if sys.platform != 'darwin':
+    buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
+        source = [], path = dp_dir + 'dp-core')
+
 if sys.platform.startswith('win'):
     def build_vrouter_for_windows(target, source, env):
         msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Configuration=Debug', '/p:Platform=x64']
@@ -50,9 +56,7 @@ else:
     if 'production' in env['OPT']:
         DefaultEnvironment(TARGET_ARCH='x86').Append(CPPDEFINES='SANDESH_QUIET')
 
-    vr_root = './'
     makefile = vr_root + 'Makefile'
-    dp_dir = Dir(vr_root).srcnode().abspath + '/'
     make_dir = dp_dir
 
     def MakeTestCmdFn(self, env, test_name, test_list, deps):
@@ -120,9 +124,6 @@ else:
         env.Replace(SRC_INSTALL_TARGET = src_root)
         env.Install(src_root, ['LICENSE', 'Makefile', 'GPL-2.0.txt'])
         env.Alias('install', src_root)
-
-        buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
-                source = [], path = dp_dir + 'dp-core')
 
         subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
                             'utils', 'uvrouter', 'test']
