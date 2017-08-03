@@ -36,6 +36,9 @@ static char hex_table[] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 };
 
+void vhost_remove_xconnect(void) {
+}
+
 static NTSTATUS
 vr_message_init(void)
 {
