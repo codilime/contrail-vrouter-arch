@@ -9,31 +9,28 @@ import copy
 import re
 from distutils.dir_util import copy_tree
 
-env = DefaultEnvironment().Clone()
-VRouterEnv = env
-# Include paths
-env.Replace(CPPPATH = '#vrouter/include')
-env.Append(CPPPATH = [env['TOP'] + '/vrouter/sandesh/gen-c'])
-env.Append(CPPPATH = ['#tools'])
-env.Append(CPPPATH = ['#tools/sandesh/library/c'])
-
-subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
-                    'utils', 'uvrouter', 'test']
-exports = ['VRouterEnv']
-vr_root = './'
-dp_dir = Dir(vr_root).srcnode().abspath + '/'
-
 AddOption('--kernel-dir', dest = 'kernel-dir', action='store',
           help='Linux kernel source directory for vrouter.ko')
 
 AddOption('--system-header-path', dest = 'system-header-path', action='store',
           help='Linux kernel headers for applications')
 
+env = DefaultEnvironment().Clone()
+VRouterEnv = env
+
+# Include paths
+env.Replace(CPPPATH = '#vrouter/include')
+env.Append(CPPPATH = [env['TOP'] + '/vrouter/sandesh/gen-c'])
+env.Append(CPPPATH = ['#tools'])
+env.Append(CPPPATH = ['#tools/sandesh/library/c'])
+
 # Make Sandesh quiet for production
 if 'production' in env['OPT']:
     DefaultEnvironment(TARGET_ARCH='x86').Append(CPPDEFINES='SANDESH_QUIET')
 
+vr_root = './'
 makefile = vr_root + 'Makefile'
+dp_dir = Dir(vr_root).srcnode().abspath + '/'
 make_dir = dp_dir
 
 def MakeTestCmdFn(self, env, test_name, test_list, deps):
@@ -59,12 +56,16 @@ if sys.platform.startswith('freebsd'):
     make_dir = make_dir + '/freebsd'
     env['ENV']['MAKEOBJDIR'] = make_dir
 
+subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
+                    'utils', 'uvrouter', 'test']
+exports = ['VRouterEnv']
+
 for sdir in subdirs:
     env.SConscript(sdir + '/SConscript',
                    exports = exports,
                    variant_dir = env['TOP'] + '/vrouter/' + sdir,
                    duplicate = 0)
-                   
+
 if sys.platform != 'darwin':
     buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
         source = [], path = dp_dir + 'dp-core')
