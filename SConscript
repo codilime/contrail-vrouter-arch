@@ -11,6 +11,11 @@ from distutils.dir_util import copy_tree
 
 env = DefaultEnvironment().Clone()
 VRouterEnv = env
+# Include paths
+env.Replace(CPPPATH = '#vrouter/include')
+env.Append(CPPPATH = [env['TOP'] + '/vrouter/sandesh/gen-c'])
+env.Append(CPPPATH = ['#tools'])
+env.Append(CPPPATH = ['#tools/sandesh/library/c'])
 
 subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
                     'utils', 'uvrouter', 'test']
@@ -23,39 +28,6 @@ AddOption('--kernel-dir', dest = 'kernel-dir', action='store',
 
 AddOption('--system-header-path', dest = 'system-header-path', action='store',
           help='Linux kernel headers for applications')
-
-if sys.platform != 'darwin':
-    buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
-        source = [], path = dp_dir + 'dp-core')
-
-if sys.platform.startswith('win'):
-    def build_vrouter_for_windows(target, source, env):
-        msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Configuration=Debug', '/p:Platform=x64']
-        subprocess.call(msbuild, cwd=Dir('#/vrouter').abspath)
-        copy_tree(Dir('#/vrouter/x64/Debug/vRouter').abspath, Dir('#/build/debug/vrouter/extension').abspath)
-    vrouter_source = Dir('#/vrouter')
-    vrouter_target = Dir('#/build/debug/vrouter/extension')
-    vrouter_command = env.Command(vrouter_target, vrouter_source, build_vrouter_for_windows)
-    env.Alias('vrouter', vrouter_command)
-    
-    env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
-    msi_command = env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
-else:
-    dpdk_exists = os.path.isdir('../third_party/dpdk')
-
-    # DPDK build configuration
-    DPDK_TARGET = 'x86_64-native-linuxapp-gcc'
-    DPDK_SRC_DIR = '#third_party/dpdk/'
-    DPDK_DST_DIR = env['TOP'] + '/vrouter/dpdk/' + DPDK_TARGET
-    DPDK_INC_DIR = DPDK_DST_DIR + '/include'
-    DPDK_LIB_DIR = DPDK_DST_DIR + '/lib'
-
-
-# Include paths
-env.Replace(CPPPATH = '#vrouter/include')
-env.Append(CPPPATH = [env['TOP'] + '/vrouter/sandesh/gen-c'])
-env.Append(CPPPATH = ['#tools'])
-env.Append(CPPPATH = ['#tools/sandesh/library/c'])
 
 # Make Sandesh quiet for production
 if 'production' in env['OPT']:
@@ -87,6 +59,41 @@ if sys.platform.startswith('freebsd'):
     make_dir = make_dir + '/freebsd'
     env['ENV']['MAKEOBJDIR'] = make_dir
 
+for sdir in subdirs:
+    env.SConscript(sdir + '/SConscript',
+                   exports = exports,
+                   variant_dir = env['TOP'] + '/vrouter/' + sdir,
+                   duplicate = 0)
+                   
+if sys.platform != 'darwin':
+    buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
+        source = [], path = dp_dir + 'dp-core')
+
+if sys.platform.startswith('win'):
+    def build_vrouter_for_windows(target, source, env):
+        msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Configuration=Debug', '/p:Platform=x64']
+        subprocess.call(msbuild, cwd=Dir('#/vrouter').abspath)
+        copy_tree(Dir('#/vrouter/x64/Debug/vRouter').abspath, Dir('#/build/debug/vrouter/extension').abspath)
+    vrouter_source = Dir('#/vrouter')
+    vrouter_target = Dir('#/build/debug/vrouter/extension')
+    vrouter_command = env.Command(vrouter_target, vrouter_source, build_vrouter_for_windows)
+    env.Alias('vrouter', vrouter_command)
+    
+    env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
+    msi_command = env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
+    Import('utils_msi')
+    env.Depends(vrouter_command, utils_msi)
+else:
+    dpdk_exists = os.path.isdir('../third_party/dpdk')
+
+    # DPDK build configuration
+    DPDK_TARGET = 'x86_64-native-linuxapp-gcc'
+    DPDK_SRC_DIR = '#third_party/dpdk/'
+    DPDK_DST_DIR = env['TOP'] + '/vrouter/dpdk/' + DPDK_TARGET
+    DPDK_INC_DIR = DPDK_DST_DIR + '/include'
+    DPDK_LIB_DIR = DPDK_DST_DIR + '/lib'
+
+
 # XXX Temporary/transitional support for Ubuntu14.04.4 w/ kernel v4.*
 #
 # The logic here has to handle two different invocation models:
@@ -99,7 +106,6 @@ if sys.platform.startswith('freebsd'):
 # This approach always uses --kernel-dir, which works for vrouter, but
 # libdpdk still defaults to installed version and thus will fail.
 #
-if not sys.platform.startswith('win'):
     default_kernel_ver = shellCommand("uname -r").strip()
     kernel_build_dir = None
     if re.search('^4\.', default_kernel_ver):
@@ -223,13 +229,6 @@ if not sys.platform.startswith('win'):
         if GetOption('clean'):
             os.system(make_cmd + 'clean')
 
-for sdir in subdirs:
-    env.SConscript(sdir + '/SConscript',
-                   exports = exports,
-                   variant_dir = env['TOP'] + '/vrouter/' + sdir,
-                   duplicate = 0)
-
-if not sys.platform.startswith('win'):
     make_cmd = 'cd ' + make_dir + ' && make'
     if kernel_dir: make_cmd += ' KERNELDIR=' + kernel_dir
     make_cmd += ' SANDESH_HEADER_PATH=' + Dir(env['TOP'] + '/vrouter/').abspath

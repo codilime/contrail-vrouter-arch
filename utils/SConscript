@@ -102,6 +102,7 @@ if sys.platform.startswith('win'):
     Import('vtest')
     env.Depends(utils_msi, binaries + vtest)
     env.Default(utils_msi)
+    Export('utils_msi')
 
 env.Alias('install', env.Install(env['INSTALL_BIN'], binaries + scripts))
 # Local Variables:
