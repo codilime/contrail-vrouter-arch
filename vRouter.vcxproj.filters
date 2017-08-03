@@ -139,6 +139,9 @@
     <ClInclude Include="include\vr_devices.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">
@@ -292,6 +295,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_buildinfo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
