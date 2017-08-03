@@ -15,12 +15,6 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_80DA804A2CF7494793AE248847BEB7AE"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -29,12 +23,6 @@
         {
         "MsmKey" = "8:_8AEB2E87ABF0487181611D09D47D7B8F"
         "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_AAF32DF9E1F1E072CF6BB6919330E08D"
-        "OwnerKey" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -126,7 +114,7 @@
             {
             "Name" = "8:Primary Output from customActionPowershell (Active)"
             "Condition" = "8:"
-            "Object" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
+            "Object" = "8:"
             "FileType" = "3:1"
             "InstallAction" = "3:4"
             "Arguments" = "8:"
@@ -140,7 +128,7 @@
             {
             "Name" = "8:Primary Output from customActionPowershell (Active)"
             "Condition" = "8:"
-            "Object" = "8:_4C6703C8986A4F2BA53A55D91992D4DE"
+            "Object" = "8:"
             "FileType" = "3:1"
             "InstallAction" = "3:2"
             "Arguments" = "8:"
@@ -183,26 +171,6 @@
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
             "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_AAF32DF9E1F1E072CF6BB6919330E08D"
-            {
-            "SourcePath" = "8:msi.dll"
-            "TargetName" = "8:msi.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_48D8C0A74D644AC7BB5704922B19D449"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:TRUE"
-            "IsDependency" = "11:TRUE"
             "IsolateTo" = "8:"
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B75676D45E8B46F899B54B2F14751DDE"
@@ -852,34 +820,6 @@
         }
         "ProjectOutput"
         {
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_4C6703C8986A4F2BA53A55D91992D4DE"
-            {
-            "SourcePath" = "8:..\\customActionPowershell\\x64\\Debug\\customActionPowershell.dll"
-            "TargetName" = "8:"
-            "Tag" = "8:"
-            "Folder" = "8:_45B382742AB94F88811111EC2967B2D0"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            "ProjectOutputGroupRegister" = "3:1"
-            "OutputConfiguration" = "8:"
-            "OutputGroupCanonicalName" = "8:Built"
-            "OutputProjectGuid" = "8:{CB61212B-F768-4F69-9259-8963B222FA90}"
-            "ShowKeyOutput" = "11:TRUE"
-                "ExcludeFilters"
-                {
-                }
-            }
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_80DA804A2CF7494793AE248847BEB7AE"
             {
             "SourcePath" = "8:..\\..\\..\\x64\\Debug\\vRouter.sys"

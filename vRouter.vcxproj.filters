@@ -291,6 +291,9 @@
     <ClCompile Include="windows\vr_devices.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dp-core\vr_buildinfo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">

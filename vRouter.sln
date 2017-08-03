@@ -7,15 +7,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vRouter", "vRouter.vcxproj"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "atomic-test", "test\atomic-test\atomic-test.vcxproj", "{621A6695-3A8D-4F94-942B-D8745888E768}"
 EndProject
-Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "vrouterMSI", "windows\installer\vrouterMSI\vrouterMSI.vdproj", "{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}"
-	ProjectSection(ProjectDependencies) = postProject
-		{127F464E-61D0-4815-8D07-6600177A534C} = {127F464E-61D0-4815-8D07-6600177A534C}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "customActionPowershell", "windows\installer\customActionPowershell\customActionPowershell.vcxproj", "{CB61212B-F768-4F69-9259-8963B222FA90}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "installer", "installer", "{D7806026-10B3-4E6C-B836-06E0635E49F4}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -64,34 +55,8 @@ Global
 		{621A6695-3A8D-4F94-942B-D8745888E768}.Release|x64.Build.0 = Release|x64
 		{621A6695-3A8D-4F94-942B-D8745888E768}.Release|x86.ActiveCfg = Release|Win32
 		{621A6695-3A8D-4F94-942B-D8745888E768}.Release|x86.Build.0 = Release|Win32
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Debug|ARM.ActiveCfg = Debug
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Debug|ARM64.ActiveCfg = Debug
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Debug|x64.ActiveCfg = Debug
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Debug|x64.Build.0 = Debug
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Debug|x86.ActiveCfg = Debug
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Release|ARM.ActiveCfg = Release
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Release|ARM64.ActiveCfg = Release
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Release|x64.ActiveCfg = Release
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Release|x64.Build.0 = Release
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB}.Release|x86.ActiveCfg = Release
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Debug|ARM.ActiveCfg = Debug|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Debug|ARM64.ActiveCfg = Debug|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Debug|x64.ActiveCfg = Debug|x64
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Debug|x64.Build.0 = Debug|x64
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Debug|x86.ActiveCfg = Debug|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Debug|x86.Build.0 = Debug|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Release|ARM.ActiveCfg = Release|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Release|ARM64.ActiveCfg = Release|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Release|x64.ActiveCfg = Release|x64
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Release|x64.Build.0 = Release|x64
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Release|x86.ActiveCfg = Release|Win32
-		{CB61212B-F768-4F69-9259-8963B222FA90}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{24952D1C-8FDF-441B-B2C5-C1287E2C8FFB} = {D7806026-10B3-4E6C-B836-06E0635E49F4}
-		{CB61212B-F768-4F69-9259-8963B222FA90} = {D7806026-10B3-4E6C-B836-06E0635E49F4}
 	EndGlobalSection
 EndGlobal
