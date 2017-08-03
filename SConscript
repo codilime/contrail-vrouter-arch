@@ -7,6 +7,7 @@ import sys
 import os
 import copy
 import re
+from distutils.dir_util import copy_tree
 
 env = DefaultEnvironment().Clone()
 VRouterEnv = env
@@ -31,16 +32,14 @@ if sys.platform.startswith('win'):
     def build_vrouter_for_windows(target, source, env):
         msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Configuration=Debug', '/p:Platform=x64']
         subprocess.call(msbuild, cwd=Dir('#/vrouter').abspath)
-    
+        copy_tree(Dir('#/vrouter/x64/Debug/vRouter').abspath, Dir('#/build/debug/vrouter/extension').abspath)
     vrouter_source = Dir('#/vrouter')
     vrouter_target = Dir('#/build/debug/vrouter/extension')
-    #msi_source = Dir('#vrouter/x64/Debug')
-    #msi_target = File('#/vrouter/windows/installer/vrouterMSI/Debug/vRouter.msi')
     vrouter_command = env.Command(vrouter_target, vrouter_source, build_vrouter_for_windows)
-    #msi_command = env.WiX('vRouter.msi', ['windows/installer/vrouter_msi.wxs'])
-    #env.Depends(msi_command, vrouter_command)
     env.Alias('vrouter', vrouter_command)
-    #env.Alias('vrouter.msi', msi_command)
+    
+    env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
+    msi_command = env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
 else:
     dpdk_exists = os.path.isdir('../third_party/dpdk')
 
