@@ -336,6 +336,11 @@ vr_host_interface_exit(void)
     /* Noop */
 }
 
+void
+vhost_remove_xconnect(void) 
+{
+}
+
 struct vr_host_interface_ops *
 vr_host_interface_init(void)
 {

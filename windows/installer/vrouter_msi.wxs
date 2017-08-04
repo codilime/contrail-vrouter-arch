@@ -30,30 +30,30 @@
  
         <CustomAction Id="InstallCmd"
         Property="InstallCmdProperty"
-        Value="&quot;C:\Windows\System32\netcfg.exe&quot;-l  &quot;C:\Program Files\Juniper Networks\vRouter\vRouter.inf&quot; -c s -i vRouter"
-        Execute="immediate" />
+        Value="&quot;C:\Windows\System32\netcfg.exe&quot; -l &quot;C:\Program Files\Juniper Networks\vRouter\vRouter.inf&quot; -c s -i vRouter"
+        Execute="immediate"/>
         
         <CustomAction Id="UninstallCmd"
         Property="UninstallCmdProperty"
         Value="&quot;C:\Windows\System32\netcfg.exe&quot; -u vRouter"
-        Execute="immediate" />
+        Execute="immediate"/>
         
         <CustomAction Id="InstallCmdProperty"
         BinaryKey="WixCA"
         DllEntry="CAQuietExec64"
         Execute="deferred"
         Return="check"
-        Impersonate="no" />
+        Impersonate="no"/>
         
         <CustomAction Id="UninstallCmdProperty"
         BinaryKey="WixCA"
         DllEntry="CAQuietExec64"
         Execute="deferred"
         Return="check"
-        Impersonate="no" />
+        Impersonate="no"/>
  
         <InstallExecuteSequence>
-            <Custom Action="InstallCmd" After="CostFinalize">NOT  Installed</Custom>
+            <Custom Action="InstallCmd" After="CostFinalize">NOT Installed</Custom>
             <Custom Action="InstallCmdProperty" After="InstallFiles">NOT Installed</Custom>
             <Custom Action='UninstallCmd' Before='CostInitialize'>(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
             <Custom Action='UninstallCmdProperty' Before='RemoveFiles'>(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
