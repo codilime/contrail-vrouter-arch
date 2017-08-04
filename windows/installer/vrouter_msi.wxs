@@ -30,12 +30,12 @@
  
         <CustomAction Id="InstallCmd"
         Property="InstallCmdProperty"
-        Value="&quot;C:\Windows\System32\netcfg.exe&quot; &quot;-l 'C:\Program Files\Juniper Networks\vRouter\vRouter.inf' -c s -i vRouter&quot;"
+        Value="&quot;C:\Windows\System32\netcfg.exe&quot;-l  &quot;C:\Program Files\Juniper Networks\vRouter\vRouter.inf&quot; -c s -i vRouter"
         Execute="immediate" />
         
         <CustomAction Id="UninstallCmd"
         Property="UninstallCmdProperty"
-        Value="&quot;C:\Windows\System32\netcfg.exe&quot; &quot;-u vRouter&quot;"
+        Value="&quot;C:\Windows\System32\netcfg.exe&quot; -u vRouter"
         Execute="immediate" />
         
         <CustomAction Id="InstallCmdProperty"
