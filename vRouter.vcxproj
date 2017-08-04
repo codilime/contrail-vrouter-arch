@@ -145,6 +145,8 @@
     <OutputName>ndislwf</OutputName>
     <IncludePath>$(ProjectDir)\Include;$(IncludePath)</IncludePath>
     <ApiValidator_Enable>false</ApiValidator_Enable>
+    <OutDir>..\build\debug\vrouter\extension</OutDir>
+    <IntDir>..\build\debug\vrouter\extension</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>

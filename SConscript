@@ -56,17 +56,16 @@ if sys.platform.startswith('freebsd'):
     make_dir = make_dir + '/freebsd'
     env['ENV']['MAKEOBJDIR'] = make_dir
 
-subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
-                    'utils', 'uvrouter', 'test']
-exports = ['VRouterEnv']
-
-for sdir in subdirs:
-    env.SConscript(sdir + '/SConscript',
-                   exports = exports,
-                   variant_dir = env['TOP'] + '/vrouter/' + sdir,
-                   duplicate = 0)
-
 if sys.platform != 'darwin':
+    subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
+                        'utils', 'uvrouter', 'test']
+    exports = ['VRouterEnv']
+
+    for sdir in subdirs:
+        env.SConscript(sdir + '/SConscript',
+                       exports = exports,
+                       variant_dir = env['TOP'] + '/vrouter/' + sdir,
+                       duplicate = 0)
     buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
         source = [], path = dp_dir + 'dp-core')
 
@@ -74,16 +73,14 @@ if sys.platform.startswith('win'):
     def build_vrouter_for_windows(target, source, env):
         msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Configuration=Debug', '/p:Platform=x64']
         subprocess.call(msbuild, cwd=Dir('#/vrouter').abspath)
-        copy_tree(Dir('#/vrouter/x64/Debug/vRouter').abspath, Dir('#/build/debug/vrouter/extension').abspath)
     vrouter_source = Dir('#/vrouter')
     vrouter_target = Dir('#/build/debug/vrouter/extension')
     vrouter_command = env.Command(vrouter_target, vrouter_source, build_vrouter_for_windows)
-    env.Alias('vrouter', vrouter_command)
+    Import('utils_msi')
+    env.Alias('vrouter', [vrouter_command, utils_msi])
     
     env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
-    msi_command = env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
-    Import('utils_msi')
-    env.Depends(vrouter_command, utils_msi)
+    env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
 else:
     dpdk_exists = os.path.isdir('../third_party/dpdk')
 
@@ -95,18 +92,18 @@ else:
     DPDK_LIB_DIR = DPDK_DST_DIR + '/lib'
 
 
-# XXX Temporary/transitional support for Ubuntu14.04.4 w/ kernel v4.*
-#
-# The logic here has to handle two different invocation models:
-# default 'scons' build model; and build via packager.py build. The
-# first is typical for unit-test builds.
-#
-# The second comes via:
-# - common/debian/Makefile in contrail-packaging, which invokes:
-# - debian/contrail/debian/rules.modules in contrail-packages
-# This approach always uses --kernel-dir, which works for vrouter, but
-# libdpdk still defaults to installed version and thus will fail.
-#
+    # XXX Temporary/transitional support for Ubuntu14.04.4 w/ kernel v4.*
+    #
+    # The logic here has to handle two different invocation models:
+    # default 'scons' build model; and build via packager.py build. The
+    # first is typical for unit-test builds.
+    #
+    # The second comes via:
+    # - common/debian/Makefile in contrail-packaging, which invokes:
+    # - debian/contrail/debian/rules.modules in contrail-packages
+    # This approach always uses --kernel-dir, which works for vrouter, but
+    # libdpdk still defaults to installed version and thus will fail.
+    #
     default_kernel_ver = shellCommand("uname -r").strip()
     kernel_build_dir = None
     if re.search('^4\.', default_kernel_ver):
