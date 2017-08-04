@@ -61,13 +61,7 @@ if sys.platform != 'darwin':
                         'utils', 'uvrouter', 'test']
     exports = ['VRouterEnv']
 
-    for sdir in subdirs:
-        env.SConscript(sdir + '/SConscript',
-                       exports = exports,
-                       variant_dir = env['TOP'] + '/vrouter/' + sdir,
-                       duplicate = 0)
-    buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
-        source = [], path = dp_dir + 'dp-core')
+dpdk_exists = os.path.isdir('../third_party/dpdk')
 
 if sys.platform.startswith('win'):
     def build_vrouter_for_windows(target, source, env):
@@ -76,13 +70,11 @@ if sys.platform.startswith('win'):
     vrouter_source = Dir('#/vrouter')
     vrouter_target = Dir('#/build/debug/vrouter/extension')
     vrouter_command = env.Command(vrouter_target, vrouter_source, build_vrouter_for_windows)
-    Import('utils_msi')
-    env.Alias('vrouter', [vrouter_command, utils_msi])
+    env.Alias('vrouter', vrouter_command)
     
     env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
     env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
 else:
-    dpdk_exists = os.path.isdir('../third_party/dpdk')
 
     # DPDK build configuration
     DPDK_TARGET = 'x86_64-native-linuxapp-gcc'
@@ -232,11 +224,6 @@ else:
     make_cmd += ' SANDESH_HEADER_PATH=' + Dir(env['TOP'] + '/vrouter/').abspath
     make_cmd += ' SANDESH_SRC_ROOT=' + '../build/kbuild/'
     make_cmd += ' SANDESH_EXTRA_HEADER_PATH=' + Dir('#tools/').abspath
-    if 'vrouter' in COMMAND_LINE_TARGETS:
-        BUILD_TARGETS.append('vrouter/uvrouter')
-        if dpdk_exists:
-            BUILD_TARGETS.append('vrouter/dpdk')
-        BUILD_TARGETS.append('vrouter/utils')
 
     kern = env.Command('vrouter.ko', None, make_cmd)
     env.Default(kern)
@@ -267,6 +254,20 @@ else:
     libmod_dir = install_root
     libmod_dir += '/lib/modules/%s/extra/net/vrouter' % kern_version
     env.Alias('build-kmodule', env.Install(libmod_dir, kern))
+if sys.platform != 'darwin':
+    for sdir in subdirs:
+            env.SConscript(sdir + '/SConscript',
+                           exports = exports,
+                           variant_dir = env['TOP'] + '/vrouter/' + sdir,
+                           duplicate = 0)
+    buildinfo = env.GenerateBuildInfoCCode(target = ['vr_buildinfo.c'],
+        source = [], path = dp_dir + 'dp-core')
+if 'vrouter' in COMMAND_LINE_TARGETS:
+    if not sys.platform.startswith('win'):
+        BUILD_TARGETS.append('vrouter/uvrouter')
+        if dpdk_exists:
+            BUILD_TARGETS.append('vrouter/dpdk')
+    BUILD_TARGETS.append('vrouter/utils')
 
 # Local Variables:
 # mode: python
