@@ -288,7 +288,7 @@
     <ClCompile Include="dp-core\vr_buildinfo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.c">
+    <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -352,7 +352,7 @@
     <ClInclude Include="windows\SxBase\SxLibrary.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.c">
+    <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c">
