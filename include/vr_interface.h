@@ -250,10 +250,10 @@ struct vr_interface {
 #elif defined(__FreeBSD__)
     struct mbuf;
     void (*saved_if_input) (struct ifnet *, struct mbuf *);
-#endif
-#elif defined(_NTKERNEL)
+#elif defined(_WIN64)
     NDIS_SWITCH_PORT_ID vif_port;
     NDIS_SWITCH_NIC_INDEX vif_nic;
+#endif
 #endif
     /* Big and less frequently used fields. */
     struct vr_interface *vif_parent;

@@ -95,7 +95,7 @@ typedef unsigned int __u32;
 #endif /* __FreeBSD__ */
 #if defined(_WINDOWS)
 #include "windows_builtins.h"
-#ifdef _NTKERNEL
+#ifdef _KERNEL_MODE
 
 #pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
 #pragma warning(disable : 4057)     // difference in indirection (pointer to different type but same size, ex. unsigned char* and int8_t*)
@@ -108,7 +108,7 @@ typedef unsigned int __u32;
 #pragma warning(disable : 4701)     // potentially uninitialized local variable used
 #pragma warning(disable : 4706)     // assignment within conditional expression
 
-#endif /* _NTKERNEL */
+#endif /* _KERNEL_MODE */
 #endif /* _WINDOWS */
 
 extern int vrouter_dbg;
