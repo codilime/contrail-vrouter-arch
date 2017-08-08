@@ -55,9 +55,6 @@
     <ClInclude Include="include\vr_defs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="windows\sandesh-temp\vr_types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\vr_windows.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -139,6 +136,9 @@
     <ClInclude Include="include\vr_devices.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">
@@ -160,9 +160,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_packet.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dp-core\temp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_interface.c">
@@ -217,9 +214,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_transport.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="windows\sandesh-temp\vr_types.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dp-core\vr_stats.c">
@@ -289,6 +283,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vr_devices.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dp-core\vr_buildinfo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
