@@ -198,24 +198,6 @@
     <ClCompile Include="dp-core\vr_qos.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\sandesh.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_protocol.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_fake_transport.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_memory_buffer.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_transport.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="dp-core\vr_stats.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -289,6 +271,24 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\protocol\thrift_binary_protocol.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\protocol\thrift_protocol.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_fake_transport.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_memory_buffer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_transport.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\sandesh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
