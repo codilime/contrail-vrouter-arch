@@ -266,9 +266,9 @@ if sys.platform != 'darwin':
         libmod_dir += '/lib/modules/%s/extra/net/vrouter' % kern_version
         env.Alias('build-kmodule', env.Install(libmod_dir, kern))
     else:
-        env.Alias('vrouter', kern)
         env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
         msi_command = env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
+        env.Depends(msi_command, kern)
         env.Alias('vrouter.msi', msi_command)
 
 # Local Variables:
