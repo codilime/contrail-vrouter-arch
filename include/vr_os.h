@@ -93,7 +93,7 @@ typedef unsigned int __u32;
 #define ASSERT(x) assert((x));
 #endif
 #endif /* __FreeBSD__ */
-#if defined(_WINDOWS)
+#if defined(_WIN32)
 #include "windows_builtins.h"
 #ifdef _KERNEL_MODE
 
