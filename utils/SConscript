@@ -17,7 +17,7 @@ if system_header_path:
 
 # CFLAGS
 if sys.platform.startswith('win'):
-    env.Append(CPPDEFINES='_WINDOWS')
+    env.Append(CCFLAGS = ['/D_UNICODE', '/DUNICODE'])
 else:
     env.Append(CCFLAGS = '-g')
 

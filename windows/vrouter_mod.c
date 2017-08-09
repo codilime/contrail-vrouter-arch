@@ -25,6 +25,7 @@ NDIS_HANDLE SxNBLPool = NULL;
 extern PDRIVER_OBJECT SxDriverObject;
 
 unsigned int vr_num_cpus;
+int vrouter_dbg = 0;
 
 /* Read/write lock which must be acquired by deferred callbacks. Used in functions from
 * `host_os` struct.

@@ -6,7 +6,7 @@
 #include <basetsd.h>
 #include <errno.h>
 
-#ifdef _NTKERNEL
+#ifdef __KERNEL__
 
 #include <Wdm.h>
 #include "vr_windows.h"
@@ -21,18 +21,20 @@ typedef BOOLEAN bool;
 #define htonl(a) RtlUlongByteSwap(a)
 #define ntohl(a) RtlUlongByteSwap(a)
 
-#else
+#define __LITTLE_ENDIAN_BITFIELD
+
+#else /* __KERNEL__ */
 
 #include <winsock2.h>
 #include <windows.h>
 #include <stdint.h>
 #include <stdbool.h>
 
-#endif /* _NTKERNEL */
-
 #define __LITTLE_ENDIAN 1
 #define __BIG_ENDIAN 2
 #define __BYTE_ORDER __LITTLE_ENDIAN
+
+#endif
 
 typedef INT8 __s8;
 typedef UINT8 __u8;

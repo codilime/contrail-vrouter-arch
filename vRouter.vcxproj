@@ -145,8 +145,8 @@
     <OutputName>ndislwf</OutputName>
     <IncludePath>$(ProjectDir)\Include;$(IncludePath)</IncludePath>
     <ApiValidator_Enable>false</ApiValidator_Enable>
-    <OutDir>..\build\debug\vrouter\extension</OutDir>
-    <IntDir>..\build\debug\vrouter\extension</IntDir>
+    <OutDir>..\build\debug\vrouter\extension\</OutDir>
+    <IntDir>..\build\debug\vrouter\extension\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -204,10 +204,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level4</WarningLevel>
+      <WarningLevel>Level3</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
       <AdditionalIncludeDirectories>..;.;..\Tools;..\Tools\sandesh\library\c;..\build\debug\vrouter\sandesh\gen-c;windows;windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS640=1;_WINDOWS;_NTKERNEL</PreProcessorDefinitions>
+      <PreProcessorDefinitions>NDIS_WDM=1;NDIS640=1;_WINDOWS;__KERNEL__;%(PreProcessorDefinitions)</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
       <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
       <PreCompiledHeader>Create</PreCompiledHeader>
@@ -217,7 +217,7 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib</AdditionalDependencies>
+      <AdditionalDependencies>ndis.lib;ntstrsafe.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <DriverSign />
   </ItemDefinitionGroup>

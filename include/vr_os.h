@@ -93,9 +93,9 @@ typedef unsigned int __u32;
 #define ASSERT(x) assert((x));
 #endif
 #endif /* __FreeBSD__ */
-#if defined(_WINDOWS)
+#if defined(_WIN32)
 #include "windows_builtins.h"
-#ifdef _NTKERNEL
+#ifdef  __KERNEL__
 
 #pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
 #pragma warning(disable : 4057)     // difference in indirection (pointer to different type but same size, ex. unsigned char* and int8_t*)
@@ -108,8 +108,8 @@ typedef unsigned int __u32;
 #pragma warning(disable : 4701)     // potentially uninitialized local variable used
 #pragma warning(disable : 4706)     // assignment within conditional expression
 
-#endif /* _NTKERNEL */
-#endif /* _WINDOWS */
+#endif /* __KERNEL__ */
+#endif /* _WIN32 */
 
 extern int vrouter_dbg;
 
