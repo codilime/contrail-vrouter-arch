@@ -6,7 +6,7 @@
 #include <basetsd.h>
 #include <errno.h>
 
-#ifdef _KERNEL_MODE
+#ifdef __KERNEL__
 
 #include <Wdm.h>
 #include "vr_windows.h"
@@ -23,7 +23,7 @@ typedef BOOLEAN bool;
 
 #define __LITTLE_ENDIAN_BITFIELD
 
-#else
+#else /* __KERNEL__ */
 
 #include <winsock2.h>
 #include <windows.h>
@@ -34,7 +34,7 @@ typedef BOOLEAN bool;
 #define __BIG_ENDIAN 2
 #define __BYTE_ORDER __LITTLE_ENDIAN
 
-#endif /* _KERNEL_MODE */
+#endif
 
 typedef INT8 __s8;
 typedef UINT8 __u8;
