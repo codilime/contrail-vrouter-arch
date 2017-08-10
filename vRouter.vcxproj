@@ -355,22 +355,22 @@
     <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_binary_protocol.c">
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\protocol\thrift_binary_protocol.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\protocol\thrift_protocol.c">
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\protocol\thrift_protocol.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\sandesh.c">
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\sandesh.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_fake_transport.c">
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_fake_transport.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_memory_buffer.c">
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_memory_buffer.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\tools\sandesh\library\c\transport\thrift_transport.c">
+    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_transport.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="dp-core\vrouter.c">
