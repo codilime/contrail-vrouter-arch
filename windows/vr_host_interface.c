@@ -221,15 +221,6 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
         NDIS_DEFAULT_PORT_NUMBER,
         0);
 
-    if (pkt->vp_nbl_free_after_send) {
-        PNET_BUFFER_LIST parent = pkt->vp_nbl_free_after_send;
-        ASSERTMSG("Encapsulated packet is multicasted", parent->ChildRefCount == 1);
-
-        free_nbl(parent, SxExtAllocationTag);
-    }
-
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
-
     return 0;
 }
 

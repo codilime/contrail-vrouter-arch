@@ -168,13 +168,27 @@ free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
     ASSERT(nbl != NULL);
     ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
-    if (IS_OWNED(nbl))
-        if (IS_CLONE(nbl))
-            free_cloned_nbl(nbl);
+    struct vr_packet* pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+
+    pkt->vp_ref_cnt--;
+
+    if (pkt->vp_ref_cnt == 0) {
+
+        NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
+
+        if (IS_OWNED(nbl)) {
+            if (IS_CLONE(nbl))
+                free_cloned_nbl(nbl);
+            else
+                free_created_nbl(nbl, data_allocation_tag);
+
+            PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
+            if (parent)
+                free_nbl(parent, data_allocation_tag);
+        }
         else
-            free_created_nbl(nbl, data_allocation_tag);
-    else
-        complete_received_nbl(nbl);
+            complete_received_nbl(nbl);
+    }
 }
 
 static void
@@ -187,8 +201,6 @@ free_associated_nbl(struct vr_packet* pkt)
     ASSERT(nbl != NULL);
 
     free_nbl(nbl, pkt->vp_win_data_tag);
-
-    pkt->vp_net_buffer_list = NULL;
 }
 
 void
@@ -282,6 +294,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
 
 fail:
     if (pkt)
+        // DO NOT ACCEPT PULL REQUEST
         ExFreePoolWithTag(pkt, SxExtAllocationTag);
     if (nbl)
         free_created_nbl(nbl, allocation_tag);
@@ -294,7 +307,6 @@ win_free_packet(struct vr_packet *pkt)
     ASSERT(pkt != NULL);
 
     free_associated_nbl(pkt);
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 }
 
 void
@@ -409,13 +421,16 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    //struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
+    struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (!pkt)
         return NULL;
 
     RtlZeroMemory(pkt, sizeof(struct vr_packet));
 
     pkt->vp_net_buffer_list = nbl;
+    pkt->vp_ref_cnt = 1;
     pkt->vp_cpu = (unsigned char)win_get_cpu();
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
@@ -462,18 +477,19 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
+    // DO NOT ACCCEPT PULL REQUEST
     ExFreePoolWithTag(pkt, SxExtAllocationTag);
     return NULL;
 }
 
-void
+/*void
 win_pfree_unaccounted(struct vr_packet *pkt)
 {
     ASSERT(pkt != NULL);
 
     free_associated_nbl(pkt);
     ExFreePoolWithTag(pkt, SxExtAllocationTag);
-}
+}*/
 
 static struct vr_packet *
 win_palloc(unsigned int size)
@@ -531,12 +547,17 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
         return NULL;
 
     PNET_BUFFER_LIST new_nbl = clone_nbl(original_nbl);
-
     if (new_nbl == NULL)
         goto cleanup;
 
+    NdisAllocateNetBufferListContext(new_nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
+    struct vr_packet* npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(new_nbl);
+    *npkt = *pkt;
+    pkt = npkt;
+    pkt->vp_ref_cnt = 1;
+
     pkt->vp_net_buffer_list = new_nbl;
-    pkt->vp_nbl_free_after_send = original_nbl;
+    // pkt->vp_ref_cnt is increased because new data is referencing this packet, but also decreased because we don't keep the parent any longer (logically)
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(new_nbl);
     if (nb == NULL)
@@ -601,10 +622,15 @@ win_pclone(struct vr_packet *pkt)
     if (nbl == NULL)
         return NULL;
 
-    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    //struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
+    struct vr_packet *npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (npkt == NULL)
         goto cleanup_nbl;
     *npkt = *pkt;
+
+    pkt->vp_ref_cnt++;
+    npkt->vp_ref_cnt = 1;
 
     npkt->vp_net_buffer_list = nbl;
 
@@ -622,7 +648,7 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 
 cleanup_pkt:
-    ExFreePoolWithTag(npkt, SxExtAllocationTag);
+    NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
 
 cleanup_nbl:
     free_cloned_nbl(nbl);
@@ -1223,6 +1249,9 @@ static void
 win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
 {
     PNDIS_SWITCH_NIC_ARRAY array;
+
+    if (vifr->vifr_if_guid == NULL)
+        return; // Bad Sandesh version on utility tool
 
     win_if_lock();
 
