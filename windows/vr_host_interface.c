@@ -45,6 +45,7 @@ win_if_add_tap(struct vr_interface* vif)
 static int
 win_if_del(struct vr_interface *vif)
 {
+    UNREFERENCED_PARAMETER(vif);
     return 0;
 }
 
