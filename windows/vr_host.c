@@ -1,7 +1,5 @@
 #include "precomp.h"
 
-//#include <Netioapi.h>
-
 #include <errno.h>
 #include "vr_os.h"
 #include "vr_packet.h"
@@ -294,8 +292,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
 
 fail:
     if (pkt)
-        // DO NOT ACCEPT PULL REQUEST
-        ExFreePoolWithTag(pkt, SxExtAllocationTag);
+        NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
     if (nbl)
         free_created_nbl(nbl, allocation_tag);
     return NULL;
@@ -421,7 +418,6 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    //struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
     NdisAllocateNetBufferListContext(nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
     struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (!pkt)
@@ -477,19 +473,9 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    // DO NOT ACCCEPT PULL REQUEST
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
+    NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
     return NULL;
 }
-
-/*void
-win_pfree_unaccounted(struct vr_packet *pkt)
-{
-    ASSERT(pkt != NULL);
-
-    free_associated_nbl(pkt);
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
-}*/
 
 static struct vr_packet *
 win_palloc(unsigned int size)
@@ -622,7 +608,6 @@ win_pclone(struct vr_packet *pkt)
     if (nbl == NULL)
         return NULL;
 
-    //struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
     NdisAllocateNetBufferListContext(nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
     struct vr_packet *npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (npkt == NULL)
