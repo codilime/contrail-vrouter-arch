@@ -16,9 +16,7 @@ if system_header_path:
     env.Append(CPPPATH = system_header_path + '/include/')
 
 # CFLAGS
-if sys.platform.startswith('win'):
-    env.Append(CCFLAGS = ['/D_UNICODE', '/DUNICODE'])
-else:
+if not sys.platform.startswith('win'):
     env.Append(CCFLAGS = '-g')
 
 if 'install' in COMMAND_LINE_TARGETS:

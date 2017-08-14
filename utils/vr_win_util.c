@@ -52,7 +52,7 @@ print_and_get_error_code()
     DWORD ret = FormatMessage(flags, NULL, error, lang_id, message, 0, NULL);
 
     if (ret != 0) {
-        printf("Error: %ws [%d]\r\n", message, error);
+        printf("Error: %s [%d]\r\n", message, error);
         LocalFree(message);
     } else {
         printf("Error: [%d]\r\n", error);
