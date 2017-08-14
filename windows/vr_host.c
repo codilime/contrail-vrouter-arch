@@ -11,6 +11,8 @@
 #define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
 
 #define VP_DEFAULT_INITIAL_TTL 64
+// CONTEXT_SIZE is sizeof(struct vr_packet) rounded up to the nearest multiple of MEMORY_ALLOCATION_ALIGNMENT
+#define CONTEXT_SIZE (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * MEMORY_ALLOCATION_ALIGNMENT)
 
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
@@ -172,7 +174,7 @@ free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
 
     if (pkt->vp_ref_cnt == 0) {
 
-        NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
+        NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
 
         if (IS_OWNED(nbl)) {
             if (IS_CLONE(nbl))
@@ -292,7 +294,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
 
 fail:
     if (pkt)
-        NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
+        NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
     if (nbl)
         free_created_nbl(nbl, allocation_tag);
     return NULL;
@@ -418,7 +420,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    NdisAllocateNetBufferListContext(nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
     struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (!pkt)
         return NULL;
@@ -473,7 +475,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
+    NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
     return NULL;
 }
 
@@ -536,7 +538,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
     if (new_nbl == NULL)
         goto cleanup;
 
-    NdisAllocateNetBufferListContext(new_nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(new_nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
     struct vr_packet* npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(new_nbl);
     *npkt = *pkt;
     pkt = npkt;
@@ -608,7 +610,7 @@ win_pclone(struct vr_packet *pkt)
     if (nbl == NULL)
         return NULL;
 
-    NdisAllocateNetBufferListContext(nbl, sizeof(struct vr_packet), 0, SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
     struct vr_packet *npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (npkt == NULL)
         goto cleanup_nbl;
@@ -633,7 +635,7 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 
 cleanup_pkt:
-    NdisFreeNetBufferListContext(nbl, sizeof(struct vr_packet));
+    NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
 
 cleanup_nbl:
     free_cloned_nbl(nbl);
