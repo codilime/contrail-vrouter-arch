@@ -32,7 +32,7 @@
 #include <nl_util.h>
 #include "vr_ksync_defs.h"
 
-char* ether_ntoa(unsigned char* etheraddr);
+char* ether_ntoa(const struct ether_addr *addr);
 int gettimeofday(struct timeval * tp, struct timezone * tzp);
 #define CLEAN_SCREEN            "cls"
 #else
@@ -1675,7 +1675,7 @@ flow_table_map(vr_flow_req *req)
 #if defined(_WINDOWS)
 
         struct mem_wrapper sharedMem;
-        LPDWORD bRetur;
+        DWORD bRetur;
 
         HANDLE hPipe = CreateFile(KSYNC_PATH,
 

@@ -471,8 +471,13 @@ vrouter_exit(bool soft_reset)
     }
 
     /* This is necessary on operating systems that don't
-     * unload the binary on exit*/
-    memset(&router, 0, sizeof(router));
+     * unload the binary on exit.
+     * When soft reset is happening we must not reinitialize
+     * vrouter struct.
+     */
+    if (!soft_reset) {
+        memset(&router, 0, sizeof(router));
+    }
 
     return;
 }

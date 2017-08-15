@@ -184,6 +184,7 @@ KsyncDispatchWrite(PDEVICE_OBJECT DriverObject, PIRP Irp)
             goto failure;
 
         ksync_response->header.type = KSYNC_RESPONSE_DONE;
+        ksync_response->header.seq = msg_seq;
         ksync_response->header.len = 0;
 
         KsyncAppendResponse(ctx, ksync_response);
