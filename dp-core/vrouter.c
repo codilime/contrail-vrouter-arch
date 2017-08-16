@@ -195,7 +195,7 @@ int vr_use_linux_br = 1; /* Xen */
 #endif
 #elif defined(__FreeBSD__)
 int vr_perfp = 0;
-#elif defined(_WINDOWS)
+#elif defined(_WIN32)
 int vr_perfr1 = 0;
 int vr_perfr2 = 0;
 int vr_perfr3 = 0;
