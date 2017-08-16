@@ -34,7 +34,6 @@
 #include "vr_nexthop.h"
 #include "vr_os.h"
 #include "nl_util.h"
-#include "vr_utils_temp.h"
 
 static int8_t src_mac[6], dst_mac[6];
 static uint16_t sport, dport;

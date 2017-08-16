@@ -95,18 +95,13 @@ typedef unsigned int __u32;
 #endif /* __FreeBSD__ */
 #if defined(_WIN32)
 #include "windows_builtins.h"
+#include "netlink.h"
+#include "genetlink.h"
 #ifdef  __KERNEL__
 
 #pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
-#pragma warning(disable : 4057)     // difference in indirection (pointer to different type but same size, ex. unsigned char* and int8_t*)
-#pragma warning(disable : 4100)     // unreferenced formal parameter (used a lot in dp-core)
-#pragma warning(disable : 4200)     // nonstandard extension used: zero-sized array in struct/union (it exist in gcc and msvc)
 #pragma warning(disable : 4242)     // '=': conversion, possible loss of data
 #pragma warning(disable : 4244)     // same as above
-#pragma warning(disable : 4267)     // same as above
-#pragma warning(disable : 4389)     // '==': signed/unsigned mismatch
-#pragma warning(disable : 4701)     // potentially uninitialized local variable used
-#pragma warning(disable : 4706)     // assignment within conditional expression
 
 #endif /* __KERNEL__ */
 #endif /* _WIN32 */

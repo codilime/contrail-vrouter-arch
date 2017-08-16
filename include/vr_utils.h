@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#include <vr_utils_temp.h>
+#include "vr_os.h"
 
 struct vn_if {
     char if_name[IFNAMSIZ];
@@ -27,6 +27,11 @@ struct vr_util_flags {
     char *vuf_flag_symbol;
     char *vuf_flag_string;
 };
+
+#ifdef _WINDOWS
+extern struct ether_addr *ether_aton(const char *asc);
+extern char *ether_ntoa(const struct ether_addr *addr);
+#endif
 
 #ifdef __cplusplus
 }

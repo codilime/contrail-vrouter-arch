@@ -12,7 +12,6 @@ extern "C" {
 
 #define VR_OID_SOURCE	0x00000001
 #define VR_AGENT_SOURCE	0x00000002
-#define NLA_HDRLEN      4
 #define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
 #define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)
 
@@ -55,25 +54,6 @@ struct vr_assoc {
 
 /* Extracts interface name from provided friendly name and stores it in provided `name` buffer. */
 NDIS_STATUS vr_get_name_from_friendly_name(NDIS_IF_COUNTED_STRING friendly, char *name, size_t name_buffer_size);
-
-struct nlattr {
-    UINT16           nla_len;
-    UINT16           nla_type;
-};
-
-struct nlmsghdr {
-    UINT32           nlmsg_len;      /* Length of message including header */
-    UINT16           nlmsg_type;     /* Message content */
-    UINT16           nlmsg_flags;    /* Additional flags */
-    UINT32           nlmsg_seq;      /* Sequence number */
-    UINT32           nlmsg_pid;      /* Sending process port ID */
-};
-
-struct genlmsghdr {
-    UINT8    cmd;
-    UINT8    version;
-    UINT16   reserved;
-};
 
 NTSTATUS vr_assoc_set_string(struct vr_assoc *entry, const char* new_assoc_string);
 

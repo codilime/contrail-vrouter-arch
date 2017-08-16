@@ -1,14 +1,14 @@
-#ifndef __VR_COMPILER_H__
-#define __VR_COMPILER_H__
+#ifndef __VR_COMMON_H__
+#define __VR_COMMON_H__
 
-#if defined(_WINDOWS)
+#if defined(_WIN32)
 
 #include <basetsd.h>
 #include <errno.h>
 
 #ifdef __KERNEL__
 
-#include <Wdm.h>
+#include <Ndis.h>
 #include "vr_windows.h"
 
 typedef BOOLEAN bool;
@@ -25,8 +25,9 @@ typedef BOOLEAN bool;
 
 #else /* __KERNEL__ */
 
-#include <winsock2.h>
-#include <windows.h>
+#include <Winsock2.h>
+#include <Windows.h>
+#include <Ws2tcpip.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -98,4 +99,4 @@ struct iovec {
 
 #endif /* _WINDOWS */
 
-#endif /* __VR_COMPILER_H__ */
+#endif /* __VR_COMMON_H__ */

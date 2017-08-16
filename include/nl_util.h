@@ -12,7 +12,6 @@ extern "C" {
 
 #include "vr_utils.h"
 #include "vr_response.h"
-#include "vr_utils_temp.h"
 #include "vr_ksync_defs.h"
 
 extern struct nl_sandesh_callbacks nl_cb;

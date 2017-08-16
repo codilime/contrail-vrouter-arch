@@ -9,8 +9,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#include "vr_os.h"
 #include "ini_parser.h"
-#include "vr_utils_temp.h"
 
 #ifdef __GNUC__
 #include <unistd.h>

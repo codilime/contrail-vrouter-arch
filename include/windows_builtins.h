@@ -1,6 +1,5 @@
 #pragma once
 
-#include "vr_common.h"
 #include <intrin.h>
 
 #pragma intrinsic(_ReadWriteBarrier)

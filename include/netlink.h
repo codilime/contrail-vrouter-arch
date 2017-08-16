@@ -6,6 +6,7 @@
  * over raw socket (or other type of socket) on BSD system where Netlink
  * itself is not implemented. It is not part of system as in case of Linux.
  */
+#include "vr_common.h"
 #include <sys/types.h>
 
 /* Only supported via "fake implementation" */
@@ -79,7 +80,6 @@ struct nlattr {
 #define NLA_ALIGN(len)  (((len) + NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
 #define NLA_HDRLEN  ((int) NLA_ALIGN(sizeof(struct nlattr)))
 #define GENL_HDRLEN     NLMSG_ALIGN(sizeof(struct genlmsghdr))
-#define GENL_ID_CTRL 0x10
 #ifdef _WINDOWS
 #define IFNAMSIZ 32
 #else
@@ -87,11 +87,5 @@ struct nlattr {
 #endif
 #define AF_BRIDGE 7
 #define AF_NETLINK 0
-
-struct genlmsghdr {
-    UINT8    cmd;
-    UINT8    version;
-    UINT16   reserved;
-};
 
 #endif /* FAKE_NETLINK_H */
