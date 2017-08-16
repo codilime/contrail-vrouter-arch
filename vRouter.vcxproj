@@ -315,7 +315,7 @@
     <ClInclude Include="include\vr_bitmap.h" />
     <ClInclude Include="include\vr_bridge.h" />
     <ClInclude Include="include\vr_btable.h" />
-    <ClInclude Include="include\vr_common.h" />
+    <ClInclude Include="include\windows_types.h" />
     <ClInclude Include="include\vr_datapath.h" />
     <ClInclude Include="include\vr_defs.h" />
     <ClInclude Include="include\vr_flow.h" />

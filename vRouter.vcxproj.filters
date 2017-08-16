@@ -136,7 +136,7 @@
     <ClInclude Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_common.h">
+    <ClInclude Include="include\windows_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

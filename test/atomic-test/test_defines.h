@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "vr_common.h"
+#include "windows_types.h"
 #include "windows_builtins.h"
 
 #define ITERATIONS 1000000U
