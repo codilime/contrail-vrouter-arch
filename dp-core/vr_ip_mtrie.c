@@ -868,7 +868,7 @@ static struct vr_nexthop *
 __mtrie_lookup(struct vr_route_req *rt, struct ip_bucket *bkt, unsigned int level)
 {
     unsigned int i, limit, index;
-    uint64_t ptr;
+    uintptr_t ptr;
 
     struct ip_bucket_entry *ent;
     struct mtrie_bkt_info *ip_bkt_info;
@@ -942,7 +942,7 @@ static struct vr_nexthop *
 mtrie_lookup(unsigned int vrf_id, struct vr_route_req *rt)
 {
     unsigned int level = 0;
-    uint64_t ptr;
+    uintptr_t ptr;
 
     struct ip_mtrie *table;
     struct ip_bucket *bkt;

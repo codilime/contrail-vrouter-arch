@@ -69,12 +69,12 @@ unsigned int vr_trap_flow(struct vrouter *, struct vr_flow_entry *,
 
 void get_random_bytes(void *buf, int nbytes);
 
-#if defined(__FreeBSD__) || defined(_WINDOWS)
+#if defined(__FreeBSD__) || defined(_WIN32)
 uint32_t
 jhash(void *key, uint32_t length, uint32_t initval);
 #endif
 
-#if defined(__FreeBSD__) || defined(_WINDOWS)
+#if defined(__FreeBSD__) || defined(_WIN32)
 uint32_t
 jhash(void *key, uint32_t length, uint32_t initval)
 {

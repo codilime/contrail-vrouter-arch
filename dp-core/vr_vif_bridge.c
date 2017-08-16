@@ -75,8 +75,6 @@ static void
 vif_bridge_free(vr_htable_t htable, vr_hentry_t *hentry,
         unsigned int index, void *data)
 {
-    UNREFERENCED_PARAMETER(index);
-    UNREFERENCED_PARAMETER(data);
     struct vif_bridge_entry *be = (struct vif_bridge_entry *)hentry;
 
     if (!be)

@@ -119,9 +119,9 @@ int vr_perfs = 1;    /* segmentation in software */
 #elif defined(__FreeBSD__)
 int vr_perfr = 0;    /* GRO */
 int vr_perfs = 0;    /* segmentation in software */
-#elif defined(_WINDOWS)
-int vr_perfr = 0;    /* WARNING: NOT TESTED */
-int vr_perfs = 0;    /* WARNING: NOT TESTED */
+#elif defined(_WIN32)
+int vr_perfr = 0;
+int vr_perfs = 0;
 #endif
 
 /*
@@ -138,9 +138,9 @@ int vr_to_vm_mss_adj = 1;   /* adjust TCP MSS on packet sent to VM */
 #elif defined(__FreeBSD__)
 int vr_from_vm_mss_adj = 0; /* adjust TCP MSS on packets from VM */
 int vr_to_vm_mss_adj = 0;   /* adjust TCP MSS on packet sent to VM */
-#elif defined(_WINDOWS)
-int vr_from_vm_mss_adj = 0; /* WARNING: NOT TESTED */
-int vr_to_vm_mss_adj = 0;   /* WARNING: NOT TESTED */
+#elif defined(_WIN32)
+int vr_from_vm_mss_adj = 0;
+int vr_to_vm_mss_adj = 0;
 #endif
 /*
  * Following sysctls are to enable RPS. Based on empirical results,
@@ -196,10 +196,10 @@ int vr_use_linux_br = 1; /* Xen */
 #elif defined(__FreeBSD__)
 int vr_perfp = 0;
 #elif defined(_WINDOWS)
-int vr_perfr1 = 0;       /* WARNING: NOT TESTED */
-int vr_perfr2 = 0;       /* WARNING: NOT TESTED */
-int vr_perfr3 = 0;       /* WARNING: NOT TESTED */
-int vr_perfp = 0;        /* WARNING: NOT TESTED */
+int vr_perfr1 = 0;
+int vr_perfr2 = 0;
+int vr_perfr3 = 0;
+int vr_perfp = 0;
 #endif
 /*
  * Following sysctls can be set if vrouter shouldn't pick a CPU for RPS
@@ -258,14 +258,13 @@ vr_module_debug_dump(void)
 struct vrouter *
 vrouter_get(unsigned int vr_id)
 {
-    UNREFERENCED_PARAMETER(vr_id);
     return &router;
 }
 
 unsigned int
-vrouter_generation_num_get(struct vrouter *localRouter)
+vrouter_generation_num_get(struct vrouter *router)
 {
-    return ++localRouter->vr_generation_num;
+    return ++router->vr_generation_num;
 }
 
 static void
@@ -293,7 +292,7 @@ vrouter_ops_get(void)
     if (!req)
         return NULL;
 
-    req->vo_build_info = vr_zalloc((unsigned int)strlen(ContrailBuildInfo),
+    req->vo_build_info = vr_zalloc(strlen(ContrailBuildInfo),
             VR_BUILD_INFO_OBJECT);
     if (!req->vo_build_info) {
         vr_free(req, VR_VROUTER_REQ_OBJECT);
@@ -307,7 +306,7 @@ void
 vrouter_ops_get_process(void *s_req)
 {
     int ret = 0;
-    struct vrouter *localRouter;
+    struct vrouter *router;
     vrouter_ops *req = (vrouter_ops *)s_req;
     vrouter_ops *resp = NULL;
 
@@ -316,8 +315,8 @@ vrouter_ops_get_process(void *s_req)
         goto generate_response;
     }
 
-    localRouter = vrouter_get(req->vo_rid);
-    if (!localRouter) {
+    router = vrouter_get(req->vo_rid);
+    if (!router) {
         ret = -EINVAL;
         goto generate_response;
     }
@@ -329,15 +328,15 @@ vrouter_ops_get_process(void *s_req)
     }
 
     /* Startup command line parameters */
-    resp->vo_interfaces = localRouter->vr_max_interfaces;
-    resp->vo_vrfs = localRouter->vr_max_vrfs;
-    resp->vo_mpls_labels = localRouter->vr_max_labels;
-    resp->vo_nexthops = localRouter->vr_max_nexthops;
+    resp->vo_interfaces = router->vr_max_interfaces;
+    resp->vo_vrfs = router->vr_max_vrfs;
+    resp->vo_mpls_labels = router->vr_max_labels;
+    resp->vo_nexthops = router->vr_max_nexthops;
     resp->vo_bridge_entries = vr_bridge_entries;
     resp->vo_oflow_bridge_entries = vr_bridge_oentries;
     resp->vo_flow_entries = vr_flow_entries;
     resp->vo_oflow_entries = vr_oflow_entries;
-    resp->vo_mirror_entries = localRouter->vr_max_mirror_indices;
+    resp->vo_mirror_entries = router->vr_max_mirror_indices;
 
     /* Runtime parameters adjustable via sysctl or the vrouter utility */
     resp->vo_perfr = vr_perfr;
@@ -362,19 +361,19 @@ vrouter_ops_get_process(void *s_req)
     /* Logging entries */
     resp->vo_log_level = vr_get_log_level();
     resp->vo_log_type_enable =
-        (int32_t*)vr_get_enabled_log_types((int32_t*)&resp->vo_log_type_enable_size);
+        vr_get_enabled_log_types(&resp->vo_log_type_enable_size);
 
 
     /* Used entries */
     resp->vo_flow_used_entries =
-        vr_flow_table_used_total_entries(localRouter);
+        vr_flow_table_used_total_entries(router);
     resp->vo_flow_used_oentries =
-       vr_flow_table_used_oflow_entries(localRouter);
+       vr_flow_table_used_oflow_entries(router);
 
     resp->vo_bridge_used_entries =
-        vr_bridge_table_used_total_entries(localRouter);
+        vr_bridge_table_used_total_entries(router);
     resp->vo_bridge_used_oentries =
-        vr_bridge_table_used_oflow_entries(localRouter);
+        vr_bridge_table_used_oflow_entries(router);
 
     req = resp;
 generate_response:
@@ -399,7 +398,7 @@ generate_response:
 void
 vrouter_ops_add_process(void *s_req)
 {
-    uint32_t i;
+    int i;
 
     vrouter_ops *req = (vrouter_ops *)s_req;
 
