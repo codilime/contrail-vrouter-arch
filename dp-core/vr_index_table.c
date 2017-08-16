@@ -41,7 +41,7 @@ print_ind(unsigned int index, void *data, void *udata)
     return 1;
 }
 
-#if defined(__KERNEL__)
+#ifdef __KERNEL__
 static unsigned int
 get_page_shift(void)
 {
