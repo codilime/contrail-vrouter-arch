@@ -1,6 +1,6 @@
 #include "vrouter.h"
 #include "vr_flow.h"
-#include "vr_mem.h"
+#include "windows_mem.h"
 
 #define SHARED_MEMORY_POOL_TAG 'MEMS'
 

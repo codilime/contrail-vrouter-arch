@@ -4,12 +4,15 @@
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
+#include "vr_os.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/types.h>
+
 
 #ifdef __GNUC__
 #include <stdbool.h>
@@ -18,10 +21,7 @@
 #include <unistd.h>
 #include <net/if.h>
 #else
-#include <winsock2.h>
-#include <windows.h>
-#include "wingetopt.h"
-#include "stdbool.h"
+#include "windows_getopt.h"
 #endif
 
 #if defined(__linux__)
@@ -32,7 +32,6 @@
 
 #include "vr_types.h"
 #include "vr_nexthop.h"
-#include "vr_os.h"
 #include "nl_util.h"
 
 static int8_t src_mac[6], dst_mac[6];

@@ -3,7 +3,7 @@
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
-#include "vr_devices.h"
+#include "windows_devices.h"
 
 extern PSX_SWITCH_OBJECT SxSwitchObject;
 static NDIS_MUTEX win_if_mutex;

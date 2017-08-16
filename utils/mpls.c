@@ -4,12 +4,12 @@
  *  Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
-#ifndef _WINDOWS
+#ifndef _WIN32
 #include <unistd.h>
 #include <getopt.h>
 #include <net/if.h>
 #else
-#include <wingetopt.h>
+#include <windows_getopt.h>
 #endif
 
 #include <stdio.h>

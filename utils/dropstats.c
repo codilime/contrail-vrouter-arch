@@ -27,7 +27,7 @@
 #include <net/if.h>
 #include <sys/socket.h>
 #else
-#include <wingetopt.h>
+#include <windows_getopt.h>
 #endif
 
 static struct nl_client *cl;

@@ -124,19 +124,19 @@
     <ClInclude Include="include\vr_ksync_defs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_mem.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\windows_builtins.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\vr_devices.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\windows_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\windows_devices.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\windows_mem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
