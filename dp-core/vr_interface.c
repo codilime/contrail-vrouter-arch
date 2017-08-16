@@ -1687,7 +1687,7 @@ vif_delete(struct vr_interface *vif)
 struct vr_interface *
 vif_find(struct vrouter *router, char *name)
 {
-    unsigned int i;
+    int i;
     struct vr_interface *vif;
 
     for (i = 0; i < router->vr_max_interfaces; i++) {

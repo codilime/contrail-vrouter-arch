@@ -158,7 +158,7 @@ set_entry_to_nh(struct ip_bucket_entry *entry, struct vr_nexthop *nh)
     entry->entry_nh_p = nh;
 
     /* ...and then take steps to release original */
-    if (tmp_nh && PTR_IS_NEXTHOP((uint64_t)(tmp_nh))) {
+    if (tmp_nh && PTR_IS_NEXTHOP((uintptr_t)(tmp_nh))) {
         vrouter_put_nexthop(tmp_nh);
     }
 
