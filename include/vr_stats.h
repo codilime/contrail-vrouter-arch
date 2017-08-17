@@ -12,4 +12,4 @@ extern void vr_free_stats(unsigned int);
 }
 #endif
 
-#endif
+#endif /* __VR_STATS_H__ */

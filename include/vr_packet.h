@@ -1081,8 +1081,8 @@ pkt_pull(struct vr_packet *pkt, unsigned int len)
     if (pkt->vp_data + len > pkt->vp_tail)
         return NULL;
 
-    pkt->vp_data += (unsigned short)len;
-    pkt->vp_len -= (unsigned short)len;
+    pkt->vp_data += len;
+    pkt->vp_len -= len;
 
     return pkt_data(pkt);
 }
@@ -1093,8 +1093,8 @@ pkt_pull_tail(struct vr_packet *pkt, unsigned int len)
     if (pkt->vp_tail + len > pkt->vp_end)
         return NULL;
 
-    pkt->vp_tail += (unsigned short)len;
-    pkt->vp_len += (unsigned short)len;
+    pkt->vp_tail += len;
+    pkt->vp_len += len;
 
     return pkt->vp_head + pkt->vp_tail;
 }
@@ -1105,8 +1105,8 @@ pkt_push(struct vr_packet *pkt, unsigned int len)
     if (len > pkt->vp_data)
         return NULL;
 
-    pkt->vp_data -= (unsigned short)len;
-    pkt->vp_len += (unsigned short)len;
+    pkt->vp_data -= len;
+    pkt->vp_len += len;
 
     return pkt_data(pkt);
 }

@@ -2,7 +2,6 @@
 
 #include <intrin.h>
 
-#pragma intrinsic(_ReadWriteBarrier)
 #pragma intrinsic(_InterlockedExchangeAdd16)
 #pragma intrinsic(_InterlockedCompareExchange8)
 #pragma intrinsic(_InterlockedCompareExchange16)
@@ -82,7 +81,6 @@ __forceinline bool vr_sync_bool_compare_and_swap_p(void **ptr, void *oldval, voi
 
 
 __forceinline void vr_sync_synchronize() {
-    _ReadWriteBarrier();    // compiler memory barrier (compiler level fence)
     MemoryBarrier();        // cpu memory barrier (hardware level fence)
 }
 

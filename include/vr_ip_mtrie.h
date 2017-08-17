@@ -30,7 +30,7 @@ struct ip_bucket_entry {
     union {
         struct vr_nexthop *nexthop_p;
         struct ip_bucket  *bucket_p;
-        uintptr_t      long_i;
+        uintptr_t          long_i;
     } entry_data;                  
 
     unsigned int entry_prefix_len:8;

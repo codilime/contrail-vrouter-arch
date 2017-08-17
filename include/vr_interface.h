@@ -57,7 +57,7 @@
 #define vif_is_monitoring(vif) (vif->vif_type == VIF_TYPE_MONITORING)
 
 
-#define VR_INTERFACE_NAME_LEN       32
+#define VR_INTERFACE_NAME_LEN       64
 
 #define VIF_TRANSPORT_VIRTUAL       0
 #define VIF_TRANSPORT_ETH           1

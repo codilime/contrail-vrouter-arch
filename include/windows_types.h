@@ -51,10 +51,10 @@ typedef UINT32 uint32_t;
 typedef INT64 int64_t;
 typedef UINT64 uint64_t;
 
-#define __attribute__packed__open__ __pragma(pack(push, 1))
-#define __attribute__packed__close__ __pragma(pack(pop))
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) /* do nothing */
+#define __attribute__packed__open__     __pragma(pack(push, 1))
+#define __attribute__packed__close__    __pragma(pack(pop))
+#define __attribute__format__(...)      /* this check doesn't exist under MSVC */
+#define __attribute__unused__           /* this flag doesn't exist under MSVC */
 
 #define ENETRESET       117
 #define EOPNOTSUPP      130

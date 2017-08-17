@@ -11,10 +11,10 @@
 #include "windows_types.h"
 #else
 
-#define __attribute__packed__open__ /* do nothing */
-#define __attribute__packed__close__ __attribute__((__packed__))
-#define __attribute__format__open__(...) /* do nothing */
-#define __attribute__format__close__(...) __attribute__((format(__VA_ARGS__)))
+#define __attribute__packed__open__                     /* do nothing */
+#define __attribute__packed__close__                    __attribute__((__packed__))
+#define __attribute__format__(...)                      __attribute__((format(__VA_ARGS__)))
+#define __attribute__unused__                           __attribute__((unused)))
 
 #define UNREFERENCED_PARAMETER(a) (a)
 
