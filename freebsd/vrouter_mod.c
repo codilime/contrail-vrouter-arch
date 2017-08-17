@@ -676,10 +676,9 @@ fh_get_enabled_log_types(int *size)
 }
 
 void
-fh_register_nic(struct vr_struct* vif)
+lh_register_nic(struct vr_interface* vif __attribute__((unused)))
 {
-	UNREFERENCED_PARAMETER(vif);
-	// NOOP
+    // nothing is needed to be done on freebsd
 }
 
 struct host_os freebsd_host = {
