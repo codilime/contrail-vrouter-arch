@@ -121,9 +121,6 @@
     <ClInclude Include="include\vr_stats.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\vr_ksync_defs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\windows_builtins.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -137,6 +134,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\windows_mem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\windows_ksync.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

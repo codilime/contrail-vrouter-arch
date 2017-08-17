@@ -3,7 +3,7 @@
 #include "Ntstrsafe.h"
 #include "vr_message.h"
 
-#include "vr_ksync_defs.h"
+#include "windows_ksync.h"
 
 static ULONG KsyncAllocationTag = 'NYSK';
 

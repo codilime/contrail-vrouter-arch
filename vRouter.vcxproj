@@ -332,7 +332,7 @@
     <ClInclude Include="include\vr_message.h" />
     <ClInclude Include="include\vr_mirror.h" />
     <ClInclude Include="include\vr_mpls.h" />
-    <ClInclude Include="include\vr_ksync_defs.h" />
+    <ClInclude Include="include\windows_ksync.h" />
     <ClInclude Include="include\vr_nexthop.h" />
     <ClInclude Include="include\vr_os.h" />
     <ClInclude Include="include\vr_packet.h" />
