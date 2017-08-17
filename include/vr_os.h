@@ -14,9 +14,7 @@
 #define __attribute__packed__open__                     /* do nothing */
 #define __attribute__packed__close__                    __attribute__((__packed__))
 #define __attribute__format__(...)                      __attribute__((format(__VA_ARGS__)))
-#define __attribute__unused__                           __attribute__((unused)))
-
-#define UNREFERENCED_PARAMETER(a) (a)
+#define __attribute__unused__                           __attribute__((unused))
 
 #define vr_sync_sub_and_fetch_16u(a, b)                 __sync_sub_and_fetch((uint16_t*)(a), (uint16_t)(b))
 #define vr_sync_sub_and_fetch_32u(a, b)                 __sync_sub_and_fetch((uint32_t*)(a), (uint32_t)(b))
