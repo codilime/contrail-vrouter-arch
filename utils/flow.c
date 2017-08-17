@@ -34,7 +34,6 @@
 #include "vr_os.h"
 #include "ini_parser.h"
 #include "vr_packet.h"
-#include "vr_ksync_defs.h"
 
 #ifdef _WIN32
 #include <windows_getopt.h>

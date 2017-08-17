@@ -320,7 +320,7 @@ vr_flow_stop_modify(struct vrouter *router, struct vr_flow_entry *fe)
     if (!fe)
         return;
 
-    (void)vr_sync_and_and_fetch_16u(&fe->fe_flags, (uint16_t)~VR_FLOW_FLAG_MODIFIED);
+    (void)vr_sync_and_and_fetch_16u(&fe->fe_flags, ~VR_FLOW_FLAG_MODIFIED);
     return;
 }
 
