@@ -27,6 +27,7 @@
 #define vr_sync_fetch_and_add_64u(a, b)                 __sync_fetch_and_add((uint64_t*)(a), (uint64_t)(b))
 #define vr_sync_fetch_and_or_16u(a, b)                  __sync_fetch_and_or((uint16_t*)(a), (uint16_t)(b))
 #define vr_sync_and_and_fetch_16u(a, b)                 __sync_and_and_fetch((uint16_t*)(a), (uint16_t)(b))
+#define vr_sync_and_and_fetch_32u(a, b)                 __sync_and_and_fetch((uint32_t*)(a), (uint32_t)(b))
 #define vr_sync_bool_compare_and_swap_8u(a, b, c)       __sync_bool_compare_and_swap((uint8_t*)(a), (uint8_t)(b), (uint8_t)(c))
 #define vr_sync_bool_compare_and_swap_16u(a, b, c)      __sync_bool_compare_and_swap((uint16_t*)(a), (uint16_t)(b), (uint16_t)(c))
 #define vr_sync_bool_compare_and_swap_32u(a, b, c)      __sync_bool_compare_and_swap((uint32_t*)(a), (uint32_t)(b), (uint32_t)(c))

@@ -380,7 +380,7 @@ lh_phead_len(struct vr_packet *pkt)
 }
 
 static void
-lh_get_time(unsigned long *sec, unsigned long *usec)
+lh_get_time(uint64_t *sec, uint64_t *usec)
 {
     struct timeval t;
 
