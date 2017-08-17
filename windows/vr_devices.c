@@ -1,6 +1,6 @@
 #include <Wdm.h>
 #include <Ntstrsafe.h>
-#include "vr_devices.h"
+#include "windows_devices.h"
 
 #define DEVICE_CTX(Device) ( (PVR_DEVICE_CONTEXT)((Device)->DeviceExtension) )
 #define DEVICE_CTX_CALLBACKS(Device) \

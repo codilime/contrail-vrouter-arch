@@ -25,29 +25,6 @@
 #include <netinet/ether.h>
 #endif
 
-#if defined(_WINDOWS)
-#include <stdbool.h>
-#include <wingetopt.h>
-#include <Netioapi.h>
-#include <nl_util.h>
-#include "vr_ksync_defs.h"
-
-char* ether_ntoa(const struct ether_addr *addr);
-int gettimeofday(struct timeval * tp, struct timezone * tzp);
-#define CLEAN_SCREEN            "cls"
-#else
-#define CLEAN_SCREEN            "clear"
-
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/mman.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#endif
-
 #include "vr_types.h"
 #include "vr_qos.h"
 #include "vr_flow.h"
@@ -57,6 +34,27 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp);
 #include "vr_os.h"
 #include "ini_parser.h"
 #include "vr_packet.h"
+
+#ifdef _WIN32
+#include <windows_getopt.h>
+#include <Netioapi.h>
+
+char* ether_ntoa(const struct ether_addr *addr);
+int gettimeofday(struct timeval * tp, struct timezone * tzp);
+#define CLEAN_SCREEN            "cls"
+#else
+
+#include <unistd.h>
+#include <getopt.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <sys/mman.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+
+#define CLEAN_SCREEN            "clear"
+#endif
 
 #define TABLE_FLAG_VALID        0x1
 #define MAX_FLOW_NL_MSG_BUNCH   15

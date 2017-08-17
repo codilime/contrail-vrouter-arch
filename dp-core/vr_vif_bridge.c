@@ -73,10 +73,9 @@ vif_bridge_get_index(struct vr_interface *pvif, struct vr_interface *vif)
 
 static void
 vif_bridge_free(vr_htable_t htable, vr_hentry_t *hentry,
-        unsigned int index, void *data)
+        unsigned int index __attribute__unused__,
+        void *data __attribute__unused__)
 {
-    UNREFERENCED_PARAMETER(index);
-    UNREFERENCED_PARAMETER(data);
     struct vif_bridge_entry *be = (struct vif_bridge_entry *)hentry;
 
     if (!be)

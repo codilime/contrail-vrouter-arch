@@ -3,6 +3,8 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
+#include "vr_os.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -23,14 +25,9 @@
 #include <termios.h>
 #else
 #include <conio.h>
-#include <winsock2.h>
-#include <windows.h>
 #include <Iphlpapi.h>
-#include "wingetopt.h"
-#include "stdbool.h"
+#include "windows_getopt.h"
 #endif
-
-#include "vr_os.h"
 
 #if defined(__linux__)
 #include <asm/types.h>

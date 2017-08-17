@@ -7,7 +7,36 @@
 #ifndef __VR_OS_H__
 #define __VR_OS_H__
 
-#include "vr_common.h"
+#ifdef _WIN32
+#include "windows_types.h"
+#else
+
+#define __attribute__packed__open__                     /* do nothing */
+#define __attribute__packed__close__                    __attribute__((__packed__))
+#define __attribute__format__(...)                      __attribute__((format(__VA_ARGS__)))
+#define __attribute__unused__                           __attribute__((unused)))
+
+#define UNREFERENCED_PARAMETER(a) (a)
+
+#define vr_sync_sub_and_fetch_16u(a, b)                 __sync_sub_and_fetch((uint16_t*)(a), (uint16_t)(b))
+#define vr_sync_sub_and_fetch_32u(a, b)                 __sync_sub_and_fetch((uint32_t*)(a), (uint32_t)(b))
+#define vr_sync_sub_and_fetch_32s(a, b)                 __sync_sub_and_fetch((int32_t*)(a), (int32_t)(b))
+#define vr_sync_sub_and_fetch_64u(a, b)                 __sync_sub_and_fetch((uint64_t*)(a), (uint64_t)(b))
+#define vr_sync_sub_and_fetch_64s(a, b)                 __sync_sub_and_fetch((int64_t*)(a), (int64_t)(b))
+#define vr_sync_add_and_fetch_16u(a, b)                 __sync_add_and_fetch((uint16_t*)(a), (uint16_t)(b))
+#define vr_sync_add_and_fetch_32u(a, b)                 __sync_add_and_fetch((uint32_t*)(a), (uint32_t)(b))
+#define vr_sync_fetch_and_add_32u(a, b)                 __sync_fetch_and_add((uint32_t*)(a), (uint32_t)(b))
+#define vr_sync_fetch_and_add_64u(a, b)                 __sync_fetch_and_add((uint64_t*)(a), (uint64_t)(b))
+#define vr_sync_fetch_and_or_16u(a, b)                  __sync_fetch_and_or((uint16_t*)(a), (uint16_t)(b))
+#define vr_sync_and_and_fetch_16u(a, b)                 __sync_and_and_fetch((uint16_t*)(a), (uint16_t)(b))
+#define vr_sync_bool_compare_and_swap_8u(a, b, c)       __sync_bool_compare_and_swap((uint8_t*)(a), (uint8_t)(b), (uint8_t)(c))
+#define vr_sync_bool_compare_and_swap_16u(a, b, c)      __sync_bool_compare_and_swap((uint16_t*)(a), (uint16_t)(b), (uint16_t)(c))
+#define vr_sync_bool_compare_and_swap_32u(a, b, c)      __sync_bool_compare_and_swap((uint32_t*)(a), (uint32_t)(b), (uint32_t)(c))
+#define vr_sync_bool_compare_and_swap_p(a, b, c)        __sync_bool_compare_and_swap((void**)(a), (void*)(b), (void*)(c))
+#define vr_sync_synchronize                             __sync_synchronize
+#define vr_ffs_32(a)                                    __builtin_ffs(a)
+
+#endif
 
 #if defined(__linux__)
 #ifdef __KERNEL__
@@ -95,18 +124,13 @@ typedef unsigned int __u32;
 #endif /* __FreeBSD__ */
 #if defined(_WIN32)
 #include "windows_builtins.h"
+#include "netlink.h"
+#include "genetlink.h"
 #ifdef  __KERNEL__
 
 #pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
-#pragma warning(disable : 4057)     // difference in indirection (pointer to different type but same size, ex. unsigned char* and int8_t*)
-#pragma warning(disable : 4100)     // unreferenced formal parameter (used a lot in dp-core)
-#pragma warning(disable : 4200)     // nonstandard extension used: zero-sized array in struct/union (it exist in gcc and msvc)
 #pragma warning(disable : 4242)     // '=': conversion, possible loss of data
 #pragma warning(disable : 4244)     // same as above
-#pragma warning(disable : 4267)     // same as above
-#pragma warning(disable : 4389)     // '==': signed/unsigned mismatch
-#pragma warning(disable : 4701)     // potentially uninitialized local variable used
-#pragma warning(disable : 4706)     // assignment within conditional expression
 
 #endif /* __KERNEL__ */
 #endif /* _WIN32 */

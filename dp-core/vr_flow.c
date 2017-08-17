@@ -69,12 +69,12 @@ unsigned int vr_trap_flow(struct vrouter *, struct vr_flow_entry *,
 
 void get_random_bytes(void *buf, int nbytes);
 
-#if defined(__FreeBSD__) || defined(_WINDOWS)
+#if defined(__FreeBSD__) || defined(_WIN32)
 uint32_t
 jhash(void *key, uint32_t length, uint32_t initval);
 #endif
 
-#if defined(__FreeBSD__) || defined(_WINDOWS)
+#if defined(__FreeBSD__) || defined(_WIN32)
 uint32_t
 jhash(void *key, uint32_t length, uint32_t initval)
 {
@@ -320,7 +320,7 @@ vr_flow_stop_modify(struct vrouter *router, struct vr_flow_entry *fe)
     if (!fe)
         return;
 
-    (void)vr_sync_and_and_fetch_16u(&fe->fe_flags, (uint16_t)~VR_FLOW_FLAG_MODIFIED);
+    (void)vr_sync_and_and_fetch_16u(&fe->fe_flags, ~VR_FLOW_FLAG_MODIFIED);
     return;
 }
 

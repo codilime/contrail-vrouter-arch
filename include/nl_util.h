@@ -12,8 +12,20 @@ extern "C" {
 
 #include "vr_utils.h"
 #include "vr_response.h"
-#include "vr_utils_temp.h"
-#include "vr_ksync_defs.h"
+
+#ifdef _WIN32
+#include "windows_ksync.h"
+#endif
+
+#define NL_RESP_DEFAULT_SIZE        512
+#define NL_MSG_DEFAULT_SIZE         4096
+
+#define NL_MSG_TYPE_ERROR           0
+#define NL_MSG_TYPE_DONE            1
+#define NL_MSG_TYPE_GEN_CTRL        2
+#define NL_MSG_TYPE_FMLY            3
+
+#define VR_NETLINK_PROTO_DEFAULT    0xFFFFFFFF
 
 extern struct nl_sandesh_callbacks nl_cb;
 
@@ -52,16 +64,22 @@ struct nl_client {
     struct sockaddr *cl_sa;
     uint32_t cl_sa_len;
 
-#ifdef _WINDOWS
+#ifdef _WIN32
     // Handle for named pipe used by Ksync
     HANDLE cl_win_pipe;
 #endif
 };
 
+#define GENL_FAMILY_NAME_LEN            16
+
 struct genl_ctrl_message {
     int family_id;
     char family_name[GENL_FAMILY_NAME_LEN];
 };
+
+#define NLA_DATA(nla)                   ((char *)nla + NLA_HDRLEN)
+#define NLA_LEN(nla)                    (nla->nla_len - NLA_HDRLEN)
+#define GENLMSG_DATA(buf)               ((char *)buf + GENL_HDRLEN)
 
 struct nl_sandesh_callbacks {
     void (*vrouter_ops_process)(void *);

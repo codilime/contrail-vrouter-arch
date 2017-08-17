@@ -1,14 +1,13 @@
 #pragma once
 
-#include "vr_common.h"
 #include <intrin.h>
 
-#pragma intrinsic(_ReadWriteBarrier)
 #pragma intrinsic(_InterlockedExchangeAdd16)
 #pragma intrinsic(_InterlockedCompareExchange8)
 #pragma intrinsic(_InterlockedCompareExchange16)
 #pragma intrinsic(_InterlockedCompareExchange)
 #pragma intrinsic(_InterlockedCompareExchangePointer)
+#pragma intrinsic(_ReadWriteBarrier)
 #pragma intrinsic(_BitScanForward)
 
 

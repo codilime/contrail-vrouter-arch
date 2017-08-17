@@ -12,7 +12,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
-#ifndef _WINDOWS
+#ifndef _WIN32
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/types.h>
@@ -26,7 +26,7 @@
 #include <net/ethernet.h>
 #endif
 #else
-#include <wingetopt.h>
+#include <windows_getopt.h>
 #endif
 
 #include "vr_types.h"

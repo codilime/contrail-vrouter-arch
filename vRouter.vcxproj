@@ -311,11 +311,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.h" />
+    <ClInclude Include="include\genetlink.h" />
+    <ClInclude Include="include\netlink.h" />
     <ClInclude Include="include\vrouter.h" />
     <ClInclude Include="include\vr_bitmap.h" />
     <ClInclude Include="include\vr_bridge.h" />
     <ClInclude Include="include\vr_btable.h" />
-    <ClInclude Include="include\vr_common.h" />
+    <ClInclude Include="include\windows_types.h" />
     <ClInclude Include="include\vr_datapath.h" />
     <ClInclude Include="include\vr_defs.h" />
     <ClInclude Include="include\vr_flow.h" />
@@ -326,11 +328,11 @@
     <ClInclude Include="include\vr_index_table.h" />
     <ClInclude Include="include\vr_interface.h" />
     <ClInclude Include="include\vr_ip_mtrie.h" />
-    <ClInclude Include="include\vr_mem.h" />
+    <ClInclude Include="include\windows_mem.h" />
     <ClInclude Include="include\vr_message.h" />
     <ClInclude Include="include\vr_mirror.h" />
     <ClInclude Include="include\vr_mpls.h" />
-    <ClInclude Include="include\vr_ksync_defs.h" />
+    <ClInclude Include="include\windows_ksync.h" />
     <ClInclude Include="include\vr_nexthop.h" />
     <ClInclude Include="include\vr_os.h" />
     <ClInclude Include="include\vr_packet.h" />
@@ -342,7 +344,7 @@
     <ClInclude Include="include\vr_stats.h" />
     <ClInclude Include="include\vr_vxlan.h" />
     <ClInclude Include="include\vr_windows.h" />
-    <ClInclude Include="include\vr_devices.h" />
+    <ClInclude Include="include\windows_devices.h" />
     <ClInclude Include="include\windows_builtins.h" />
     <ClInclude Include="windows\include\windows_builtins.h" />
     <ClInclude Include="windows\precomp.h" />
