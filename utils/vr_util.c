@@ -653,8 +653,9 @@ vr_send_interface_delete(struct nl_client *cl, unsigned int router_id,
 
 int
 vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
-        int os_index, int vif_index, int vif_xconnect_index, int vif_type,
-        unsigned int vrf, unsigned int flags, int8_t *vif_mac, int8_t vif_transport)
+    int os_index, int vif_index, int vif_xconnect_index, int vif_type,
+    unsigned int vrf, unsigned int flags, int8_t *vif_mac, int8_t vif_transport,
+    const char* guid)
 {
     int platform;
     vr_interface_req req;
@@ -685,12 +686,18 @@ vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
     }
 
 #ifdef _WINDOWS
-    NET_LUID luid;
-    GUID guid;
-    ConvertInterfaceNameToLuidA(req.vifr_name, &luid);
-    ConvertInterfaceLuidToGuid(&luid, &guid);
-    req.vifr_if_guid = (uint8_t*) &guid;
-    req.vifr_if_guid_size = sizeof(guid);
+    if (guid == NULL)
+    {
+        NET_LUID system_luid;
+        GUID system_guid;
+        ConvertInterfaceNameToLuidA(req.vifr_name, &system_luid);
+        ConvertInterfaceLuidToGuid(&system_luid, &system_guid);
+        req.vifr_if_guid = (uint8_t*)&system_guid;
+        req.vifr_if_guid_size = sizeof(system_guid);
+    } else {
+        req.vifr_if_guid = (uint8_t*)guid;
+        req.vifr_if_guid_size = strlen(guid);
+    }
 #endif
 
     return vr_sendmsg(cl, &req, "vr_interface_req");

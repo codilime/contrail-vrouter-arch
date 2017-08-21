@@ -1251,11 +1251,37 @@ win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
         if (element->NicType == NdisSwitchNicTypeExternal && element->NicIndex == 0)
             continue;
 
-        if (memcmp(&element->NetCfgInstanceId, vifr->vifr_if_guid, sizeof(element->NetCfgInstanceId)) == 0) {
-            vif->vif_port = element->PortId;
-            vif->vif_nic = element->NicIndex;
+        if (element->NicType == NdisSwitchNicTypeExternal || element->NicType == NdisSwitchNicTypeInternal)
+        {
+            if (memcmp(&element->NetCfgInstanceId, vifr->vifr_if_guid, sizeof(element->NetCfgInstanceId)) == 0)
+            {
+                vif->vif_port = element->PortId;
+                vif->vif_nic = element->NicIndex;
 
-            break;
+                break;
+            }
+        }
+        else if (element->NicType == NdisSwitchNicTypeEmulated || element->NicType == NdisSwitchNicTypeSynthetic)
+        {
+            ANSI_STRING ansi_name;
+            ansi_name.Buffer = vifr->vifr_if_guid;
+            ansi_name.Length = vifr->vifr_if_guid_size + 1; // For NULL character
+            ansi_name.MaximumLength = vifr->vifr_if_guid_size + 1; // For NULL character
+
+            UNICODE_STRING unicode_name;
+            RtlAnsiStringToUnicodeString(&unicode_name, &ansi_name, TRUE);
+
+            if (memcmp(unicode_name.Buffer, element->NicName.String, (element->NicName.Length < unicode_name.Length ? element->NicName.Length : unicode_name.Length)) == 0)
+            {
+                vif->vif_port = element->PortId;
+                vif->vif_nic = element->NicIndex;
+
+                RtlFreeUnicodeString(&unicode_name);
+
+                break;
+            } else {
+                RtlFreeUnicodeString(&unicode_name);
+            }
         }
     }
 
