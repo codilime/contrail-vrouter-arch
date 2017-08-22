@@ -1,5 +1,10 @@
-#ifndef __VR_MEM_H__
-#define __VR_MEM_H__
+/*
+ * windows_ksync.h -- definitions used in shared memmory handling on Windows
+ *
+ * Copyright (c) 2017 Juniper Networks, Inc. All rights reserved.
+ */
+#ifndef __WINDOWS_MEM_H__
+#define __WINDOWS_MEM_H__
 
 #include "vr_windows.h"
 
@@ -11,4 +16,4 @@ memory_init(void);
 void
 memory_exit(void);
 
-#endif
+#endif /* __WINDOWS_MEM_H__ */
