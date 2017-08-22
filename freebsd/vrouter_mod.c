@@ -676,7 +676,8 @@ fh_get_enabled_log_types(int *size)
 }
 
 void
-lh_register_nic(struct vr_interface* vif)
+lh_register_nic(struct vr_interface* vif __attribute__unused__,
+                vr_interface_req* vifr __attribute__unused__)
 {
     // nothing is needed to be done on freebsd
 }
