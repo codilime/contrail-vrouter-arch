@@ -72,7 +72,6 @@ DriverEntry(
     fChars.CancelOidRequestHandler = SxNdisCancelOidRequest;
     
     fChars.NetPnPEventHandler = SxNdisNetPnPEvent;
-    fChars.StatusHandler = NULL;
     
     NdisAllocateSpinLock(&SxExtensionListLock);
     InitializeListHead(&SxExtensionList);
