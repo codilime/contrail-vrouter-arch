@@ -107,6 +107,7 @@ buffer sandesh vr_interface_req {
     51: byte        vifr_transport;
     52: list<i32>   vifr_fat_flow_protocol_port;
     53: i16         vifr_qos_map_index;
+    54: list<byte>  vifr_if_guid;
 }
 
 buffer sandesh vr_vxlan_req {

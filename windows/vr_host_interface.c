@@ -45,19 +45,7 @@ win_if_add_tap(struct vr_interface* vif)
 static int
 win_if_del(struct vr_interface *vif)
 {
-    struct vr_assoc *assoc_by_name;
-    struct vr_assoc *assoc_by_ids;
-
-    assoc_by_ids = vr_find_assoc_ids(vif->vif_port, vif->vif_nic);
-    if (assoc_by_ids != NULL) {
-        assoc_by_ids->interface = NULL;
-
-        assoc_by_name = vr_find_assoc_by_name(assoc_by_ids->string);
-        if (assoc_by_name != NULL) {
-            assoc_by_name->interface = NULL;
-        }
-    }
-
+    UNREFERENCED_PARAMETER(vif);
     return 0;
 }
 
@@ -233,15 +221,6 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
         nbl,
         NDIS_DEFAULT_PORT_NUMBER,
         0);
-
-    if (pkt->vp_nbl_free_after_send) {
-        PNET_BUFFER_LIST parent = pkt->vp_nbl_free_after_send;
-        ASSERTMSG("Encapsulated packet is multicasted", parent->ChildRefCount == 1);
-
-        free_nbl(parent, SxExtAllocationTag);
-    }
-
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 
     return 0;
 }

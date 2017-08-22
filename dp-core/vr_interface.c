@@ -1934,7 +1934,7 @@ generate_resp:
         if (ret)
             vif_free(vif);
         else
-            vr_register_nic(vif);
+            vr_register_nic(vif, req);
     }
 
     return ret;

@@ -11,6 +11,8 @@
 #define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
 
 #define VP_DEFAULT_INITIAL_TTL 64
+// CONTEXT_SIZE is sizeof(struct vr_packet) rounded up to the nearest multiple of MEMORY_ALLOCATION_ALIGNMENT
+#define CONTEXT_SIZE (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * MEMORY_ALLOCATION_ALIGNMENT)
 
 /* Defined in windows/vrouter_mod.c */
 extern PSX_SWITCH_OBJECT SxSwitchObject;
@@ -166,13 +168,27 @@ free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
     ASSERT(nbl != NULL);
     ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
-    if (IS_OWNED(nbl))
-        if (IS_CLONE(nbl))
-            free_cloned_nbl(nbl);
+    struct vr_packet* pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+
+    pkt->vp_ref_cnt--;
+
+    if (pkt->vp_ref_cnt == 0) {
+
+        NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
+
+        if (IS_OWNED(nbl)) {
+            if (IS_CLONE(nbl))
+                free_cloned_nbl(nbl);
+            else
+                free_created_nbl(nbl, data_allocation_tag);
+
+            PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
+            if (parent)
+                free_nbl(parent, data_allocation_tag);
+        }
         else
-            free_created_nbl(nbl, data_allocation_tag);
-    else
-        complete_received_nbl(nbl);
+            complete_received_nbl(nbl);
+    }
 }
 
 static void
@@ -185,8 +201,6 @@ free_associated_nbl(struct vr_packet* pkt)
     ASSERT(nbl != NULL);
 
     free_nbl(nbl, pkt->vp_win_data_tag);
-
-    pkt->vp_net_buffer_list = NULL;
 }
 
 void
@@ -280,7 +294,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
 
 fail:
     if (pkt)
-        ExFreePoolWithTag(pkt, SxExtAllocationTag);
+        NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
     if (nbl)
         free_created_nbl(nbl, allocation_tag);
     return NULL;
@@ -292,7 +306,6 @@ win_free_packet(struct vr_packet *pkt)
     ASSERT(pkt != NULL);
 
     free_associated_nbl(pkt);
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 }
 
 void
@@ -407,13 +420,15 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    struct vr_packet *pkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
+    struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (!pkt)
         return NULL;
 
     RtlZeroMemory(pkt, sizeof(struct vr_packet));
 
     pkt->vp_net_buffer_list = nbl;
+    pkt->vp_ref_cnt = 1;
     pkt->vp_cpu = (unsigned char)win_get_cpu();
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
@@ -460,17 +475,8 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
+    NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
     return NULL;
-}
-
-void
-win_pfree_unaccounted(struct vr_packet *pkt)
-{
-    ASSERT(pkt != NULL);
-
-    free_associated_nbl(pkt);
-    ExFreePoolWithTag(pkt, SxExtAllocationTag);
 }
 
 static struct vr_packet *
@@ -529,12 +535,17 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
         return NULL;
 
     PNET_BUFFER_LIST new_nbl = clone_nbl(original_nbl);
-
     if (new_nbl == NULL)
         goto cleanup;
 
+    NdisAllocateNetBufferListContext(new_nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
+    struct vr_packet* npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(new_nbl);
+    *npkt = *pkt;
+    pkt = npkt;
+    pkt->vp_ref_cnt = 1;
+
     pkt->vp_net_buffer_list = new_nbl;
-    pkt->vp_nbl_free_after_send = original_nbl;
+    // pkt->vp_ref_cnt is increased because new data is referencing this packet, but also decreased because we don't keep the parent any longer (logically)
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(new_nbl);
     if (nb == NULL)
@@ -599,10 +610,14 @@ win_pclone(struct vr_packet *pkt)
     if (nbl == NULL)
         return NULL;
 
-    struct vr_packet* npkt = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_packet), SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
+    struct vr_packet *npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (npkt == NULL)
         goto cleanup_nbl;
     *npkt = *pkt;
+
+    pkt->vp_ref_cnt++;
+    npkt->vp_ref_cnt = 1;
 
     npkt->vp_net_buffer_list = nbl;
 
@@ -620,7 +635,7 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 
 cleanup_pkt:
-    ExFreePoolWithTag(npkt, SxExtAllocationTag);
+    NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
 
 cleanup_nbl:
     free_cloned_nbl(nbl);
@@ -1218,44 +1233,61 @@ win_soft_reset(struct vrouter *router)
 }
 
 static void
-win_register_nic(struct vr_interface* vif)
+win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
 {
-    struct vr_assoc* assoc;
-    ASSERT(vif != NULL);
+    PNDIS_SWITCH_NIC_ARRAY array;
 
-    switch (vif->vif_type) {
-    case VIF_TYPE_PHYSICAL:
-        assoc = win_get_physical();
-        vif->vif_port = assoc->port_id;
-        vif->vif_nic = assoc->nic_index;
+    if (vifr->vifr_if_guid == NULL)
+        return; // Bad Sandesh version on utility tool
 
-        break;
+    win_if_lock();
 
-    case VIF_TYPE_GATEWAY:
-    case VIF_TYPE_HOST:
-    case VIF_TYPE_VIRTUAL:
-        assoc = vr_get_assoc_by_name(vif->vif_name);
+    SxLibGetNicArrayUnsafe(SxSwitchObject, &array);
 
-        ASSERTMSG("Failed to receive assoc entry for the vif's name", assoc != NULL);
+    for (unsigned i = 0; i < array->NumElements; i++){
+        PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
 
-        assoc->interface = vif;
+        // "Fake" interface pointing to the default interface, it's not needed.
+        if (element->NicType == NdisSwitchNicTypeExternal && element->NicIndex == 0)
+            continue;
 
-        if (assoc->port_id != 0 || assoc->nic_index != 0) { // There was already an oid request so you can get port_id, nic_index in the assoc field, so both name_map and ids_map should be updated
-            vif->vif_port = assoc->port_id;
-            vif->vif_nic = assoc->nic_index;
+        if (element->NicType == NdisSwitchNicTypeExternal || element->NicType == NdisSwitchNicTypeInternal)
+        {
+            if (memcmp(&element->NetCfgInstanceId, vifr->vifr_if_guid, sizeof(element->NetCfgInstanceId)) == 0)
+            {
+                vif->vif_port = element->PortId;
+                vif->vif_nic = element->NicIndex;
 
-            assoc = vr_get_assoc_ids(assoc->port_id, assoc->nic_index);
-            assoc->interface = vif;
+                break;
+            }
         }
-        break;
+        else if (element->NicType == NdisSwitchNicTypeEmulated || element->NicType == NdisSwitchNicTypeSynthetic)
+        {
+            ANSI_STRING ansi_name;
+            ansi_name.Buffer = vifr->vifr_if_guid;
+            ansi_name.Length = vifr->vifr_if_guid_size + 1; // For NULL character
+            ansi_name.MaximumLength = vifr->vifr_if_guid_size + 1; // For NULL character
 
-    case VIF_TYPE_AGENT:
-        /* Nothing to do */
-        break;
+            UNICODE_STRING unicode_name;
+            RtlAnsiStringToUnicodeString(&unicode_name, &ansi_name, TRUE);
 
-    default:
-        ASSERTMSG("Non-supported VIF type", FALSE);
+            if (memcmp(unicode_name.Buffer, element->NicName.String, (element->NicName.Length < unicode_name.Length ? element->NicName.Length : unicode_name.Length)) == 0)
+            {
+                vif->vif_port = element->PortId;
+                vif->vif_nic = element->NicIndex;
+
+                RtlFreeUnicodeString(&unicode_name);
+
+                break;
+            } else {
+                RtlFreeUnicodeString(&unicode_name);
+            }
+        }
     }
+
+    ExFreePoolWithTag(array, SxExtAllocationTag);
+
+    win_if_unlock();
 
     vif_attach(vif);
 }

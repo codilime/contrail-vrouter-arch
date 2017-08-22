@@ -204,7 +204,7 @@ struct host_os {
     unsigned int *(*hos_get_enabled_log_types)(int *);
     void (*hos_soft_reset)(struct vrouter *);
     int (*hos_is_frag_limit_exceeded)(void);
-    void (*hos_register_nic)(struct vr_interface* vif);
+    void (*hos_register_nic)(struct vr_interface* vif, vr_interface_req* vifr);
 };
 
 #define vr_printf                       vrouter_host->hos_printf

@@ -153,9 +153,6 @@
     <ClCompile Include="windows\vrouter_mod.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="windows\vr_assoc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="windows\precompsrc2.c">
       <Filter>Source Files</Filter>
     </ClCompile>
