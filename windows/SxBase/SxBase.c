@@ -603,34 +603,6 @@ SxNdisCancelSendNetBufferLists(
 }
 
 
-//
-// FilterNetPnPEvent Function
-// http://msdn.microsoft.com/en-us/library/ff549952(v=vs.85).aspx
-//
-_Use_decl_annotations_
-NDIS_STATUS
-SxNdisNetPnPEvent(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_PNP_EVENT_NOTIFICATION NetPnPEvent
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    
-    if (NetPnPEvent->NetPnPEvent.NetEvent == NetEventSwitchActivate)
-    {   
-        //
-        // Switch Activation must be passed along regardless of successful
-        // initialization.
-        //
-        SxExtActivateSwitch(switchObject,
-                            switchObject->ExtensionContext);
-    }
-    
-    return NdisFNetPnPEvent(switchObject->NdisFilterHandle,
-                            NetPnPEvent);
-}
-
-
 NDIS_STATUS
 SxpNdisProcessSetOid(
     _In_ PSX_SWITCH_OBJECT Switch,

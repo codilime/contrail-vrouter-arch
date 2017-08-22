@@ -346,17 +346,6 @@ SxExtDeleteSwitch(
     SxSwitchObject = NULL;
 }
 
-VOID
-SxExtActivateSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtActivateSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-}
-
 NDIS_STATUS
 SxExtRestartSwitch(
     _In_ PSX_SWITCH_OBJECT Switch,

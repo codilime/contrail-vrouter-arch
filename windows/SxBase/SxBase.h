@@ -123,10 +123,6 @@ FILTER_RECEIVE_NET_BUFFER_LISTS SxNdisReceiveNetBufferLists;
 
 FILTER_CANCEL_SEND_NET_BUFFER_LISTS SxNdisCancelSendNetBufferLists;
 
-FILTER_STATUS SxNdisStatus;
-
-FILTER_NET_PNP_EVENT SxNdisNetPnPEvent;
-
 VOID
 SxpNdisCompleteInternalOidRequest(
     _In_ PSX_SWITCH_OBJECT Switch,
