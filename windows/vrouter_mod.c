@@ -153,20 +153,6 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 #endif
 }
 
-NDIS_STATUS
-SxExtInitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtInitialize\r\n");
-
-    return NDIS_STATUS_SUCCESS;
-}
-
-VOID
-SxExtUninitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtUninitialize\r\n");
-}
-
 void
 SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 {

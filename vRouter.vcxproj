@@ -477,6 +477,7 @@
     <ClCompile Include="windows\vr_pkt0.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="windows\vr_win_driver.c" />
     <ClCompile Include="windows\windows_random.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>

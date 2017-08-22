@@ -19,10 +19,10 @@ Abstract:
 #include "precomp.h"
 
 ULONG SxDebugLevel;// = ~((ULONG)0);
-NDIS_HANDLE SxDriverHandle = NULL;
-NDIS_HANDLE SxDriverObject;
-NDIS_SPIN_LOCK SxExtensionListLock;
-LIST_ENTRY SxExtensionList;
+extern NDIS_HANDLE SxDriverHandle;
+extern NDIS_HANDLE SxDriverObject;
+extern NDIS_SPIN_LOCK SxExtensionListLock;
+extern LIST_ENTRY SxExtensionList;
 
 NDIS_STRING SxExtensionFriendlyName;
 NDIS_STRING SxExtensionGuid;
@@ -41,117 +41,6 @@ SxpNdisProcessMethodOid(
     _Out_ PBOOLEAN Complete,
     _Out_ PULONG BytesNeeded
     );
-
-    
-//
-// DriverEntry
-// http://msdn.microsoft.com/en-us/library/ff544113(v=VS.85).aspx
-//
-_Use_decl_annotations_
-NTSTATUS
-DriverEntry(
-    PDRIVER_OBJECT DriverObject,
-    PUNICODE_STRING RegistryPath
-    )
-{
-    NDIS_STATUS status;
-    NDIS_FILTER_DRIVER_CHARACTERISTICS fChars;
-    NDIS_STRING serviceName;
-
-    UNREFERENCED_PARAMETER(RegistryPath);
-    
-    //
-    // Initialize extension specific data.
-    //
-    status = SxExtInitialize(DriverObject);
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        goto Cleanup;
-    }
-
-    RtlInitUnicodeString(&serviceName, SxExtServiceName);
-    RtlInitUnicodeString(&SxExtensionFriendlyName, SxExtFriendlyName);
-    RtlInitUnicodeString(&SxExtensionGuid, SxExtUniqueName);
-    SxDriverObject = DriverObject;
-
-    NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
-    fChars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
-    fChars.Header.Size = sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS);
-    fChars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_2;
-    fChars.MajorNdisVersion = SxExtMajorNdisVersion;
-    fChars.MinorNdisVersion = SxExtMinorNdisVersion;
-    fChars.MajorDriverVersion = 1;
-    fChars.MinorDriverVersion = 0;
-    fChars.Flags = 0;
-    fChars.FriendlyName = SxExtensionFriendlyName;
-    fChars.UniqueName = SxExtensionGuid;
-    fChars.ServiceName = serviceName;
-    
-    fChars.SetOptionsHandler = SxNdisSetOptions;
-    fChars.SetFilterModuleOptionsHandler = SxNdisSetFilterModuleOptions;
-    
-    fChars.AttachHandler = SxNdisAttach;
-    fChars.DetachHandler = SxNdisDetach;
-    fChars.PauseHandler = SxNdisPause;
-    fChars.RestartHandler = SxNdisRestart;
-
-    fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
-    fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
-    fChars.CancelSendNetBufferListsHandler = SxNdisCancelSendNetBufferLists;
-    fChars.ReceiveNetBufferListsHandler = SxNdisReceiveNetBufferLists;
-    fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
-    
-    fChars.OidRequestHandler = SxNdisOidRequest;
-    fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
-    fChars.CancelOidRequestHandler = SxNdisCancelOidRequest;
-    
-    fChars.NetPnPEventHandler = SxNdisNetPnPEvent;
-    fChars.StatusHandler = SxNdisStatus;
-    
-    NdisAllocateSpinLock(&SxExtensionListLock);
-    InitializeListHead(&SxExtensionList);
-
-    DriverObject->DriverUnload = SxNdisUnload;
-
-    status = NdisFRegisterFilterDriver(DriverObject,
-                                       (NDIS_HANDLE)SxDriverObject,
-                                       &fChars,
-                                       &SxDriverHandle);
-
-Cleanup:
-
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        if (SxDriverHandle != NULL)
-        {
-            NdisFDeregisterFilterDriver(SxDriverHandle);
-            SxDriverHandle = NULL;
-        }
-
-        NdisFreeSpinLock(&SxExtensionListLock);
-        
-        SxExtUninitialize(DriverObject);
-    }
-
-    return status;
-}
-
-
-//
-// Unload Routine
-// http://msdn.microsoft.com/en-us/library/ff564886(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisUnload(
-    PDRIVER_OBJECT DriverObject
-    )
-{
-    SxExtUninitialize(DriverObject);
-
-    NdisFDeregisterFilterDriver(SxDriverHandle);
-    NdisFreeSpinLock(&SxExtensionListLock);
-}
 
 
 //
@@ -190,7 +79,7 @@ SxNdisSetFilterModuleOptions(
 // FilterAttach Function
 // http://msdn.microsoft.com/en-us/library/ff549905(v=VS.85).aspx
 //
-_Use_decl_annotations_
+/*_Use_decl_annotations_
 NDIS_STATUS
 SxNdisAttach(
     NDIS_HANDLE NdisFilterHandle,
@@ -307,52 +196,7 @@ Cleanup:
     DEBUGP(DL_TRACE, ("<===SxAttach: status %x\n", status));
 
     return status;
-}
-
-
-//
-// FilterDetach Function
-// http://msdn.microsoft.com/en-us/library/ff549918(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisDetach(
-    NDIS_HANDLE FilterModuleContext
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    DEBUGP(DL_TRACE, ("===>SxDetach: SxInstance %p\n", FilterModuleContext));
-
-    //
-    // The extension must be in paused state.
-    //
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
-    switchObject->ControlFlowState = SxSwitchDetached;
-    
-    KeMemoryBarrier();
-    
-    while(switchObject->PendingOidCount > 0)
-    {
-        NdisMSleep(1000);
-    }
-    
-    SxExtDeleteSwitch(switchObject, switchObject->ExtensionContext);
-
-    NdisAcquireSpinLock(&SxExtensionListLock);
-    RemoveEntryList(&switchObject->Link);
-    NdisReleaseSpinLock(&SxExtensionListLock);
-    
-    ExFreePool(switchObject);
-
-    //
-    // Alway return success.
-    //
-    DEBUGP(DL_TRACE, ("<===SxDetach Successfully\n"));
-
-    return;
-}
-
+}*/
 
 //
 // FilterRestart Function
