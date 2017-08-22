@@ -772,25 +772,6 @@ SxExtProcessNicRequestComplete(
     return 0;
 }
 
-NDIS_STATUS
-SxExtProcessNicStatus(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_STATUS_INDICATION StatusIndication,
-    _In_ NDIS_SWITCH_PORT_ID SourcePortId,
-    _In_ NDIS_SWITCH_NIC_INDEX SourceNicIndex
-)
-{
-    DbgPrint("SxExtProcessNicStatus\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(StatusIndication);
-    UNREFERENCED_PARAMETER(SourcePortId);
-    UNREFERENCED_PARAMETER(SourceNicIndex);
-
-    return 0;
-}
-
 static void
 vr_win_split_nbls_by_forwarding_type(
     PNET_BUFFER_LIST nbl,
