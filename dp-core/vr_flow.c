@@ -1062,7 +1062,7 @@ vr_flow_tcp_digest(struct vrouter *router, struct vr_flow_entry *flow_e,
         struct vr_packet *pkt, struct vr_forwarding_md *fmd)
 {
     uint16_t tcp_offset_flags;
-    unsigned int length = 0;
+    unsigned int length;
 
     struct vr_ip *iph;
     struct vr_ip6 *ip6h;
