@@ -145,6 +145,9 @@
     <ClInclude Include="include\netlink.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\windows_ndis.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">

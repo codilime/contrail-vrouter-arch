@@ -277,9 +277,9 @@ cleanup:
 }
 
 NDIS_STATUS
-SxExtCreateSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _Outptr_result_maybenull_ PNDIS_HANDLE *ExtensionContext
+vr_intialize_vrouter(
+    PSX_SWITCH_OBJECT Switch,
+    PNDIS_HANDLE *ExtensionContext
 )
 {
     DbgPrint("SxExtCreateSwitch\r\n");
@@ -346,21 +346,6 @@ SxExtDeleteSwitch(
     SxSwitchObject = NULL;
 }
 
-NDIS_STATUS
-SxExtRestartSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtRestartSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    ctx->restart = FALSE;
-
-    return 0;
-}
 
 VOID
 SxExtPauseSwitch(

@@ -202,7 +202,7 @@ Cleanup:
 // FilterRestart Function
 // http://msdn.microsoft.com/en-us/library/ff549962(v=VS.85).aspx
 //
-_Use_decl_annotations_
+/*_Use_decl_annotations_
 NDIS_STATUS
 SxNdisPause(
     NDIS_HANDLE FilterModuleContext,
@@ -234,14 +234,14 @@ SxNdisPause(
     DEBUGP(DL_TRACE, ("<===SxPause: status %x\n", NDIS_STATUS_SUCCESS));
 
     return NDIS_STATUS_SUCCESS;
-}
+}*/
 
 
 //
 // FilterPause Function
 // http://msdn.microsoft.com/en-us/library/ff549957(v=VS.85).aspx
 //
-_Use_decl_annotations_
+/*_Use_decl_annotations_
 NDIS_STATUS
 SxNdisRestart(
     NDIS_HANDLE FilterModuleContext,
@@ -274,7 +274,7 @@ SxNdisRestart(
 
 Cleanup:
     return status;
-}
+}*/
 
 
 //

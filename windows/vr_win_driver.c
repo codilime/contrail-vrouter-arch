@@ -6,12 +6,20 @@
 #include <ntintsafe.h>
 
 #include "vr_windows.h"
+#include "windows_ndis.h"
 
 NDIS_HANDLE SxDriverHandle = NULL;
 NDIS_HANDLE SxDriverObject;
 
 NDIS_SPIN_LOCK SxExtensionListLock;
 LIST_ENTRY SxExtensionList;
+
+// Function declarations
+FILTER_ATTACH vr_win_attach;
+FILTER_DETACH vr_win_detach;
+
+FILTER_PAUSE vr_win_pause;
+FILTER_RESTART vr_win_restart;
 
 void
 vr_win_uninitialize(PDRIVER_OBJECT DriverObject)
@@ -58,8 +66,8 @@ DriverEntry(
     
     fChars.AttachHandler = vr_win_attach;
     fChars.DetachHandler = vr_win_detach;
-    fChars.PauseHandler = SxNdisPause;
-    fChars.RestartHandler = SxNdisRestart;
+    fChars.PauseHandler = vr_win_pause;
+    fChars.RestartHandler = vr_win_restart;
 
     fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
     fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
@@ -227,4 +235,76 @@ vr_win_detach(
     DEBUGP(DL_TRACE, ("<===SxDetach Successfully\n"));
 
     return;
+}
+
+NDIS_STATUS
+vr_win_pause(
+    NDIS_HANDLE FilterModuleContext,
+    PNDIS_FILTER_PAUSE_PARAMETERS PauseParameters
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)(FilterModuleContext);
+
+    UNREFERENCED_PARAMETER(PauseParameters);
+
+    DbgPrint("%s: Pausing the switch\r\n");
+
+    SxExtPauseSwitch(switchObject, switchObject->ExtensionContext);
+           
+    //
+    // Set the flag that the filter is going to pause.
+    //
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
+    switchObject->DataFlowState = SxSwitchPaused;
+    
+    KeMemoryBarrier();
+    
+    while(switchObject->PendingInjectedNblCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+NDIS_STATUS
+vr_win_restart(
+    NDIS_HANDLE FilterModuleContext,
+    PNDIS_FILTER_RESTART_PARAMETERS RestartParameters
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(RestartParameters);
+
+    DbgPrint("%s: Restarting Switch\r\n", __func__);
+           
+    struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
+
+    PNDIS_SWITCH_NIC_ARRAY array;
+    SxLibGetNicArrayUnsafe(switchObject, &array);
+
+    for (unsigned i = 0; i < array->NumElements; i++){
+        PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
+        UpdateNics(element, TRUE);
+    }
+
+    ExFreePoolWithTag(array, SxExtAllocationTag);
+
+    ctx->restart = FALSE;
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        status = NDIS_STATUS_RESOURCES;
+        goto Cleanup;
+    }
+
+    ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+
+    switchObject->DataFlowState = SxSwitchRunning;
+   
+
+Cleanup:
+    return status;
 }
