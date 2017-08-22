@@ -63,7 +63,6 @@ DriverEntry(
 
     fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
     fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
-    fChars.CancelSendNetBufferListsHandler = SxNdisCancelSendNetBufferLists;
     fChars.ReceiveNetBufferListsHandler = SxNdisReceiveNetBufferLists;
     fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
     

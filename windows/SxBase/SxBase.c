@@ -571,22 +571,6 @@ SxNdisReturnNetBufferLists(
 }
 
 
-//
-// FilterCancelSendNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549915(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisCancelSendNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PVOID CancelId
-    )
-{
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    UNREFERENCED_PARAMETER(CancelId);
-}
-
-
 NDIS_STATUS
 SxpNdisProcessSetOid(
     _In_ PSX_SWITCH_OBJECT Switch,

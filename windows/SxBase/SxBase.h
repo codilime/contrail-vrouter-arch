@@ -119,8 +119,6 @@ FILTER_SEND_NET_BUFFER_LISTS_COMPLETE SxNdisSendNetBufferListsComplete;
 
 FILTER_RECEIVE_NET_BUFFER_LISTS SxNdisReceiveNetBufferLists;
 
-FILTER_CANCEL_SEND_NET_BUFFER_LISTS SxNdisCancelSendNetBufferLists;
-
 VOID
 SxpNdisCompleteInternalOidRequest(
     _In_ PSX_SWITCH_OBJECT Switch,
