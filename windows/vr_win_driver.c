@@ -69,7 +69,6 @@ DriverEntry(
     
     fChars.OidRequestHandler = SxNdisOidRequest;
     fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
-    fChars.CancelOidRequestHandler = SxNdisCancelOidRequest;
     
     NdisAllocateSpinLock(&SxExtensionListLock);
     InitializeListHead(&SxExtensionList);

@@ -360,22 +360,6 @@ Cleanup:
 
 
 //
-// FilterCancelOidRequest Function
-// http://msdn.microsoft.com/en-us/library/ff549911(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisCancelOidRequest(
-    NDIS_HANDLE FilterModuleContext,
-    PVOID RequestId
-    )
-{
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    UNREFERENCED_PARAMETER(RequestId);
-}
-
-
-//
 // FilterOidRequestComplete Function
 // http://msdn.microsoft.com/en-us/library/ff549956(v=VS.85).aspx
 //
