@@ -93,20 +93,6 @@ typedef struct _FILTER_DEVICE_EXTENSION
 //
 DRIVER_INITIALIZE DriverEntry;
 
-DRIVER_UNLOAD SxNdisUnload;
-
-FILTER_SET_OPTIONS SxNdisSetOptions;
-
-FILTER_SET_MODULE_OPTIONS SxNdisSetFilterModuleOptions;
-
-FILTER_ATTACH SxNdisAttach;
-
-FILTER_DETACH SxNdisDetach;
-
-FILTER_PAUSE SxNdisPause;
-
-FILTER_RESTART SxNdisRestart;
-
 FILTER_OID_REQUEST SxNdisOidRequest;
 
 FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;

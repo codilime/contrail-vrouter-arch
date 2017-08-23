@@ -42,38 +42,6 @@ SxpNdisProcessMethodOid(
     _Out_ PULONG BytesNeeded
     );
 
-
-//
-// FilterSetOptions Function
-// http://msdn.microsoft.com/en-us/library/ff549972(v=VS.85).aspx
-//
-_Use_decl_annotations_
-NDIS_STATUS
-SxNdisSetOptions(
-    NDIS_HANDLE NdisDriverHandle,
-    NDIS_HANDLE DriverContext
-    )
-{
-    UNREFERENCED_PARAMETER(NdisDriverHandle);
-    UNREFERENCED_PARAMETER(DriverContext);
-    return NDIS_STATUS_SUCCESS;
-}
-    
-
-//
-// FilterSetModuleOptions Function
-// http://msdn.microsoft.com/en-us/library/ff549970(v=VS.85).aspx
-//
-_Use_decl_annotations_
-NDIS_STATUS
-SxNdisSetFilterModuleOptions(
-    NDIS_HANDLE FilterModuleContext
-    )
-{
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    return NDIS_STATUS_SUCCESS;
-}
-
 //
 // FilterOidRequest Function
 // http://msdn.microsoft.com/en-us/library/ff549954(v=VS.85).aspx

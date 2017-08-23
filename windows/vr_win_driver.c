@@ -64,9 +64,6 @@ DriverEntry(
     fChars.UniqueName = SxExtensionGuid;
     fChars.ServiceName = serviceName;
     
-    fChars.SetOptionsHandler = SxNdisSetOptions;
-    fChars.SetFilterModuleOptionsHandler = SxNdisSetFilterModuleOptions;
-    
     fChars.AttachHandler = vr_win_attach;
     fChars.DetachHandler = vr_win_detach;
     fChars.PauseHandler = vr_win_pause;
