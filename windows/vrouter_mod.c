@@ -282,7 +282,7 @@ vr_intialize_vrouter(
     PNDIS_HANDLE *ExtensionContext
 )
 {
-    DbgPrint("SxExtCreateSwitch\r\n");
+    DbgPrint("%s: Creating switch\r\n", __func__);
 
     if (SxSwitchObject != NULL)
         return NDIS_STATUS_FAILURE;
