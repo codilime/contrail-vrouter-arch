@@ -16,40 +16,6 @@ Abstract:
     
 /*++
 
-SxLibSendNetBufferListsEgress
-  
-Routine Description:
-    This function is called to forward NBLs on egress.
-    The extension MUST call this function, or call
-    SxLibCompleteNetBufferListsEgress for every NBL in NetBufferLists
-    recieved in SxExtStartNetBufferListsEgress.
-    
-Arguments:
-
-    Switch - the Switch context
-    
-    NetBufferLists - the NBLs to send
-    
-    NumberOfNetBufferLists - the number of NBLs in NetBufferLists
-    
-    ReceiveFlags - the ReceiveFlags equivalent to NDIS flags for
-                   NdisFIndicateReceiveNetBufferLists
-    
-Return Value:
-    VOID
-   
---*/
-VOID
-SxLibSendNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG NumberOfNetBufferLists,
-    _In_ ULONG ReceiveFlags
-    );
-
-    
-/*++
-
 SxLibCompleteNetBufferListsEgress
   
 Routine Description:

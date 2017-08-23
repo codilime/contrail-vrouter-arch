@@ -601,22 +601,6 @@ SxExtStartNetBufferListsIngress(
 }
 
 VOID
-SxExtStartCompleteNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG ReturnFlags
-)
-{
-    DbgPrint("%s\r\n", __func__);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-
-    NdisFReturnNetBufferLists(Switch->NdisFilterHandle,
-                              NetBufferLists,
-                              ReturnFlags);
-}
-
-VOID
 SxExtStartCompleteNetBufferListsIngress(
     _In_ PSX_SWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,

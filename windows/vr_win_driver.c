@@ -15,6 +15,8 @@ NDIS_SPIN_LOCK SxExtensionListLock;
 LIST_ENTRY SxExtensionList;
 
 // Function declarations
+DRIVER_INITIALIZE DriverEntry;
+
 FILTER_ATTACH vr_win_attach;
 FILTER_DETACH vr_win_detach;
 
@@ -23,6 +25,8 @@ FILTER_RESTART vr_win_restart;
 
 FILTER_SEND_NET_BUFFER_LISTS vr_win_send_net_buffer_lists;
 FILTER_RECEIVE_NET_BUFFER_LISTS vr_win_receive_net_buffer_lists;
+FILTER_RETURN_NET_BUFFER_LISTS vr_win_return_net_buffer_lists;
+FILTER_SEND_NET_BUFFER_LISTS_COMPLETE vr_win_send_net_buffer_lists_complete;
 
 void
 vr_win_uninitialize(PDRIVER_OBJECT DriverObject)
@@ -70,9 +74,9 @@ DriverEntry(
     fChars.RestartHandler = vr_win_restart;
 
     fChars.SendNetBufferListsHandler = vr_win_send_net_buffer_lists;
-    fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
+    fChars.SendNetBufferListsCompleteHandler = vr_win_send_net_buffer_lists_complete;
     fChars.ReceiveNetBufferListsHandler = vr_win_receive_net_buffer_lists;
-    fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
+    fChars.ReturnNetBufferListsHandler = vr_win_return_net_buffer_lists;
     
     fChars.OidRequestHandler = SxNdisOidRequest;
     fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
@@ -227,10 +231,7 @@ vr_win_detach(
     
     ExFreePoolWithTag(switchObject, SxExtAllocationTag);
 
-    // Alway return success.
-    DEBUGP(DL_TRACE, ("<===SxDetach Successfully\n"));
-
-    return;
+    DbgPrint("%s: Detached Successfully\r\n", __func__);
 }
 
 NDIS_STATUS
@@ -332,9 +333,41 @@ vr_win_receive_net_buffer_lists(
 
     UNREFERENCED_PARAMETER(PortNumber);
 
-    DbgPrint("%s: Receive NBL\r\n", __func__);
-    SxLibSendNetBufferListsEgress(switchObject,
-        NetBufferLists,
-        NumberOfNetBufferLists,
-        ReceiveFlags);
+    DbgPrint("%s\r\n", __func__);
+    NdisFIndicateReceiveNetBufferLists(switchObject->NdisFilterHandle,
+                                       NetBufferLists,
+                                       NDIS_DEFAULT_PORT_NUMBER,
+                                       NumberOfNetBufferLists,
+                                       ReceiveFlags);
+}
+
+void
+vr_win_return_net_buffer_lists(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    ULONG ReturnFlags
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    DbgPrint("%s\r\n", __func__);
+
+    NdisFReturnNetBufferLists(switchObject->NdisFilterHandle,
+                              NetBufferLists,
+                              ReturnFlags);
+}
+
+void
+vr_win_send_net_buffer_lists_complete(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    ULONG SendCompleteFlags
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    SxExtStartCompleteNetBufferListsIngress(switchObject,
+                                            switchObject->ExtensionContext,
+                                            NetBufferLists,
+                                            SendCompleteFlags);
 }

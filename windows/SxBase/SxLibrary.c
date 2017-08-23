@@ -16,21 +16,6 @@ Abstract:
 
 #include "precomp.h"
 
-VOID
-SxLibSendNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG NumberOfNetBufferLists,
-    _In_ ULONG ReceiveFlags
-    )
-{
-    NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
-                                       NetBufferLists,
-                                       NDIS_DEFAULT_PORT_NUMBER,
-                                       NumberOfNetBufferLists,
-                                       ReceiveFlags);
-}
-
 NDIS_STATUS
 SxLibIssueOidRequest(
     _In_ PSX_SWITCH_OBJECT Switch,

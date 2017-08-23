@@ -91,15 +91,9 @@ typedef struct _FILTER_DEVICE_EXTENSION
 //
 // Function prototypes
 //
-DRIVER_INITIALIZE DriverEntry;
-
 FILTER_OID_REQUEST SxNdisOidRequest;
 
 FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;
-
-FILTER_RETURN_NET_BUFFER_LISTS SxNdisReturnNetBufferLists;
-
-FILTER_SEND_NET_BUFFER_LISTS_COMPLETE SxNdisSendNetBufferListsComplete;
 
 VOID
 SxpNdisCompleteInternalOidRequest(

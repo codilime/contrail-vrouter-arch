@@ -234,48 +234,6 @@ Cleanup:
 }
 
 
-//
-// FilterSendNetBufferListsComplete Function
-// http://msdn.microsoft.com/en-us/library/ff549967(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisSendNetBufferListsComplete(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    ULONG SendCompleteFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    SxExtStartCompleteNetBufferListsIngress(switchObject,
-                                            switchObject->ExtensionContext,
-                                            NetBufferLists,
-                                            SendCompleteFlags);
-}
-
-
-//
-// FilterReturnNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549964(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisReturnNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    ULONG ReturnFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    SxExtStartCompleteNetBufferListsEgress(switchObject,
-                                           switchObject->ExtensionContext,
-                                           NetBufferLists,
-                                           ReturnFlags);
-}
-
-
 NDIS_STATUS
 SxpNdisProcessSetOid(
     _In_ PSX_SWITCH_OBJECT Switch,

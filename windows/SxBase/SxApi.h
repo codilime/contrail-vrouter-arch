@@ -770,40 +770,7 @@ SxExtStartNetBufferListsEgress(
     _In_ ULONG ReceiveFlags
     );
 
-    
-/*++
 
-SxExtStartCompleteNetBufferListsEgress
-  
-Routine Description:
-    This function is called upon the completion of an NBL on egress.
-    The extension must call SxLibCompleteNetBufferListsEgress
-    once it has finished processing the NBL.
-
-Arguments:
-    Switch - the Switch context
-    
-    ExtensionContext - The extension context allocated in SxExtCreateSwitch
-                       for the switch
-                       
-    NetBufferLists - the NBL being completed
-    
-    ReturnFlags - the return flags from NDIS, equivalent to NDIS return flags for
-                  NdisFReturnNetBufferLists
-    
-Return Value:
-    VOID
-   
---*/ 
-VOID
-SxExtStartCompleteNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG ReturnFlags
-    );
-
-    
 /*++
 
 SxExtStartCompleteNetBufferListsIngress
