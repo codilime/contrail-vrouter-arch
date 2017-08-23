@@ -248,8 +248,6 @@ vr_win_pause(
 
     DbgPrint("%s: Pausing the switch\r\n");
 
-    SxExtPauseSwitch(switchObject, switchObject->ExtensionContext);
-
     // Set the flag that the filter is going to pause.
     NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
     switchObject->DataFlowState = SxSwitchPaused;
