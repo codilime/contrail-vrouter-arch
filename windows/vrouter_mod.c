@@ -474,7 +474,6 @@ SxExtSaveNic(
     UNREFERENCED_PARAMETER(ExtensionContext);
     UNREFERENCED_PARAMETER(SaveState);
 
-    *BytesWritten = 0;
     *BytesNeeded = 0;
 
     return NDIS_STATUS_SUCCESS;

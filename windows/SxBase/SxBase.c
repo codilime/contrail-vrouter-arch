@@ -318,7 +318,6 @@ SxpNdisProcessSetOid(
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
     PNDIS_OBJECT_HEADER header;
-    ULONG bytesRestored = 0;
     
     *Complete = FALSE;
     
@@ -351,7 +350,6 @@ SxpNdisProcessSetOid(
                 *Complete = TRUE;
                 goto Cleanup;
             }
-            
 
             status = NDIS_STATUS_SUCCESS;
             *Complete = TRUE;
@@ -399,8 +397,6 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
             
-            *Complete = FALSE;
-            
             break;
             
         case OID_SWITCH_PORT_CREATE:
@@ -426,15 +422,6 @@ SxpNdisProcessSetOid(
                 {
                     *Complete = TRUE;
                 }
-            }
-            else if (oid == OID_SWITCH_PORT_UPDATED)
-            {   
-            }
-            else if (oid == OID_SWITCH_PORT_TEARDOWN)
-            {   
-            }
-            else
-            {
             }
         
             break;
@@ -498,32 +485,10 @@ SxpNdisProcessSetOid(
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 goto Cleanup;
             }
-            
-            status = NDIS_STATUS_SUCCESS;
-                                     
-            if (status != NDIS_STATUS_SUCCESS)
-            {
-                *Complete = TRUE;
-            }
-            else if (bytesRestored > 0)
-            {
-                *Complete = TRUE;
-            }
                                       
             break;    
 
         case OID_SWITCH_NIC_SAVE_COMPLETE:
-            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
-                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
-                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
-            {
-                status = NDIS_STATUS_NOT_SUPPORTED;
-                *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            break;
-            
         case OID_SWITCH_NIC_RESTORE_COMPLETE:
             if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
                 header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
@@ -560,7 +525,6 @@ SxpNdisProcessMethodOid(
     PNDIS_SWITCH_NIC_OID_REQUEST newNicOidRequest = NULL;
     NDIS_SWITCH_PORT_ID destPort, sourcePort;
     NDIS_SWITCH_NIC_INDEX destNic, sourceNic;
-    ULONG bytesWritten = 0;
     ULONG bytesNeeded = 0;
     
     *Complete = FALSE;
@@ -672,15 +636,10 @@ SxpNdisProcessMethodOid(
             status = SxExtSaveNic(Switch,
                                   Switch->ExtensionContext,
                                   (PNDIS_SWITCH_NIC_SAVE_STATE)header,
-                                  &bytesWritten,
+                                  NULL,
                                   &bytesNeeded);
                                        
-            if (status == NDIS_STATUS_SUCCESS &&
-                bytesWritten > 0)
-            {
-                *Complete = TRUE;
-            }
-            else if (status == NDIS_STATUS_BUFFER_TOO_SHORT)
+            if (status == NDIS_STATUS_BUFFER_TOO_SHORT)
             {
                 *BytesNeeded = ((PNDIS_SWITCH_NIC_SAVE_STATE)header)->SaveDataOffset +
                                 bytesNeeded;
