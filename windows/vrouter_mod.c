@@ -883,24 +883,6 @@ SxExtStartNetBufferListsIngress(
 }
 
 VOID
-SxExtStartNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG NumberOfNetBufferLists,
-    _In_ ULONG ReceiveFlags
-)
-{
-    DbgPrint("SxExtStartNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-
-    SxLibSendNetBufferListsEgress(Switch,
-        NetBufferLists,
-        NumberOfNetBufferLists,
-        ReceiveFlags);
-}
-
-VOID
 SxExtStartCompleteNetBufferListsEgress(
     _In_ PSX_SWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,

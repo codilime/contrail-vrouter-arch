@@ -21,6 +21,9 @@ FILTER_DETACH vr_win_detach;
 FILTER_PAUSE vr_win_pause;
 FILTER_RESTART vr_win_restart;
 
+FILTER_SEND_NET_BUFFER_LISTS vr_win_send_net_buffer_lists;
+FILTER_RECEIVE_NET_BUFFER_LISTS vr_win_receive_net_buffer_lists;
+
 void
 vr_win_uninitialize(PDRIVER_OBJECT DriverObject)
 {
@@ -69,9 +72,9 @@ DriverEntry(
     fChars.PauseHandler = vr_win_pause;
     fChars.RestartHandler = vr_win_restart;
 
-    fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
+    fChars.SendNetBufferListsHandler = vr_win_send_net_buffer_lists;
     fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
-    fChars.ReceiveNetBufferListsHandler = SxNdisReceiveNetBufferLists;
+    fChars.ReceiveNetBufferListsHandler = vr_win_receive_net_buffer_lists;
     fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
     
     fChars.OidRequestHandler = SxNdisOidRequest;
@@ -208,19 +211,17 @@ vr_win_detach(
 
     DbgPrint("%s: Detaching the driver\r\n", __func__);
 
-    //
     // The extension must be in paused state.
-    //
     NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
     switchObject->ControlFlowState = SxSwitchDetached;
-    
+
     KeMemoryBarrier();
-    
+
     while(switchObject->PendingOidCount > 0)
     {
         NdisMSleep(1000);
     }
-    
+
     SxExtDeleteSwitch(switchObject, switchObject->ExtensionContext);
 
     NdisAcquireSpinLock(&SxExtensionListLock);
@@ -229,9 +230,7 @@ vr_win_detach(
     
     ExFreePoolWithTag(switchObject, SxExtAllocationTag);
 
-    //
     // Alway return success.
-    //
     DEBUGP(DL_TRACE, ("<===SxDetach Successfully\n"));
 
     return;
@@ -250,15 +249,13 @@ vr_win_pause(
     DbgPrint("%s: Pausing the switch\r\n");
 
     SxExtPauseSwitch(switchObject, switchObject->ExtensionContext);
-           
-    //
+
     // Set the flag that the filter is going to pause.
-    //
     NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
     switchObject->DataFlowState = SxSwitchPaused;
-    
+
     KeMemoryBarrier();
-    
+
     while(switchObject->PendingInjectedNblCount > 0)
     {
         NdisMSleep(1000);
@@ -307,4 +304,42 @@ vr_win_restart(
 
 Cleanup:
     return status;
+}
+
+void
+vr_win_send_net_buffer_lists(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    NDIS_PORT_NUMBER PortNumber,
+    ULONG SendFlags
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(PortNumber);
+
+    SxExtStartNetBufferListsIngress(switchObject,
+                                    switchObject->ExtensionContext,
+                                    NetBufferLists,
+                                    SendFlags);
+}
+
+void
+vr_win_receive_net_buffer_lists(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    NDIS_PORT_NUMBER PortNumber,
+    ULONG NumberOfNetBufferLists,
+    ULONG ReceiveFlags
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(PortNumber);
+
+    DbgPrint("%s: Receive NBL\r\n", __func__);
+    SxLibSendNetBufferListsEgress(switchObject,
+        NetBufferLists,
+        NumberOfNetBufferLists,
+        ReceiveFlags);
 }

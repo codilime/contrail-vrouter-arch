@@ -480,30 +480,6 @@ Cleanup:
 
 
 //
-// FilterSendNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549966(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisSendNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    NDIS_PORT_NUMBER PortNumber,
-    ULONG SendFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    
-    UNREFERENCED_PARAMETER(PortNumber);
-
-    SxExtStartNetBufferListsIngress(switchObject,
-                                    switchObject->ExtensionContext,
-                                    NetBufferLists,
-                                    SendFlags);
-}
-
-
-//
 // FilterSendNetBufferListsComplete Function
 // http://msdn.microsoft.com/en-us/library/ff549967(v=VS.85).aspx
 //
@@ -521,32 +497,6 @@ SxNdisSendNetBufferListsComplete(
                                             switchObject->ExtensionContext,
                                             NetBufferLists,
                                             SendCompleteFlags);
-}
-
-
-//
-// FilterReceiveNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549960(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisReceiveNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    NDIS_PORT_NUMBER PortNumber,
-    ULONG NumberOfNetBufferLists,
-    ULONG ReceiveFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    
-    UNREFERENCED_PARAMETER(PortNumber);
-
-    SxExtStartNetBufferListsEgress(switchObject,
-                                   switchObject->ExtensionContext,
-                                   NetBufferLists,
-                                   NumberOfNetBufferLists,
-                                   ReceiveFlags);
 }
 
 

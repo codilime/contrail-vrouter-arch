@@ -111,13 +111,9 @@ FILTER_OID_REQUEST SxNdisOidRequest;
 
 FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;
 
-FILTER_SEND_NET_BUFFER_LISTS SxNdisSendNetBufferLists;
-
 FILTER_RETURN_NET_BUFFER_LISTS SxNdisReturnNetBufferLists;
 
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE SxNdisSendNetBufferListsComplete;
-
-FILTER_RECEIVE_NET_BUFFER_LISTS SxNdisReceiveNetBufferLists;
 
 VOID
 SxpNdisCompleteInternalOidRequest(
