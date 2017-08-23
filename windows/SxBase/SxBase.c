@@ -521,11 +521,6 @@ SxpNdisProcessMethodOid(
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
     PNDIS_OBJECT_HEADER header;
-    PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequest;
-    PNDIS_SWITCH_NIC_OID_REQUEST newNicOidRequest = NULL;
-    NDIS_SWITCH_PORT_ID destPort, sourcePort;
-    NDIS_SWITCH_NIC_INDEX destNic, sourceNic;
-    ULONG bytesNeeded = 0;
     
     *Complete = FALSE;
     *BytesNeeded = 0;
@@ -543,14 +538,7 @@ SxpNdisProcessMethodOid(
                 *Complete = TRUE;
                 goto Cleanup;
             }
-            
-            *Complete = FALSE;
-                                                      
-            if (*BytesNeeded > 0)
-            {
-                status = NDIS_STATUS_BUFFER_TOO_SHORT;
-            }
-        
+
             break;
             
         case OID_SWITCH_PORT_FEATURE_STATUS_QUERY:
@@ -562,14 +550,7 @@ SxpNdisProcessMethodOid(
                 *Complete = TRUE;
                 goto Cleanup;
             }
-            
-            *Complete = FALSE;
-                                                    
-            if (*BytesNeeded > 0)
-            {
-                status = NDIS_STATUS_BUFFER_TOO_SHORT;
-            }
-        
+
             break;
             
         case OID_SWITCH_NIC_REQUEST:
@@ -580,45 +561,6 @@ SxpNdisProcessMethodOid(
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
                 goto Cleanup;
-            }
-            
-            nicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)header;
-            
-            sourcePort = nicOidRequest->SourcePortId;
-            sourceNic = nicOidRequest->SourceNicIndex;
-            destPort = nicOidRequest->DestinationPortId;
-            destNic = nicOidRequest->DestinationNicIndex;
-            
-            status = NDIS_STATUS_SUCCESS;
-                                           
-            if (sourcePort != nicOidRequest->SourcePortId ||
-                sourceNic != nicOidRequest->SourceNicIndex ||
-                destPort != nicOidRequest->DestinationPortId ||
-                destNic != nicOidRequest->DestinationNicIndex)
-            {
-                ASSERT(Switch->OldNicRequest == NULL);
-                Switch->OldNicRequest = nicOidRequest;
-                
-                newNicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)ExAllocatePoolWithTag(
-                                                                    NonPagedPoolNx,
-                                                                    sizeof(NDIS_SWITCH_NIC_OID_REQUEST),
-                                                                    SxExtAllocationTag);
-                                                                    
-                if (newNicOidRequest == NULL)
-                {
-                    status = NDIS_STATUS_RESOURCES;
-                    *Complete = TRUE;
-                    goto Cleanup;
-                }
-                                                                    
-                newNicOidRequest->Header = nicOidRequest->Header;
-                newNicOidRequest->SourcePortId = sourcePort;
-                newNicOidRequest->SourceNicIndex = sourceNic;
-                newNicOidRequest->DestinationPortId = destPort;
-                newNicOidRequest->DestinationNicIndex = destNic;
-                newNicOidRequest->OidRequest = nicOidRequest->OidRequest;
-                        
-                OidRequest->DATA.METHOD_INFORMATION.InformationBuffer = newNicOidRequest;
             }
         
             break;
@@ -631,23 +573,6 @@ SxpNdisProcessMethodOid(
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
                 goto Cleanup;
-            }
-            
-            status = SxExtSaveNic(Switch,
-                                  Switch->ExtensionContext,
-                                  (PNDIS_SWITCH_NIC_SAVE_STATE)header,
-                                  NULL,
-                                  &bytesNeeded);
-                                       
-            if (status == NDIS_STATUS_BUFFER_TOO_SHORT)
-            {
-                *BytesNeeded = ((PNDIS_SWITCH_NIC_SAVE_STATE)header)->SaveDataOffset +
-                                bytesNeeded;
-                *Complete = TRUE;
-            }
-            else if (status != NDIS_STATUS_SUCCESS)
-            {
-                *Complete = TRUE;
             }
             
             break;

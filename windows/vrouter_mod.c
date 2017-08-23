@@ -460,25 +460,6 @@ SxExtDeleteNic(
     }
 }
 
-NDIS_STATUS
-SxExtSaveNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState,
-    _Out_ PULONG BytesWritten,
-    _Out_ PULONG BytesNeeded
-)
-{
-    DbgPrint("SxExtSaveNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SaveState);
-
-    *BytesNeeded = 0;
-
-    return NDIS_STATUS_SUCCESS;
-}
-
 static void
 vr_win_split_nbls_by_forwarding_type(
     PNET_BUFFER_LIST nbl,

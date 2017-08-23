@@ -439,60 +439,6 @@ SxExtTeardownPort(
 
 /*++
 
-SxExtSaveNic
-  
-Routine Description:
-    This function is called to retrieve save data for a given NIC.
-    This function will be called until all extensions have finished
-    saving data.
-    
-    An new save for this NIC will not start until SxExtSaveNicComplete
-    has been received.
-    
-    If returning NDIS_STATUS_SUCCESS from this function, and
-    BytesWritten > 0 you must write to the ExtensionId,
-    ExtensionFriendlyName, SaveDataSize and SaveData fields in
-    SaveState. SxExtUniqueName MUST be written to ExtensionId.
-    SxExtFriendlyName should be written to ExtensionFriendlyName.
-    
-    If returning NDIS_STATUS_SUCCESS with BytesWritten == 0,
-    DO NOT write any data to any fields.
-
-Arguments:
-    Switch - the Switch context
-    
-    ExtensionContext - The extension context allocated in SxExtCreateSwitch
-                       for the switch
-                       
-    SaveState - the save information and buffer to save to
-    
-    BytesWritten - the # of bytes written to the save buffer
-    
-    BytesNeeded - the length of the save buffer needed
-    
-Return Value:
-    NDIS_STATUS_SUCCESS - if the buffer was successfully written, or not
-                          needed and BytesWritten is set to 0
-                          
-    NDIS_STATUS_BUFFER_TOO_SHORT - if the buffer is too short for the
-                                   necessary save, write the length needed
-                                   in BytesNeeded
-
-    NDIS_STATUS_*** - to fail the save operation
-   
---*/
-NDIS_STATUS
-SxExtSaveNic(  
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState,
-    _Out_ PULONG BytesWritten,
-    _Out_ PULONG BytesNeeded
-    );
-
-
-/*++
-
 SxExtAddSwitchProperty
   
 Routine Description:
