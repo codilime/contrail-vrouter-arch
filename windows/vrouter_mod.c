@@ -550,7 +550,9 @@ SxExtStartNetBufferListsIngress(
         if (!vif) {
             // If no vif attached yet, then drop NBL.
             windows_host.hos_printf("%s: No vif found\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle,
+                                NetBufferLists,
+                                sendCompleteFlags);
             continue;
         }
 
@@ -564,7 +566,9 @@ SxExtStartNetBufferListsIngress(
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
             windows_host.hos_printf("%s: pkt is NULL\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle,
+                                NetBufferLists,
+                                sendCompleteFlags);
             continue;
         }
 
@@ -585,11 +589,11 @@ SxExtStartNetBufferListsIngress(
     }
 
     if (nativeForwardedNbls != NULL) {
-        DbgPrint("StartIngress: send native forwarded NBL\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
-            nativeForwardedNbls,
-            SendFlags,
-            0);
+        DbgPrint("%s: send native forwarded NBL\r\n", __func__);
+        NdisFSendNetBufferLists(Switch->NdisFilterHandle,
+                        nativeForwardedNbls,
+                        NDIS_DEFAULT_PORT_NUMBER,
+                        SendFlags);
     }
 
     // Release the lock, now interfaces can disconnect, etc.
@@ -604,12 +608,12 @@ SxExtStartCompleteNetBufferListsEgress(
     _In_ ULONG ReturnFlags
 )
 {
-    DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
+    DbgPrint("%s\r\n", __func__);
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    SxLibCompleteNetBufferListsEgress(Switch,
-        NetBufferLists,
-        ReturnFlags);
+    NdisFReturnNetBufferLists(Switch->NdisFilterHandle,
+                              NetBufferLists,
+                              ReturnFlags);
 }
 
 VOID

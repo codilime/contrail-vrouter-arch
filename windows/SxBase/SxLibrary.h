@@ -13,46 +13,6 @@ Abstract:
 
 
 --*/
-
-
-/*++
-
-SxLibSendNetBufferListsIngress
-  
-Routine Description:
-    This function is called to forward NBLs on ingress.
-    The extension MUST call this function, or call
-    SxLibCompleteNetBufferListsIngress for every NBL in NetBufferLists,
-    recieved in SxExtStartNetBufferListsIngress.
-    
-    This function can also be called to inject NBLs.
-    If there are NBLs in NetBufferLists that are initiated by the
-    extension, NumInjectedNetBufferLists must be the number of new NBLs.
-    
-Arguments:
-
-    Switch - the Switch context
-    
-    NetBufferLists - the NBLs to send
-    
-    SendFlags - the SendFlags equivalent to NDIS flags for
-                NdisFSendNetBufferLists
-   
-    NumInjectedNetBufferLists - the number of NBLs in NetBufferLists initiated
-                                by the extension
-    
-Return Value:
-    VOID
-   
---*/
-VOID
-SxLibSendNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendFlags,
-    _In_ ULONG NumInjectedNetBufferLists
-    );
-
     
 /*++
 
