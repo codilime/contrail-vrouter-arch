@@ -37,6 +37,9 @@ static char hex_table[] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 };
 
+extern int vr_transport_init(void);
+extern void vr_transport_exit(void);
+
 static NTSTATUS
 vr_message_init(void)
 {
@@ -46,12 +49,20 @@ vr_message_init(void)
         return NDIS_STATUS_FAILURE;
     }
 
+    ret = vr_transport_init();
+    if (ret) {
+        DbgPrint("%s: vr_transport_init() failed with return %d", __func__, ret);
+        vr_sandesh_exit();
+        return NDIS_STATUS_FAILURE;
+    }
+
     return NDIS_STATUS_SUCCESS;
 }
 
 static void
 vr_message_exit(void)
 {
+    vr_transport_exit();
     vr_sandesh_exit();
 }
 

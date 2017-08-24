@@ -36,7 +36,7 @@
 #include "vr_bridge.h"
 #include "ini_parser.h"
 
-#if defined(_WINDOWS)
+#ifdef _WIN32
 #include <Iphlpapi.h>
 #pragma warning(disable:4996)
 #endif
@@ -194,60 +194,14 @@ vr_proto_string(unsigned short proto)
     return "UNKNOWN";
 }
 
-static int
-__vr_recvmsg_parse(struct nl_client *cl, int received, bool *pending)
-{
-    int ret = received;
-
-#ifndef _WINDOWS
-    struct nl_response *resp;
-
-    resp = nl_parse_reply(cl);
-    if (resp->nl_op == SANDESH_REQUEST) {
-        sandesh_decode(resp->nl_data, resp->nl_len,
-                        vr_find_sandesh_info, &ret);
-    } else if (resp->nl_type == NL_MSG_TYPE_DONE) {
-        *pending = false;
-    }
-#else
-    struct ksync_response_header *ksync_hdr;
-    unsigned char *buffer;
-
-    ksync_hdr = (struct ksync_response_header *)cl->cl_buf;
-    if (IS_KSYNC_RESPONSE_VALID(ksync_hdr)) {
-        buffer = cl->cl_buf + sizeof(struct ksync_response_header);
-        sandesh_decode(buffer, ksync_hdr->len,
-                        vr_find_sandesh_info, &ret);
-    } else if (ksync_hdr->type == KSYNC_RESPONSE_DONE) {
-        *pending = false;
-    }
-#endif
-
-    return ret;
-}
-
-static bool
-__vr_recvmsg_afert(struct nl_client *cl)
-{
-#ifndef _WINDOWS
-    struct nlmsghdr *nlh;
-
-    nlh = (struct nlmsghdr *)cl->cl_buf;
-    if (!nlh || !nlh->nlmsg_flags)
-        return true;
-    else
-        return false;
-#else
-    return false;
-#endif
-}
-
 /* send and receive */
 int
 vr_recvmsg(struct nl_client *cl, bool dump)
 {
     int ret = 0;
     bool pending = true;
+    struct nl_response *resp;
+    struct nlmsghdr *nlh;
 
     while (pending) {
         if ((ret = nl_recvmsg(cl)) > 0) {
@@ -256,14 +210,21 @@ vr_recvmsg(struct nl_client *cl, bool dump)
             } else {
                 pending = false;
             }
-            ret = __vr_recvmsg_parse(cl, ret, &pending);
+
+            resp = nl_parse_reply(cl);
+            if (resp->nl_op == SANDESH_REQUEST) {
+                sandesh_decode(resp->nl_data, resp->nl_len,
+                        vr_find_sandesh_info, &ret);
+            } else if (resp->nl_type == NL_MSG_TYPE_DONE) {
+                pending = false;
+            }
         } else {
             return ret;
         }
 
-        if (__vr_recvmsg_afert(cl)) {
+        nlh = (struct nlmsghdr *)cl->cl_buf;
+        if (!nlh || !nlh->nlmsg_flags)
             break;
-        }
     }
 
     return ret;
@@ -345,14 +306,54 @@ vr_get_nl_client(unsigned int proto)
     if (!cl)
         return NULL;
 
-    ret = __setup_nl_client(cl, proto);
-    if (!ret) {
+#ifndef _WIN32
+    /* Do not use ini file if we are in a test mode. */
+    if (proto == VR_NETLINK_PROTO_TEST) {
+        ret = nl_socket(cl, AF_INET, SOCK_STREAM, 0);
+        if (ret <= 0)
+            goto fail;
+
+        ret = nl_connect(cl, get_ip(), vr_netlink_port);
+        if (ret < 0)
+            goto fail;
+
         return cl;
-    } else {
-        if (cl)
-            nl_free_client(cl);
-        return NULL;
     }
+
+    parse_ini_file();
+
+    if (proto == VR_NETLINK_PROTO_DEFAULT)
+        sock_proto = get_protocol();
+
+    ret = nl_socket(cl, get_domain(), get_type(), sock_proto);
+    if (ret <= 0)
+        goto fail;
+
+    ret = nl_connect(cl, get_ip(), get_port());
+    if (ret < 0)
+        goto fail;
+#else
+    DWORD access_flags = GENERIC_READ | GENERIC_WRITE;
+    DWORD attrs = OPEN_EXISTING;
+
+    cl->cl_win_pipe = CreateFile(KSYNC_PATH, access_flags, 0, NULL, attrs, 0, NULL);
+    if (cl->cl_win_pipe == INVALID_HANDLE_VALUE)
+        goto fail;
+
+    cl->cl_recvmsg = win_nl_client_recvmsg;
+#endif
+
+    if ((proto == VR_NETLINK_PROTO_DEFAULT) &&
+            (vrouter_get_family_id(cl) <= 0))
+        goto fail;
+
+    return cl;
+
+fail:
+    if (cl)
+        nl_free_client(cl);
+
+    return NULL;
 }
 
 int
@@ -685,7 +686,7 @@ vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
         req.vifr_cross_connect_idx = vif_xconnect_index;
     }
 
-#ifdef _WINDOWS
+#ifdef _WIN32
     if (guid == NULL)
     {
         NET_LUID system_luid;

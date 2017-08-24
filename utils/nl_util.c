@@ -550,7 +550,7 @@ nl_connect(struct nl_client *cl, uint32_t ip, uint16_t port)
 }
 #endif
 
-#ifndef _WINDOWS
+#ifndef _WIN32
 int
 nl_client_datagram_recvmsg(struct nl_client *cl)
 {
@@ -580,7 +580,9 @@ nl_client_datagram_recvmsg(struct nl_client *cl)
 
     return ret;
 }
+#endif
 
+#ifndef _WIN32
 int
 nl_client_stream_recvmsg(struct nl_client *cl) {
     int ret;
@@ -817,6 +819,8 @@ vrouter_get_family_id(struct nl_client *cl)
 #elif defined(__FreeBSD__)
     /* BSD doesn't check the value of family id, so set it to one */
     nl_set_genl_family_id(cl, 1);
+#elif defined(_WIN32)
+    nl_set_genl_family_id(cl, WINDOWS_NETLINK_FAMILY);
 #endif
     return cl->cl_genl_family_id;
 }
