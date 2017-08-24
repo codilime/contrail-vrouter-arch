@@ -1,4 +1,11 @@
-#pragma once
+/*
+ * windows_builtins.h -- implementation of GCC atomic builtin functions
+ *                       under MSVC
+ *
+ * Copyright (c) 2017 Juniper Networks, Inc. All rights reserved.
+ */
+#ifndef __WINDOWS_BUILTINS_H__
+#define __WINDOWS_BUILTINS_H__
 
 #include <intrin.h>
 
@@ -95,3 +102,5 @@ __forceinline int vr_ffs_32(int x) {
     else
         return 0;
 }
+
+#endif /* __WINDOWS_BUILTINS_H__ */

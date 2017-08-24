@@ -1,5 +1,10 @@
-#ifndef __VR_KSYNC_DEFS_H__
-#define __VR_KSYNC_DEFS_H__
+/*
+ * windows_ksync.h -- definitions used in KSync handling on Windows
+ *
+ * Copyright (c) 2017 Juniper Networks, Inc. All rights reserved.
+ */
+#ifndef __WINDOWS_KSYNC_H__
+#define __WINDOWS_KSYNC_H__
 
 #define NL_RESP_DEFAULT_SIZE        512
 #define NL_MSG_DEFAULT_SIZE         4096
@@ -54,4 +59,4 @@ struct mem_wrapper
     PVOID       pBuffer;
 };
 
-#endif /* __VR_KSYNC_DEFS_H__ */
+#endif /* __WINDOWS_KSYNC_H__ */

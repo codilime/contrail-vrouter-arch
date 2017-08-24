@@ -204,7 +204,6 @@ struct vr_flow {
  * is greater. Only in those cases, lock is taken. It is guaranteed that
  * no two values will differ by more than hold count.
  */
-
 struct vr_flow_table_info {
     uint64_t vfti_action_count;
     uint64_t vfti_added;
@@ -218,6 +217,7 @@ struct vr_flow_table_info {
  * is also better probably because processor does not have to
  * do bit operations
  */
+
 __attribute__packed__open__
 struct vr_flow_stats {
     uint32_t flow_bytes;
@@ -334,6 +334,7 @@ struct vr_dummy_flow_entry {
 #define VR_FLOW_ENTRY_PACK (128 - sizeof(struct vr_dummy_flow_entry))
 
 /* do not change. any field positions as it might lead to incompatibility */
+
 __attribute__packed__open__
 struct vr_flow_entry {
     vr_hentry_t fe_hentry;
