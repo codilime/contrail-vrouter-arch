@@ -2,8 +2,6 @@
 
 #include "vr_message.h"
 
-#define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
-
 static ULONG WIN_TRANSPORT_TAG = 'ARTV';
 
 static char *

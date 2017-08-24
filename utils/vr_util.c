@@ -307,19 +307,6 @@ vr_get_nl_client(unsigned int proto)
         return NULL;
 
 #ifndef _WIN32
-    /* Do not use ini file if we are in a test mode. */
-    if (proto == VR_NETLINK_PROTO_TEST) {
-        ret = nl_socket(cl, AF_INET, SOCK_STREAM, 0);
-        if (ret <= 0)
-            goto fail;
-
-        ret = nl_connect(cl, get_ip(), vr_netlink_port);
-        if (ret < 0)
-            goto fail;
-
-        return cl;
-    }
-
     parse_ini_file();
 
     if (proto == VR_NETLINK_PROTO_DEFAULT)

@@ -817,6 +817,8 @@ vrouter_get_family_id(struct nl_client *cl)
     msg = (struct genl_ctrl_message *)resp->nl_data;
     nl_set_genl_family_id(cl, msg->family_id);
 #elif defined(__FreeBSD__) || defined(_WIN32)
+    /* On platforms other than Linux value of family id is not checked,
+       so it is set to FAKE_NETLINK_FAMILY */
     nl_set_genl_family_id(cl, FAKE_NETLINK_FAMILY);
 #endif
     return cl->cl_genl_family_id;

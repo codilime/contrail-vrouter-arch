@@ -7,8 +7,6 @@
 
 #include "vr_genetlink.h"
 
-#define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
-
 static ULONG KsyncAllocationTag = 'NYSK';
 
 const WCHAR KsyncDeviceName[] = L"\\Device\\vrouterKsync";
