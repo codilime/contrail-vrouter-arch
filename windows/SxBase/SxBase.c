@@ -24,9 +24,6 @@ extern NDIS_HANDLE SxDriverObject;
 extern NDIS_SPIN_LOCK SxExtensionListLock;
 extern LIST_ENTRY SxExtensionList;
 
-NDIS_STRING SxExtensionFriendlyName;
-NDIS_STRING SxExtensionGuid;
-
 NDIS_STATUS
 SxpNdisProcessSetOid(
     _In_ PSX_SWITCH_OBJECT Switch,
@@ -62,7 +59,7 @@ SxNdisOidRequest(
    
     status = NDIS_STATUS_SUCCESS;
 
-    DEBUGP(DL_TRACE, ("===>SxOidRequest: OidRequest %p.\n", OidRequest));
+    DbgPrint("%s: SxOidRequest: OidRequest %p.\r\n", __func__, OidRequest);
     
     NdisInterlockedIncrement(&switchObject->PendingOidCount);
 
@@ -72,7 +69,7 @@ SxNdisOidRequest(
                                          &clonedRequest);
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DEBUGP(DL_WARN, ("FilerOidRequest: Cannot Clone OidRequest\n"));
+        DbgPrint("%s: FilerOidRequest: Cannot Clone OidRequest\r\n", __func__);
         goto Cleanup;
     }
 
@@ -119,7 +116,7 @@ SxNdisOidRequest(
 
 Cleanup:
 
-    DEBUGP(DL_TRACE, ("<===SxOidRequest: status %8x.\n", status));
+    DbgPrint("%s: SxOidRequest: status %8x.\n", __func__, status);
     return status;
 }
 
@@ -142,8 +139,7 @@ SxNdisOidRequestComplete(
     PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequestBuf;
     PNDIS_OBJECT_HEADER header;
 
-    DEBUGP(DL_TRACE,
-           ("===>SxOidRequestComplete, NdisOidRequest %p.\n", NdisOidRequest));
+    DbgPrint("%s: SxOidRequestComplete, NdisOidRequest %p.\n", __func__, NdisOidRequest);
 
     oidRequestContext = (PVOID*)(&NdisOidRequest->SourceReserved[0]);
     originalRequest = (*oidRequestContext);
@@ -227,7 +223,7 @@ SxNdisOidRequestComplete(
                             originalRequest,
                             Status);
 
-    DEBUGP(DL_TRACE, ("<===SxOidRequestComplete.\n"));
+    DbgPrint("%s: SxOidRequestComplete.\r\n", __func__);
     
 Cleanup:
     NdisInterlockedDecrement(&switchObject->PendingOidCount);

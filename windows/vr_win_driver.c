@@ -8,6 +8,10 @@
 #include "vr_windows.h"
 #include "windows_ndis.h"
 
+static const PCWSTR ServiceName = L"vRouter";
+static const PCWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
+static const PCWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
+
 NDIS_HANDLE SxDriverHandle = NULL;
 NDIS_HANDLE SxDriverObject;
 
@@ -43,30 +47,36 @@ DriverEntry(
     PUNICODE_STRING RegistryPath)
 {
     NDIS_FILTER_DRIVER_CHARACTERISTICS fChars;
-    NDIS_STRING serviceName;
+    NDIS_STRING service_name;
+    NDIS_STRING friendly_name;
+    NDIS_STRING extension_guid;
     NDIS_STATUS status;
 
     UNREFERENCED_PARAMETER(RegistryPath);
     
     DbgPrint("%s: Loading vRouter Kernel Module\r\n", __func__);
 
-    RtlInitUnicodeString(&serviceName, SxExtServiceName);
-    RtlInitUnicodeString(&SxExtensionFriendlyName, SxExtFriendlyName);
-    RtlInitUnicodeString(&SxExtensionGuid, SxExtUniqueName);
+    RtlInitUnicodeString(&service_name, ServiceName);
+    RtlInitUnicodeString(&friendly_name, FriendlyName);
+    RtlInitUnicodeString(&extension_guid, UniqueName);
     SxDriverObject = DriverObject;
 
     NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
+
     fChars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
-    fChars.Header.Size = sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS);
+    fChars.Header.Size = NDIS_SIZEOF_FILTER_DRIVER_CHARACTERISTICS_REVISION_2;
     fChars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_2;
-    fChars.MajorNdisVersion = SxExtMajorNdisVersion;
-    fChars.MinorNdisVersion = SxExtMinorNdisVersion;
+
+    fChars.MajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
+    fChars.MinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
+
     fChars.MajorDriverVersion = 1;
     fChars.MinorDriverVersion = 0;
     fChars.Flags = 0;
-    fChars.FriendlyName = SxExtensionFriendlyName;
-    fChars.UniqueName = SxExtensionGuid;
-    fChars.ServiceName = serviceName;
+
+    fChars.FriendlyName = friendly_name;
+    fChars.UniqueName = extension_guid;
+    fChars.ServiceName = service_name;
     
     fChars.AttachHandler = vr_win_attach;
     fChars.DetachHandler = vr_win_detach;

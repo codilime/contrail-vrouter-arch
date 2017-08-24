@@ -15,33 +15,6 @@ Abstract:
 --*/
 
 //
-// The major version of NDIS the driver is using.
-// For NDIS 6.30, use NDIS_FILTER_MAJOR_VERSION.
-//
-extern UCHAR  SxExtMajorNdisVersion;
-
-//
-// The minor version of NDIS the driver is using.
-// For NDIS 6.30, use NDIS_FILTER_MINOR_VERSION.
-//
-extern UCHAR  SxExtMinorNdisVersion;
-
-//
-// The friendly name of the extension.
-//
-extern PWCHAR SxExtFriendlyName;
-
-//
-// The unique name of the extension.
-//
-extern PWCHAR SxExtUniqueName;
-
-//
-// The service name of the extension from the INF.
-//
-extern PWCHAR SxExtServiceName;
-
-//
 // The memory pool tag using in the extension.
 //
 extern ULONG  SxExtAllocationTag;

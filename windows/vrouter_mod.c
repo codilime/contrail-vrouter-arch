@@ -6,15 +6,6 @@
 #include "vr_sandesh.h"
 #include "windows_mem.h"
 
-UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
-UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
-
-PWCHAR SxExtFriendlyName = L"OpenContrail's vRouter forwarding extension";
-
-PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
-
-PWCHAR SxExtServiceName = L"vRouter";
-
 ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
