@@ -6,15 +6,6 @@
 #include "vr_sandesh.h"
 #include "windows_mem.h"
 
-UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
-UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
-
-PWCHAR SxExtFriendlyName = L"OpenContrail's vRouter forwarding extension";
-
-PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
-
-PWCHAR SxExtServiceName = L"vRouter";
-
 ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
@@ -153,20 +144,6 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 #endif
 }
 
-NDIS_STATUS
-SxExtInitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtInitialize\r\n");
-
-    return NDIS_STATUS_SUCCESS;
-}
-
-VOID
-SxExtUninitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtUninitialize\r\n");
-}
-
 void
 SxExtUninitializeVRouter(struct vr_switch_context* ctx)
 {
@@ -291,12 +268,12 @@ cleanup:
 }
 
 NDIS_STATUS
-SxExtCreateSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _Outptr_result_maybenull_ PNDIS_HANDLE *ExtensionContext
+vr_intialize_vrouter(
+    PSX_SWITCH_OBJECT Switch,
+    PNDIS_HANDLE *ExtensionContext
 )
 {
-    DbgPrint("SxExtCreateSwitch\r\n");
+    DbgPrint("%s: Creating switch\r\n", __func__);
 
     if (SxSwitchObject != NULL)
         return NDIS_STATUS_FAILURE;
@@ -360,44 +337,6 @@ SxExtDeleteSwitch(
     SxSwitchObject = NULL;
 }
 
-VOID
-SxExtActivateSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtActivateSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-}
-
-NDIS_STATUS
-SxExtRestartSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtRestartSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    ctx->restart = FALSE;
-
-    return 0;
-}
-
-VOID
-SxExtPauseSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtPauseSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-}
-
 NDIS_STATUS
 SxExtCreatePort(
     _In_ PSX_SWITCH_OBJECT Switch,
@@ -412,19 +351,6 @@ SxExtCreatePort(
     DbgPrint("PortFriendlyName: %S, PortName: %S, PortId: %u, PortState: %u, PortType: %u\r\n", Port->PortFriendlyName.String, Port->PortName.String, Port->PortId, Port->PortState, Port->PortType);
 
     return 0;
-}
-
-VOID
-SxExtUpdatePort(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PARAMETERS Port
-)
-{
-    DbgPrint("SxExtUpdatePort\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Port);
 }
 
 NDIS_STATUS
@@ -525,286 +451,6 @@ SxExtDeleteNic(
     }
 }
 
-VOID
-SxExtTeardownPort(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PARAMETERS Port
-)
-{
-    DbgPrint("SxExtTeardownPort\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Port);
-}
-
-VOID
-SxExtDeletePort(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PARAMETERS Port
-)
-{
-    DbgPrint("SxExtDeletePort\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Port);
-}
-
-NDIS_STATUS
-SxExtSaveNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState,
-    _Out_ PULONG BytesWritten,
-    _Out_ PULONG BytesNeeded
-)
-{
-    DbgPrint("SxExtSaveNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SaveState);
-
-    *BytesWritten = 0;
-    *BytesNeeded = 0;
-
-    return NDIS_STATUS_SUCCESS;
-}
-
-VOID
-SxExtSaveNicComplete(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState
-)
-{
-    DbgPrint("SxExtSaveNicComplete\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SaveState);
-}
-
-NDIS_STATUS
-SxExtNicRestore(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState,
-    _Out_ PULONG BytesRestored
-)
-{
-    DbgPrint("SxExtNicRestore\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SaveState);
-    UNREFERENCED_PARAMETER(BytesRestored);
-
-    return 0;
-}
-
-VOID
-SxExtNicRestoreComplete(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_SAVE_STATE SaveState
-)
-{
-    DbgPrint("SxExtNicRestoreComplete\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SaveState);
-}
-
-NDIS_STATUS
-SxExtAddSwitchProperty(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PROPERTY_PARAMETERS SwitchProperty
-)
-{
-    DbgPrint("SxExtAddSwitchProperty\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SwitchProperty);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtUpdateSwitchProperty(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PROPERTY_PARAMETERS SwitchProperty
-)
-{
-    DbgPrint("SxExtUpdateSwitchProperty\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SwitchProperty);
-
-    return 0;
-}
-
-BOOLEAN
-SxExtDeleteSwitchProperty(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PROPERTY_DELETE_PARAMETERS SwitchProperty
-)
-{
-    DbgPrint("SxExtDeleteSwitchProperty\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SwitchProperty);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtAddPortProperty(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PROPERTY_PARAMETERS PortProperty
-)
-{
-    DbgPrint("SxExtAddPortProperty\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(PortProperty);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtUpdatePortProperty(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PROPERTY_PARAMETERS PortProperty
-)
-{
-    DbgPrint("SxExtUpdatePortProperty\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(PortProperty);
-
-    return 0;
-}
-
-BOOLEAN
-SxExtDeletePortProperty(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PROPERTY_DELETE_PARAMETERS PortProperty
-)
-{
-    DbgPrint("SxExtDeletePortProperty\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(PortProperty);
-
-    return 0;
-}
-
-BOOLEAN
-SxExtQuerySwitchFeatureStatus(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_SWITCH_FEATURE_STATUS_PARAMETERS SwitchFeatureStatus,
-    _Inout_ PULONG BytesNeeded
-)
-{
-    DbgPrint("SxExtQuerySwitchFeatureStatus\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(SwitchFeatureStatus);
-    UNREFERENCED_PARAMETER(BytesNeeded);
-
-    return 0;
-}
-
-BOOLEAN
-SxExtQueryPortFeatureStatus(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_SWITCH_PORT_FEATURE_STATUS_PARAMETERS PortFeatureStatus,
-    _Inout_ PULONG BytesNeeded
-)
-{
-    DbgPrint("SxExtQueryPortFeatureStatus\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(PortFeatureStatus);
-    UNREFERENCED_PARAMETER(BytesNeeded);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtProcessNicRequest(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_OID_REQUEST OidRequest,
-    _Inout_ PNDIS_SWITCH_PORT_ID SourcePortId,
-    _Inout_ PNDIS_SWITCH_NIC_INDEX SourceNicIndex,
-    _Inout_ PNDIS_SWITCH_PORT_ID DestinationPortId,
-    _Inout_ PNDIS_SWITCH_NIC_INDEX DestinationNicIndex
-)
-{
-    DbgPrint("SxExtProcessNicRequest\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(OidRequest);
-    UNREFERENCED_PARAMETER(SourcePortId);
-    UNREFERENCED_PARAMETER(SourceNicIndex);
-    UNREFERENCED_PARAMETER(DestinationPortId);
-    UNREFERENCED_PARAMETER(DestinationNicIndex);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtProcessNicRequestComplete(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _Inout_ PNDIS_OID_REQUEST OidRequest,
-    _In_ NDIS_SWITCH_PORT_ID SourcePortId,
-    _In_ NDIS_SWITCH_NIC_INDEX SourceNicIndex,
-    _In_ NDIS_SWITCH_PORT_ID DestinationPortId,
-    _In_ NDIS_SWITCH_NIC_INDEX DestinationNicIndex,
-    _In_ NDIS_STATUS Status
-)
-{
-    DbgPrint("SxExtProcessNicRequestComplete\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(OidRequest);
-    UNREFERENCED_PARAMETER(SourcePortId);
-    UNREFERENCED_PARAMETER(SourceNicIndex);
-    UNREFERENCED_PARAMETER(DestinationPortId);
-    UNREFERENCED_PARAMETER(DestinationNicIndex);
-    UNREFERENCED_PARAMETER(Status);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtProcessNicStatus(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_STATUS_INDICATION StatusIndication,
-    _In_ NDIS_SWITCH_PORT_ID SourcePortId,
-    _In_ NDIS_SWITCH_NIC_INDEX SourceNicIndex
-)
-{
-    DbgPrint("SxExtProcessNicStatus\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(StatusIndication);
-    UNREFERENCED_PARAMETER(SourcePortId);
-    UNREFERENCED_PARAMETER(SourceNicIndex);
-
-    return 0;
-}
-
 static void
 vr_win_split_nbls_by_forwarding_type(
     PNET_BUFFER_LIST nbl,
@@ -895,7 +541,9 @@ SxExtStartNetBufferListsIngress(
         if (!vif) {
             // If no vif attached yet, then drop NBL.
             windows_host.hos_printf("%s: No vif found\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle,
+                                NetBufferLists,
+                                sendCompleteFlags);
             continue;
         }
 
@@ -909,7 +557,9 @@ SxExtStartNetBufferListsIngress(
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
             windows_host.hos_printf("%s: pkt is NULL\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle,
+                                NetBufferLists,
+                                sendCompleteFlags);
             continue;
         }
 
@@ -930,49 +580,15 @@ SxExtStartNetBufferListsIngress(
     }
 
     if (nativeForwardedNbls != NULL) {
-        DbgPrint("StartIngress: send native forwarded NBL\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
-            nativeForwardedNbls,
-            SendFlags,
-            0);
+        DbgPrint("%s: send native forwarded NBL\r\n", __func__);
+        NdisFSendNetBufferLists(Switch->NdisFilterHandle,
+                        nativeForwardedNbls,
+                        NDIS_DEFAULT_PORT_NUMBER,
+                        SendFlags);
     }
 
     // Release the lock, now interfaces can disconnect, etc.
     NdisReleaseRWLock(ctx->lock, &lockState);
-}
-
-VOID
-SxExtStartNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG NumberOfNetBufferLists,
-    _In_ ULONG ReceiveFlags
-)
-{
-    DbgPrint("SxExtStartNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-
-    SxLibSendNetBufferListsEgress(Switch,
-        NetBufferLists,
-        NumberOfNetBufferLists,
-        ReceiveFlags);
-}
-
-VOID
-SxExtStartCompleteNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG ReturnFlags
-)
-{
-    DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-
-    SxLibCompleteNetBufferListsEgress(Switch,
-        NetBufferLists,
-        ReturnFlags);
 }
 
 VOID

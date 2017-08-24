@@ -16,9 +16,6 @@ Abstract:
 
 --*/
 
-extern NDIS_STRING SxExtensionFriendlyName;
-extern NDIS_STRING SxExtensionGuid;
-
 typedef enum _SX_SWITCH_DATAFLOW_STATE
 {
     SxSwitchPaused,
@@ -91,41 +88,9 @@ typedef struct _FILTER_DEVICE_EXTENSION
 //
 // Function prototypes
 //
-DRIVER_INITIALIZE DriverEntry;
-
-DRIVER_UNLOAD SxNdisUnload;
-
-FILTER_SET_OPTIONS SxNdisSetOptions;
-
-FILTER_SET_MODULE_OPTIONS SxNdisSetFilterModuleOptions;
-
-FILTER_ATTACH SxNdisAttach;
-
-FILTER_DETACH SxNdisDetach;
-
-FILTER_PAUSE SxNdisPause;
-
-FILTER_RESTART SxNdisRestart;
-
 FILTER_OID_REQUEST SxNdisOidRequest;
 
-FILTER_CANCEL_OID_REQUEST SxNdisCancelOidRequest;
-
 FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;
-
-FILTER_SEND_NET_BUFFER_LISTS SxNdisSendNetBufferLists;
-
-FILTER_RETURN_NET_BUFFER_LISTS SxNdisReturnNetBufferLists;
-
-FILTER_SEND_NET_BUFFER_LISTS_COMPLETE SxNdisSendNetBufferListsComplete;
-
-FILTER_RECEIVE_NET_BUFFER_LISTS SxNdisReceiveNetBufferLists;
-
-FILTER_CANCEL_SEND_NET_BUFFER_LISTS SxNdisCancelSendNetBufferLists;
-
-FILTER_STATUS SxNdisStatus;
-
-FILTER_NET_PNP_EVENT SxNdisNetPnPEvent;
 
 VOID
 SxpNdisCompleteInternalOidRequest(
@@ -133,36 +98,3 @@ SxpNdisCompleteInternalOidRequest(
     _In_ PNDIS_OID_REQUEST NdisRequest,
     _In_ NDIS_STATUS Status
     );
-
-
-//
-// Some debug stuff.
-//
-#define DL_EXTRA_LOUD       20
-#define DL_VERY_LOUD        10
-#define DL_LOUD             8
-#define DL_INFO             6
-#define DL_TRACE            5
-#define DL_WARN             4
-#define DL_ERROR            2
-#define DL_FATAL            0
-
-#if DBG
-
-extern ULONG SxDebugLevel;
-
-#define DEBUGP(lev, stmt)                                               \
-        {                                                               \
-            if ((lev) <= SxDebugLevel)                                  \
-            {                                                           \
-                DbgPrint("%S: ",SxExtServiceName); DbgPrint stmt;       \
-            }                                                           \
-        }
-
-#else
-
-#define DEBUGP(lev, stmt)
-
-#endif
-
-
