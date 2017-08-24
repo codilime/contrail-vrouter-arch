@@ -37,8 +37,6 @@
 #include "vr_genetlink.h"
 #include "vr_os.h"
 
-#define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
-
 static char *
 bsd_trans_alloc(unsigned int size)
 {

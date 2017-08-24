@@ -2,7 +2,9 @@
 
 #include "vr_message.h"
 
-static ULONG WIN_TRANSPORT_TAG = 'RTRV';
+#define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
+
+static ULONG WIN_TRANSPORT_TAG = 'ARTV';
 
 static char *
 win_trans_alloc(unsigned int size)

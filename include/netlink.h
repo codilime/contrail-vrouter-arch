@@ -79,17 +79,13 @@ struct nlattr {
 #define NLA_ALIGN(len)  (((len) + NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
 #define NLA_HDRLEN  ((int) NLA_ALIGN(sizeof(struct nlattr)))
 
+#define FAKE_NETLINK_FAMILY (1)
+
 #ifdef _WINDOWS
 #define IFNAMSIZ 32
 #else
 #define IFNAMSIZ 16
 #endif
 #define AF_NETLINK 0
-
-#ifdef _WINDOWS
-#define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
-
-#define WINDOWS_NETLINK_FAMILY (1)
-#endif
 
 #endif /* FAKE_NETLINK_H */
