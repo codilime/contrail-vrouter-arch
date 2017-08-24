@@ -285,16 +285,6 @@ vr_win_restart(
            
     struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
 
-    PNDIS_SWITCH_NIC_ARRAY array;
-    SxLibGetNicArrayUnsafe(switchObject, &array);
-
-    for (unsigned i = 0; i < array->NumElements; i++){
-        PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
-        UpdateNics(element, TRUE);
-    }
-
-    ExFreePoolWithTag(array, SxExtAllocationTag);
-
     ctx->restart = FALSE;
 
     if (status != NDIS_STATUS_SUCCESS)
