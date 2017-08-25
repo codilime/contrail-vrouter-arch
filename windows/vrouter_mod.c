@@ -6,9 +6,6 @@
 #include "vr_sandesh.h"
 #include "windows_mem.h"
 
-UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
-UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
-
 PWCHAR SxExtFriendlyName = L"OpenContrail's vRouter forwarding extension";
 
 PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
@@ -39,6 +36,246 @@ static char hex_table[] = {
 
 extern int vr_transport_init(void);
 extern void vr_transport_exit(void);
+
+// NDIS Function prototypes
+DRIVER_INITIALIZE DriverEntry;
+DRIVER_UNLOAD SxNdisUnload;
+FILTER_ATTACH SxNdisAttach;
+FILTER_DETACH SxNdisDetach;
+
+// TODO: move
+NDIS_SPIN_LOCK SxExtensionListLock;
+LIST_ENTRY SxExtensionList;
+NDIS_HANDLE SxDriverHandle = NULL;
+
+NTSTATUS
+DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
+{
+    NDIS_STATUS status;
+    NDIS_FILTER_DRIVER_CHARACTERISTICS fChars;
+    NDIS_STRING service_name;
+
+    UNREFERENCED_PARAMETER(RegistryPath);
+
+    RtlInitUnicodeString(&service_name, SxExtServiceName);
+    RtlInitUnicodeString(&SxExtensionFriendlyName, SxExtFriendlyName);
+    RtlInitUnicodeString(&SxExtensionGuid, SxExtUniqueName);
+    SxDriverObject = DriverObject;
+
+    NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
+    fChars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
+    fChars.Header.Size = sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS);
+    fChars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_2;
+
+    fChars.MajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
+    fChars.MinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
+
+    fChars.MajorDriverVersion = 1;
+    fChars.MinorDriverVersion = 0;
+    fChars.Flags = 0;
+
+    fChars.FriendlyName = SxExtensionFriendlyName;
+    fChars.UniqueName = SxExtensionGuid;
+    fChars.ServiceName = service_name;
+
+    fChars.SetOptionsHandler = SxNdisSetOptions;
+    fChars.SetFilterModuleOptionsHandler = SxNdisSetFilterModuleOptions;
+
+    fChars.AttachHandler = SxNdisAttach;
+    fChars.DetachHandler = SxNdisDetach;
+    fChars.PauseHandler = SxNdisPause;
+    fChars.RestartHandler = SxNdisRestart;
+
+    fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
+    fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
+    fChars.CancelSendNetBufferListsHandler = SxNdisCancelSendNetBufferLists;
+    fChars.ReceiveNetBufferListsHandler = SxNdisReceiveNetBufferLists;
+    fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
+
+    fChars.OidRequestHandler = SxNdisOidRequest;
+    fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
+    fChars.CancelOidRequestHandler = SxNdisCancelOidRequest;
+
+    fChars.NetPnPEventHandler = SxNdisNetPnPEvent;
+    fChars.StatusHandler = SxNdisStatus;
+
+    NdisAllocateSpinLock(&SxExtensionListLock);
+    InitializeListHead(&SxExtensionList);
+
+    DriverObject->DriverUnload = SxNdisUnload;
+
+    status = NdisFRegisterFilterDriver(DriverObject,
+                                       (NDIS_HANDLE)SxDriverObject,
+                                       &fChars,
+                                       &SxDriverHandle);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        if (SxDriverHandle != NULL)
+        {
+            NdisFDeregisterFilterDriver(SxDriverHandle);
+            SxDriverHandle = NULL;
+        }
+
+        NdisFreeSpinLock(&SxExtensionListLock);
+    }
+
+    return status;
+}
+
+void
+SxNdisUnload(PDRIVER_OBJECT DriverObject)
+{
+    NdisFDeregisterFilterDriver(SxDriverHandle);
+    NdisFreeSpinLock(&SxExtensionListLock);
+}
+
+NDIS_STATUS
+SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
+             PNDIS_FILTER_ATTACH_PARAMETERS AttachParameters)
+{
+    NDIS_STATUS status;
+    NDIS_FILTER_ATTRIBUTES sxAttributes;
+    ULONG switchObjectSize;
+    NDIS_SWITCH_CONTEXT switchContext;
+    NDIS_SWITCH_OPTIONAL_HANDLERS switchHandler;
+    PSX_SWITCH_OBJECT switchObject;
+
+    UNREFERENCED_PARAMETER(SxDriverContext);
+
+    DEBUGP(DL_TRACE, ("===>SxAttach: NdisFilterHandle %p\n", NdisFilterHandle));
+
+    status = NDIS_STATUS_SUCCESS;
+    switchObject = NULL;
+
+    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)SxDriverObject);
+
+    if (AttachParameters->MiniportMediaType != NdisMedium802_3)
+    {
+        status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Cleanup;
+    }
+
+    switchHandler.Header.Type = NDIS_OBJECT_TYPE_SWITCH_OPTIONAL_HANDLERS;
+    switchHandler.Header.Size = NDIS_SIZEOF_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
+    switchHandler.Header.Revision = NDIS_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
+
+    status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle,
+                                            &switchContext,
+                                            &switchHandler);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DEBUGP(DL_ERROR,
+               ("SxAttach: Extension is running in non-switch environment.\n"));
+        goto Cleanup;
+    }
+
+    switchObjectSize = sizeof(SX_SWITCH_OBJECT);
+    switchObject = ExAllocatePoolWithTag(NonPagedPoolNx,
+                                         switchObjectSize,
+                                         SxExtAllocationTag);
+
+    if (switchObject == NULL)
+    {
+        status = NDIS_STATUS_RESOURCES;
+        goto Cleanup;
+    }
+
+    RtlZeroMemory(switchObject, switchObjectSize);
+
+    //
+    // Initialize NDIS related information.
+    //
+    switchObject->NdisFilterHandle = NdisFilterHandle;
+    switchObject->NdisSwitchContext = switchContext;
+    RtlCopyMemory(&switchObject->NdisSwitchHandlers,
+                  &switchHandler,
+                  sizeof(NDIS_SWITCH_OPTIONAL_HANDLERS));
+
+    //
+    // Let the extension create its own context.
+    //
+    status = SxExtCreateSwitch(switchObject,
+                               &(switchObject->ExtensionContext));
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        goto Cleanup;
+    }
+
+    //
+    // Register the object with NDIS because NDIS passes this object when it
+    // calls into the driver.
+    //
+    NdisZeroMemory(&sxAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
+    sxAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
+    sxAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
+    sxAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
+    sxAttributes.Flags = 0;
+
+    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SX_SWITCH_OBJECT);
+    status = NdisFSetAttributes(NdisFilterHandle, switchObject, &sxAttributes);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DEBUGP(DL_ERROR, ("SxBase: Failed to set attributes.\n"));
+        goto Cleanup;
+    }
+
+    switchObject->ControlFlowState = SxSwitchAttached;
+    switchObject->DataFlowState = SxSwitchPaused;
+
+    NdisAcquireSpinLock(&SxExtensionListLock);
+    InsertHeadList(&SxExtensionList, &switchObject->Link);
+    NdisReleaseSpinLock(&SxExtensionListLock);
+
+Cleanup:
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        if (switchObject != NULL)
+        {
+            ExFreePool(switchObject);
+        }
+    }
+
+    DEBUGP(DL_TRACE, ("<===SxAttach: status %x\n", status));
+
+    return status;
+}
+
+void
+SxNdisDetach(NDIS_HANDLE FilterModuleContext)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    DEBUGP(DL_TRACE, ("===>SxDetach: SxInstance %p\n", FilterModuleContext));
+
+    // The extension must be in paused state.
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+    switchObject->ControlFlowState = SxSwitchDetached;
+
+    KeMemoryBarrier();
+
+    while(switchObject->PendingOidCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    SxExtDeleteSwitch(switchObject, switchObject->ExtensionContext);
+
+    NdisAcquireSpinLock(&SxExtensionListLock);
+    RemoveEntryList(&switchObject->Link);
+    NdisReleaseSpinLock(&SxExtensionListLock);
+
+    ExFreePool(switchObject);
+
+    // Alway return success.
+    DEBUGP(DL_TRACE, ("<===SxDetach Successfully\n"));
+
+    return;
+}
 
 static NTSTATUS
 vr_message_init(void)
@@ -135,7 +372,7 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
         str[j + 2] = '|';
     }
     str[j] = 0;
-    
+
     // DbgPrint only transmits at most 512 bytes in single call, so multiple prints are needed
     // to dump whole packet contents.
     DbgPrint("%s data[length=%d,copied=%d]: ", prefix, data_length, bytes_copied);
@@ -162,20 +399,6 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
     ExFreePoolWithTag(str, SxExtAllocationTag);
     ExFreePoolWithTag(buffer, SxExtAllocationTag);
 #endif
-}
-
-NDIS_STATUS
-SxExtInitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtInitialize\r\n");
-
-    return NDIS_STATUS_SUCCESS;
-}
-
-VOID
-SxExtUninitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtUninitialize\r\n");
 }
 
 void

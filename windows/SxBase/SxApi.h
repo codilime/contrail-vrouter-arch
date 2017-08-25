@@ -15,18 +15,6 @@ Abstract:
 --*/
 
 //
-// The major version of NDIS the driver is using.
-// For NDIS 6.30, use NDIS_FILTER_MAJOR_VERSION.
-//
-extern UCHAR  SxExtMajorNdisVersion;
-
-//
-// The minor version of NDIS the driver is using.
-// For NDIS 6.30, use NDIS_FILTER_MINOR_VERSION.
-//
-extern UCHAR  SxExtMinorNdisVersion;
-
-//
 // The friendly name of the extension.
 //
 extern PWCHAR SxExtFriendlyName;
@@ -50,46 +38,6 @@ extern ULONG  SxExtAllocationTag;
 // The request ID used to identify OIDs initiated from this extension. 
 //
 extern ULONG  SxExtOidRequestId;
-
-
-/*++
-
-SxExtInitialize
-  
-Routine Description:
-    This function is called from the SxBase Library during DriverEntry.
-    An extension should allocate/initalize all global data in this function.
-      
-Arguments:
-    DriverObject - Driver object.
-    
-Return Value:
-    NDIS_STATUS_SUCCESS succeeds driver entry.
-    
-    NDIS_STATUS_*** fails driver entry.
-   
---*/
-NDIS_STATUS
-SxExtInitialize(PDRIVER_OBJECT DriverObject);
-
-
-/*++
-
-SxExtUninitialize
-  
-Routine Description:
-    This function is called from the SxBase Library during DriverUnload.
-    An extension should free/reset all global data in this function.
-      
-Arguments:
-    NULL
-    
-Return Value:
-    VOID
-   
---*/
-VOID
-SxExtUninitialize(PDRIVER_OBJECT DriverObject);
 
 
 /*++

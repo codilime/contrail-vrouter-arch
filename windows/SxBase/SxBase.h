@@ -85,17 +85,9 @@ typedef struct _SX_OID_REQUEST
 //
 // Function prototypes
 //
-DRIVER_INITIALIZE DriverEntry;
-
-DRIVER_UNLOAD SxNdisUnload;
-
 FILTER_SET_OPTIONS SxNdisSetOptions;
 
 FILTER_SET_MODULE_OPTIONS SxNdisSetFilterModuleOptions;
-
-FILTER_ATTACH SxNdisAttach;
-
-FILTER_DETACH SxNdisDetach;
 
 FILTER_PAUSE SxNdisPause;
 
