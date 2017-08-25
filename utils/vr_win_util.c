@@ -62,25 +62,6 @@ print_and_get_error_code()
 }
 
 int
-win_setup_nl_client(struct nl_client *cl, unsigned int proto)
-{
-    UNREFERENCED_PARAMETER(proto);
-
-    DWORD access_flags = GENERIC_READ | GENERIC_WRITE;
-    DWORD attrs = OPEN_EXISTING;
-
-    cl->cl_win_pipe = CreateFile(KSYNC_PATH, access_flags, 0, NULL, attrs, 0, NULL);
-    if (cl->cl_win_pipe == INVALID_HANDLE_VALUE) {
-        DWORD error = print_and_get_error_code();
-        return error;
-    }
-
-    cl->cl_recvmsg = win_nl_client_recvmsg;
-
-    return ERROR_SUCCESS;
-}
-
-int
 win_nl_sendmsg(struct nl_client *cl)
 {
     DWORD written = 0;

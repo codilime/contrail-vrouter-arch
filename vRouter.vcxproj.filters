@@ -139,6 +139,12 @@
     <ClInclude Include="include\windows_ksync.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\genetlink.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\netlink.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\SxBase\precompsrc.c">
@@ -286,6 +292,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\build\kbuild\sandesh\library\c\sandesh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_win_transport.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

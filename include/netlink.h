@@ -79,4 +79,8 @@ struct nlattr {
 #define NLA_ALIGN(len)  (((len) + NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
 #define NLA_HDRLEN  ((int) NLA_ALIGN(sizeof(struct nlattr)))
 
+#define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
+
+#define FAKE_NETLINK_FAMILY (1)
+
 #endif /* FAKE_NETLINK_H */
