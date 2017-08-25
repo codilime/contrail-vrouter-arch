@@ -627,10 +627,10 @@ flow_dump_mirror(vr_nexthop_req *req)
 }
 
 
-static unsigned long
+static int64_t
 flow_sum_drops_stats(vr_drop_stats_req *req)
 {
-    unsigned long long sum = 0;
+    int64_t sum = 0;
 
     sum += req->vds_flow_queue_limit_exceeded;
     sum += req->vds_flow_no_memory;
@@ -920,7 +920,7 @@ flow_dump_entry(struct vr_flow_entry *fe)
     flow_print_spaces();
     printf("Reverse Path Failures: %" PRIu64 "\n", global_ds->vds_invalid_source);
     flow_print_spaces();
-    printf("Flow Block Drops: %lu\n", flow_sum_drops_stats(global_ds));
+    printf("Flow Block Drops: %" PRId64 "\n", flow_sum_drops_stats(global_ds));
 
     return;
 }
@@ -1265,7 +1265,7 @@ flow_dump_table(struct flow_table *ft)
                     }
                 }
             }
-            
+
 
             if ((fe->fe_type == VP_TYPE_IP) || (fe->fe_type == VP_TYPE_IP6)) {
                 inet_ntop(VR_FLOW_FAMILY(fe->fe_type), fe->fe_key.flow_ip,
@@ -1659,25 +1659,7 @@ flow_table_map(vr_flow_req *req)
     } else {
         flow_path = MEM_DEV;
 
-#ifdef _WIN32
-        struct mem_wrapper sharedMem;
-        DWORD bRetur;
-
-        HANDLE hPipe = CreateFile(KSYNC_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-        if (!hPipe) {
-            printf("Error CreateFile\r\n");
-            exit(-1);
-        }
-
-        BOOL transactionResult = DeviceIoControl(hPipe, IOCTL_SIOCTL_METHOD_OUT_DIRECT, NULL, 0, &sharedMem, sizeof(struct mem_wrapper), &bRetur, NULL);
-        if (!transactionResult) {
-            printf("Error DeviceIoControl: [%d]\r\n", transactionResult);
-            exit(transactionResult);
-        }
-
-        ft->ft_entries = sharedMem.pBuffer;
-    }
-#else
+#ifndef _WIN32
         ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
                 makedev(req->fr_ftable_dev, req->fr_rid));
         if (ret && errno != EEXIST) {
@@ -1699,6 +1681,24 @@ flow_table_map(vr_flow_req *req)
     if (ft->ft_entries == MAP_FAILED) {
         printf("flow table: %s\n", strerror(errno));
         exit(errno);
+    }
+#else
+        struct mem_wrapper sharedMem;
+        DWORD bRetur;
+
+        HANDLE hPipe = CreateFile(KSYNC_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (!hPipe) {
+            printf("Error CreateFile\r\n");
+            exit(-1);
+        }
+
+        BOOL transactionResult = DeviceIoControl(hPipe, IOCTL_SIOCTL_METHOD_OUT_DIRECT, NULL, 0, &sharedMem, sizeof(struct mem_wrapper), &bRetur, NULL);
+        if (!transactionResult) {
+            printf("Error DeviceIoControl: [%d]\r\n", transactionResult);
+            exit(transactionResult);
+        }
+
+        ft->ft_entries = sharedMem.pBuffer;
     }
 #endif
 
@@ -2119,7 +2119,7 @@ static int
 flow_set_ip(char *match_string)
 {
     int ret;
-    size_t length = strlen(match_string), token_length;
+    unsigned int length = strlen(match_string), token_length;
 
     char *token, *string = match_string;
 
@@ -2140,7 +2140,7 @@ flow_set_ip(char *match_string)
         }
 
         match_string = token + token_length;
-    } while (!ret && token && ((size_t)(match_string - string) < length));
+    } while (!ret && token && ((match_string - string) < length));
 
     return 0;
 }
@@ -2187,7 +2187,7 @@ static int
 flow_set_match(char *match_string)
 {
     int ret = 0;
-    size_t length = strlen(match_string), token_length;
+    unsigned int length = strlen(match_string), token_length;
     char *token, *string = match_string;
 
     do {
@@ -2204,7 +2204,7 @@ flow_set_match(char *match_string)
             }
         }
         match_string = token + token_length;
-    } while (!ret && token && ((size_t)(match_string - string) < length));
+    } while (!ret && token && ((match_string - string) < length));
 
     return ret;
 }
@@ -2262,7 +2262,6 @@ main(int argc, char *argv[])
 
     while ((opt = getopt_long(argc, argv, "d:f:g:i:lrs",
                     long_options, &option_index)) >= 0) {
-
         switch (opt) {
         case 'f':
         case 'g':
