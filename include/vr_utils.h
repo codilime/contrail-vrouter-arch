@@ -29,11 +29,6 @@ struct vr_util_flags {
     char *vuf_flag_string;
 };
 
-#ifdef _WINDOWS
-extern struct ether_addr *ether_aton(const char *asc);
-extern char *ether_ntoa(const struct ether_addr *addr);
-#endif
-
 #ifdef __cplusplus
 }
 #endif
