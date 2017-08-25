@@ -81,12 +81,6 @@ typedef struct _SX_OID_REQUEST
 
 } SX_OID_REQUEST, *PSX_OID_REQUEST;
 
-typedef struct _FILTER_DEVICE_EXTENSION
-{
-    ULONG            Signature;
-    NDIS_HANDLE      Handle;
-} FILTER_DEVICE_EXTENSION, *PFILTER_DEVICE_EXTENSION;
-
 
 //
 // Function prototypes
