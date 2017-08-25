@@ -1,5 +1,10 @@
-#ifndef __VR_DEVICES_H__
-#define __VR_DEVICES_H__
+/*
+ * windows_devices.h -- definitions used in pipe handling on Windows
+ *
+ * Copyright (c) 2017 Juniper Networks, Inc. All rights reserved.
+ */
+#ifndef __WINDOWS_DEVICES_H__
+#define __WINDOWS_DEVICES_H__
 
 #include "vr_os.h"
 #include "vr_windows.h"
@@ -59,4 +64,4 @@ struct pkt0_packet {
 
 int pkt0_if_tx(struct vr_interface *vif, struct vr_packet *pkt);
 
-#endif /* __VR_DEVICES_H__ */
+#endif /* __WINDOWS_DEVICES_H__ */

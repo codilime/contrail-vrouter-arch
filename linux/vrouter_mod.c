@@ -380,7 +380,7 @@ lh_phead_len(struct vr_packet *pkt)
 }
 
 static void
-lh_get_time(unsigned long *sec, unsigned long *usec)
+lh_get_time(uint64_t *sec, uint64_t *usec)
 {
     struct timeval t;
 
@@ -2128,10 +2128,10 @@ lh_soft_reset(struct vrouter *router)
 }
 
 void
-lh_register_nic(struct vr_interface* vif)
+lh_register_nic(struct vr_interface* vif __attribute__unused__,
+                vr_interface_req* vifr __attribute__unused__)
 {
-    UNREFERENCED_PARAMETER(vif);
-    // NOOP
+    // nothing is needed to be done on linux
 }
 
 struct host_os linux_host = {

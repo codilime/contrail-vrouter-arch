@@ -475,7 +475,7 @@ dpdk_delete_timer(struct vr_timer *vtimer)
 }
 
 static void
-dpdk_get_time(unsigned long *sec, unsigned long *usec)
+dpdk_get_time(uint64_t *sec, uint64_t *usec)
 {
     struct timespec ts;
 
@@ -1210,6 +1210,13 @@ dpdk_is_frag_limit_exceeded(void)
     return 0;
 }
 
+void
+dpdk_register_nic(struct vr_interface* vif __attribute__unused__,
+                  vr_interface_req* vifr __attribute__unused__)
+{
+    // nothing is needed to be done under dpdk
+}
+
 struct host_os dpdk_host = {
     .hos_printf                     =    dpdk_printf,
     .hos_malloc                     =    dpdk_malloc,
@@ -1264,6 +1271,7 @@ struct host_os dpdk_host = {
     .hos_get_enabled_log_types      =    dpdk_get_enabled_log_types,
     .hos_soft_reset                 =    dpdk_soft_reset,
     .hos_is_frag_limit_exceeded     =    dpdk_is_frag_limit_exceeded,
+    .hos_register_nic               =    dpdk_register_nic,
 };
 
 struct host_os *

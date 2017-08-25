@@ -156,7 +156,7 @@ vr_route_get(vr_route_req *req)
     uint32_t rt_prefix[4];
     bool mac_mem_free = false;
 
-    struct vr_route_req vr_req = { 0 };
+    struct vr_route_req vr_req;
     struct vrouter *router;
 	struct vr_rtable *rtable = NULL;
 

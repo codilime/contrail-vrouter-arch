@@ -10,7 +10,7 @@
 
 /* Only supported via "fake implementation" */
 #define NETLINK_GENERIC 0
-
+#define AF_NETLINK 0
 
 /*
  * Most of below structures and definitions have similar structures and
@@ -82,12 +82,5 @@ struct nlattr {
 #define NETLINK_HEADER_LEN	(NLMSG_HDRLEN + GENL_HDRLEN + NLA_HDRLEN)
 
 #define FAKE_NETLINK_FAMILY (1)
-
-#ifdef _WINDOWS
-#define IFNAMSIZ 32
-#else
-#define IFNAMSIZ 16
-#endif
-#define AF_NETLINK 0
 
 #endif /* FAKE_NETLINK_H */

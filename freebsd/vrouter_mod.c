@@ -372,7 +372,7 @@ fh_set_defer_data(void *data)
 }
 
 static void
-fh_get_time(unsigned long *sec, unsigned long *usec)
+fh_get_time(uint64_t *sec, uint64_t *usec)
 {
 	struct timespec tsp;
 
@@ -676,10 +676,10 @@ fh_get_enabled_log_types(int *size)
 }
 
 void
-fh_register_nic(struct vr_struct* vif)
+fh_register_nic(struct vr_interface* vif __attribute__unused__,
+                vr_interface_req* vifr __attribute__unused__)
 {
-	UNREFERENCED_PARAMETER(vif);
-	// NOOP
+    // nothing is needed to be done on freebsd
 }
 
 struct host_os freebsd_host = {

@@ -7,16 +7,12 @@
 #ifndef __VR_OS_H__
 #define __VR_OS_H__
 
-#ifdef _WIN32
-#include "windows_types.h"
-#else
+#ifndef _WIN32
 
 #define __attribute__packed__open__                     /* do nothing */
 #define __attribute__packed__close__                    __attribute__((__packed__))
 #define __attribute__format__(...)                      __attribute__((format(__VA_ARGS__)))
-#define __attribute__unused__                           __attribute__((unused)))
-
-#define UNREFERENCED_PARAMETER(a) (a)
+#define __attribute__unused__                           __attribute__((unused))
 
 #define vr_sync_sub_and_fetch_16u(a, b)                 __sync_sub_and_fetch((uint16_t*)(a), (uint16_t)(b))
 #define vr_sync_sub_and_fetch_32u(a, b)                 __sync_sub_and_fetch((uint32_t*)(a), (uint32_t)(b))
@@ -29,6 +25,7 @@
 #define vr_sync_fetch_and_add_64u(a, b)                 __sync_fetch_and_add((uint64_t*)(a), (uint64_t)(b))
 #define vr_sync_fetch_and_or_16u(a, b)                  __sync_fetch_and_or((uint16_t*)(a), (uint16_t)(b))
 #define vr_sync_and_and_fetch_16u(a, b)                 __sync_and_and_fetch((uint16_t*)(a), (uint16_t)(b))
+#define vr_sync_and_and_fetch_32u(a, b)                 __sync_and_and_fetch((uint32_t*)(a), (uint32_t)(b))
 #define vr_sync_bool_compare_and_swap_8u(a, b, c)       __sync_bool_compare_and_swap((uint8_t*)(a), (uint8_t)(b), (uint8_t)(c))
 #define vr_sync_bool_compare_and_swap_16u(a, b, c)      __sync_bool_compare_and_swap((uint16_t*)(a), (uint16_t)(b), (uint16_t)(c))
 #define vr_sync_bool_compare_and_swap_32u(a, b, c)      __sync_bool_compare_and_swap((uint32_t*)(a), (uint32_t)(b), (uint32_t)(c))
@@ -123,10 +120,11 @@ typedef unsigned int __u32;
 #endif
 #endif /* __FreeBSD__ */
 #if defined(_WIN32)
+#include "windows_types.h"
 #include "windows_builtins.h"
 #include "netlink.h"
 #include "genetlink.h"
-#ifdef  __KERNEL__
+#ifdef __KERNEL__
 
 #pragma warning(disable : 4018)     // '<': signed/unsigned mismatch
 #pragma warning(disable : 4242)     // '=': conversion, possible loss of data
