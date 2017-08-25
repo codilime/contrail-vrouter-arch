@@ -3,19 +3,24 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
-#include <vr_os.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/stat.h>
-
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/mman.h>
 #if defined(__linux__)
 #include <asm/types.h>
 
@@ -44,13 +49,6 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp);
 #define CLEAN_SCREEN            "cls"
 #else
 
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/mman.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <net/if.h>
 
 #define CLEAN_SCREEN            "clear"

@@ -5,13 +5,18 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <getopt.h>
 
 #include <sys/types.h>
+#include <sys/socket.h>
+
+#include <net/if.h>
 
 #include "ini_parser.h"
 #include "vr_os.h"
@@ -20,15 +25,6 @@
 #include "ini_parser.h"
 #include "nl_util.h"
 #include "ini_parser.h"
-
-#ifndef _WINDOWS
-#include <unistd.h>
-#include <getopt.h>
-#include <net/if.h>
-#include <sys/socket.h>
-#else
-#include <windows_getopt.h>
-#endif
 
 static struct nl_client *cl;
 static int help_set, core_set;
