@@ -121,6 +121,7 @@ static struct timeval last_time;
 
 static bool first_rate_iter = false;
 
+
 /*
  * How many times we partially ignore function call vr_interface_req_process.
  * For more information please read comment description for function:
@@ -850,7 +851,7 @@ vr_intf_op(struct nl_client *cl, unsigned int op)
         return vhost_create();
 
     if ((op == SANDESH_OP_DUMP &&  !(rate_set)) ||
-            ((op == SANDESH_OP_GET) && !(add_set))) {
+            ((op == SANDESH_OP_GET) && !(add_set) )) {
         vr_interface_print_header();
     } else if (rate_set) {
        list_header_print();
@@ -1458,7 +1459,7 @@ is_stdin_hit()
 int
 main(int argc, char *argv[])
 {
-    int opt, option_index;
+    int ret, opt, option_index;
     unsigned int i = 0;
 
 #ifndef _WIN32
@@ -1615,6 +1616,7 @@ main(int argc, char *argv[])
                 prev_req[i].vifr_queue_ierrors_to_lcore = NULL;
             }
         }
+
     }
     return 0;
 }
