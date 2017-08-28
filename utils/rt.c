@@ -26,7 +26,7 @@
 #include <net/ethernet.h>
 #endif
 #else
-#include <windows_getopt.h>
+#include <getopt.h>
 #endif
 
 #include "vr_types.h"

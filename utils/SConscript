@@ -34,7 +34,7 @@ libvrutil_objs = [env.Object('nl_util.lo', 'nl_util.c'), env.Object('udp_util.lo
                   env.Object('ini_parser.lo', 'ini_parser.c'), env.Object('vr_util.lo', 'vr_util.c')]
 
 if sys.platform.startswith('win'):
-    libvrutil_objs.append(env.Object('vr_win_util.lo', 'vr_win_util.c'))
+    libvrutil_objs.append(env.Object('windows_util.lo', 'windows_util.c'))
 
 env.StaticLibrary(libvrutil, libvrutil_objs)
 

@@ -4,27 +4,21 @@
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
-#include "vr_os.h"
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <sys/types.h>
-
-
-#ifdef __GNUC__
 #include <stdbool.h>
 #include <getopt.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <net/if.h>
-#else
-#include "windows_getopt.h"
-#endif
 
-#if defined(__linux__)
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#include <net/if.h>
+
+#if defined(__linux__) || defined(_WIN32)
 #include <netinet/ether.h>
 #elif defined(__FreeBSD__)
 #include <net/ethernet.h>
@@ -32,6 +26,7 @@
 
 #include "vr_types.h"
 #include "vr_nexthop.h"
+#include "vr_os.h"
 #include "nl_util.h"
 
 static int8_t src_mac[6], dst_mac[6];
@@ -45,16 +40,6 @@ static int comp_nh_ind = 0, lbl_ind = 0;
 
 static struct in_addr sip, dip;
 static struct nl_client *cl;
-
-void nh_response_process(void *s);
-void nh_nexthop_req_process(void *s_req);
-
-void
-nh_fill_nl_callbacks()
-{
-    nl_cb.vr_response_process = nh_response_process;
-    nl_cb.vr_nexthop_req_process = nh_nexthop_req_process;
-}
 
 static int
 vr_nh_op(struct nl_client *cl, int command, int type, uint32_t nh_id,
@@ -208,7 +193,7 @@ nh_print_newline_header(void)
 }
 
 void
-nh_nexthop_req_process(void *s_req)
+nexthop_req_process(void *s_req)
 {
     unsigned int i, printed = 0;
     struct in_addr a;
@@ -314,10 +299,17 @@ nh_nexthop_req_process(void *s_req)
 }
 
 void
-nh_response_process(void *s)
+response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
+}
+
+void
+nh_fill_nl_callbacks()
+{
+    nl_cb.vr_response_process = response_process;
+    nl_cb.vr_nexthop_req_process = nexthop_req_process;
 }
 
 static int
