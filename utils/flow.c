@@ -127,22 +127,6 @@ static void flow_dump_nexthop(vr_nexthop_req *, vr_interface_req *,
 static vr_nexthop_req *flow_get_nexthop(int);
 static int flow_table_map(vr_flow_req *);
 
-void fl_flow_req_process(void *sreq);
-void fl_interface_req_process(void *sreq);
-void fl_response_process(void *sresp);
-void fl_nexthop_req_process(void *sreq);
-void fl_drop_stats_req_process(void *sreq);
-
-void
-flow_fill_nl_callbacks()
-{
-    nl_cb.vr_flow_req_process = fl_flow_req_process;
-    nl_cb.vr_interface_req_process = fl_interface_req_process;
-    nl_cb.vr_response_process = fl_response_process;
-    nl_cb.vr_nexthop_req_process = fl_nexthop_req_process;
-    nl_cb.vr_drop_stats_req_process = fl_drop_stats_req_process;
-}
-
 void
 fl_response_process(void *sresp)
 {
@@ -211,6 +195,16 @@ fl_drop_stats_req_process(void *arg)
     resp_ds = vr_drop_stats_req_get_copy(req);
 
     return;
+}
+
+void
+flow_fill_nl_callbacks()
+{
+    nl_cb.vr_flow_req_process = fl_flow_req_process;
+    nl_cb.vr_interface_req_process = fl_interface_req_process;
+    nl_cb.vr_response_process = fl_response_process;
+    nl_cb.vr_nexthop_req_process = fl_nexthop_req_process;
+    nl_cb.vr_drop_stats_req_process = fl_drop_stats_req_process;
 }
 
 struct vr_flow_entry *
