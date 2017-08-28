@@ -143,7 +143,7 @@ SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
 
     UNREFERENCED_PARAMETER(SxDriverContext);
 
-    DEBUGP(DL_TRACE, ("===>SxAttach: NdisFilterHandle %p\n", NdisFilterHandle));
+    DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
 
     status = NDIS_STATUS_SUCCESS;
     switchObject = NULL;
@@ -166,8 +166,7 @@ SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
 
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DEBUGP(DL_ERROR,
-               ("SxAttach: Extension is running in non-switch environment.\n"));
+        DbgPrint("%s: Extension is running in non-switch environment.\r\n", __func__);
         goto Cleanup;
     }
 
@@ -219,7 +218,7 @@ SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
 
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DEBUGP(DL_ERROR, ("SxBase: Failed to set attributes.\n"));
+        DbgPrint("%s: Failed to set attributes.\r\n", __func__);
         goto Cleanup;
     }
 
@@ -240,8 +239,6 @@ Cleanup:
         }
     }
 
-    DEBUGP(DL_TRACE, ("<===SxAttach: status %x\n", status));
-
     return status;
 }
 
@@ -250,7 +247,7 @@ SxNdisDetach(NDIS_HANDLE FilterModuleContext)
 {
     PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
 
-    DEBUGP(DL_TRACE, ("===>SxDetach: SxInstance %p\n", FilterModuleContext));
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
 
     // The extension must be in paused state.
     NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
@@ -270,11 +267,6 @@ SxNdisDetach(NDIS_HANDLE FilterModuleContext)
     NdisReleaseSpinLock(&SxExtensionListLock);
 
     ExFreePool(switchObject);
-
-    // Alway return success.
-    DEBUGP(DL_TRACE, ("<===SxDetach Successfully\n"));
-
-    return;
 }
 
 static NTSTATUS

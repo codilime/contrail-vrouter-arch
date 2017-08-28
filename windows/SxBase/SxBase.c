@@ -87,8 +87,7 @@ SxNdisPause(
 
     UNREFERENCED_PARAMETER(PauseParameters);
 
-    DEBUGP(DL_TRACE,
-           ("===>NDISLWF SxPause: SxInstance %p\n", FilterModuleContext));
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
 
     //
     // Set the flag that the filter is going to pause.
@@ -102,8 +101,6 @@ SxNdisPause(
     {
         NdisMSleep(1000);
     }
-
-    DEBUGP(DL_TRACE, ("<===SxPause: status %x\n", NDIS_STATUS_SUCCESS));
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -125,8 +122,7 @@ SxNdisRestart(
 
     UNREFERENCED_PARAMETER(RestartParameters);
 
-    DEBUGP(DL_TRACE,
-           ("===>SxRestart: FilterModuleContext %p\n", FilterModuleContext));
+    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
            
     status = SxExtRestartSwitch(switchObject,
                                 switchObject->ExtensionContext);
@@ -138,11 +134,6 @@ SxNdisRestart(
 
     NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
     switchObject->DataFlowState = SxSwitchRunning;
-    
-    DEBUGP(DL_TRACE,
-           ("<===SxRestart: FilterModuleContext %p, status %x\n",
-            FilterModuleContext,
-            NDIS_STATUS_SUCCESS));
 
 Cleanup:
     return status;
@@ -169,7 +160,7 @@ SxNdisOidRequest(
    
     status = NDIS_STATUS_SUCCESS;
 
-    DEBUGP(DL_TRACE, ("===>SxOidRequest: OidRequest %p.\n", OidRequest));
+    DbgPrint("%s: OidRequest %p.\r\n", __func__, OidRequest);
     
     NdisInterlockedIncrement(&switchObject->PendingOidCount);
 
@@ -179,7 +170,7 @@ SxNdisOidRequest(
                                          &clonedRequest);
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DEBUGP(DL_WARN, ("FilerOidRequest: Cannot Clone OidRequest\n"));
+        DbgPrint("%s: Cannot Clone OidRequest\r\n", __func__);
         goto Cleanup;
     }
 
@@ -225,8 +216,6 @@ SxNdisOidRequest(
     }
 
 Cleanup:
-
-    DEBUGP(DL_TRACE, ("<===SxOidRequest: status %8x.\n", status));
     return status;
 }
 
@@ -265,8 +254,7 @@ SxNdisOidRequestComplete(
     PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequestBuf;
     PNDIS_OBJECT_HEADER header;
 
-    DEBUGP(DL_TRACE,
-           ("===>SxOidRequestComplete, NdisOidRequest %p.\n", NdisOidRequest));
+    DbgPrint("%s: NdisOidRequest %p.\r\n", __func__, NdisOidRequest);
 
     oidRequestContext = (PVOID*)(&NdisOidRequest->SourceReserved[0]);
     originalRequest = (*oidRequestContext);
@@ -349,8 +337,6 @@ SxNdisOidRequestComplete(
     NdisFOidRequestComplete(switchObject->NdisFilterHandle,
                             originalRequest,
                             Status);
-
-    DEBUGP(DL_TRACE, ("<===SxOidRequestComplete.\n"));
     
 Cleanup:
     NdisInterlockedDecrement(&switchObject->PendingOidCount);
