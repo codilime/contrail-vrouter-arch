@@ -852,6 +852,9 @@ SxExtStartNetBufferListsIngress(
 
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
+
+        ASSERT(Switch->DataFlowState == SxSwitchRunning);
+
         NdisFSendNetBufferLists(Switch->NdisFilterHandle,
             nativeForwardedNbls,
             NDIS_DEFAULT_PORT_NUMBER,
@@ -873,6 +876,8 @@ SxExtStartNetBufferListsEgress(
 {
     DbgPrint("SxExtStartNetBufferListsEgress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
+
+    ASSERT(Switch->DataFlowState == SxSwitchRunning);
 
     NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
         NetBufferLists,
