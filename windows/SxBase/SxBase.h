@@ -16,9 +16,6 @@ Abstract:
 
 --*/
 
-extern NDIS_STRING SxExtensionFriendlyName;
-extern NDIS_STRING SxExtensionGuid;
-
 typedef enum _SX_SWITCH_DATAFLOW_STATE
 {
     SxSwitchPaused,

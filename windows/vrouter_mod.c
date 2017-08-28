@@ -6,17 +6,19 @@
 #include "vr_sandesh.h"
 #include "windows_mem.h"
 
-PWCHAR SxExtFriendlyName = L"OpenContrail's vRouter forwarding extension";
-
-PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
-
-PWCHAR SxExtServiceName = L"vRouter";
+static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
+static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
+static const PWSTR ServiceName = L"vRouter";
 
 ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
+static NDIS_HANDLE DriverHandle = NULL;
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
+
+NDIS_SPIN_LOCK SxExtensionListLock;
+LIST_ENTRY SxExtensionList;
 
 // This is exported by SxLibrary
 extern PDRIVER_OBJECT SxDriverObject;
@@ -43,10 +45,6 @@ DRIVER_UNLOAD SxNdisUnload;
 FILTER_ATTACH SxNdisAttach;
 FILTER_DETACH SxNdisDetach;
 
-// TODO: move
-NDIS_SPIN_LOCK SxExtensionListLock;
-LIST_ENTRY SxExtensionList;
-NDIS_HANDLE SxDriverHandle = NULL;
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -54,12 +52,14 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     NDIS_STATUS status;
     NDIS_FILTER_DRIVER_CHARACTERISTICS fChars;
     NDIS_STRING service_name;
+    NDIS_STRING friendly_name;
+    NDIS_STRING unique_name;
 
     UNREFERENCED_PARAMETER(RegistryPath);
 
-    RtlInitUnicodeString(&service_name, SxExtServiceName);
-    RtlInitUnicodeString(&SxExtensionFriendlyName, SxExtFriendlyName);
-    RtlInitUnicodeString(&SxExtensionGuid, SxExtUniqueName);
+    RtlInitUnicodeString(&service_name, ServiceName);
+    RtlInitUnicodeString(&friendly_name, FriendlyName);
+    RtlInitUnicodeString(&unique_name, UniqueName);
     SxDriverObject = DriverObject;
 
     NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
@@ -74,8 +74,8 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.MinorDriverVersion = 0;
     fChars.Flags = 0;
 
-    fChars.FriendlyName = SxExtensionFriendlyName;
-    fChars.UniqueName = SxExtensionGuid;
+    fChars.FriendlyName = friendly_name;
+    fChars.UniqueName = unique_name;
     fChars.ServiceName = service_name;
 
     fChars.SetOptionsHandler = SxNdisSetOptions;
@@ -107,14 +107,14 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     status = NdisFRegisterFilterDriver(DriverObject,
                                        (NDIS_HANDLE)SxDriverObject,
                                        &fChars,
-                                       &SxDriverHandle);
+                                       &DriverHandle);
 
     if (status != NDIS_STATUS_SUCCESS)
     {
-        if (SxDriverHandle != NULL)
+        if (DriverHandle != NULL)
         {
-            NdisFDeregisterFilterDriver(SxDriverHandle);
-            SxDriverHandle = NULL;
+            NdisFDeregisterFilterDriver(DriverHandle);
+            DriverHandle = NULL;
         }
 
         NdisFreeSpinLock(&SxExtensionListLock);
@@ -126,7 +126,7 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 void
 SxNdisUnload(PDRIVER_OBJECT DriverObject)
 {
-    NdisFDeregisterFilterDriver(SxDriverHandle);
+    NdisFDeregisterFilterDriver(DriverHandle);
     NdisFreeSpinLock(&SxExtensionListLock);
 }
 

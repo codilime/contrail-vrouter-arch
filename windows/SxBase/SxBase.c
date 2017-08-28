@@ -18,11 +18,7 @@ Abstract:
 
 #include "precomp.h"
 
-ULONG SxDebugLevel;// = ~((ULONG)0);
 NDIS_HANDLE SxDriverObject;
-
-NDIS_STRING SxExtensionFriendlyName;
-NDIS_STRING SxExtensionGuid;
 
 NDIS_STATUS
 SxpNdisProcessSetOid(

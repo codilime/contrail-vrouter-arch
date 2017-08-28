@@ -15,21 +15,6 @@ Abstract:
 --*/
 
 //
-// The friendly name of the extension.
-//
-extern PWCHAR SxExtFriendlyName;
-
-//
-// The unique name of the extension.
-//
-extern PWCHAR SxExtUniqueName;
-
-//
-// The service name of the extension from the INF.
-//
-extern PWCHAR SxExtServiceName;
-
-//
 // The memory pool tag using in the extension.
 //
 extern ULONG  SxExtAllocationTag;
