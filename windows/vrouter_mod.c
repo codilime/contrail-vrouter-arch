@@ -814,7 +814,7 @@ SxExtStartNetBufferListsIngress(
         if (!vif) {
             // If no vif attached yet, then drop NBL.
             windows_host.hos_printf("%s: No vif found\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
 
@@ -828,7 +828,7 @@ SxExtStartNetBufferListsIngress(
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
             windows_host.hos_printf("%s: pkt is NULL\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
 
@@ -850,10 +850,10 @@ SxExtStartNetBufferListsIngress(
 
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
+        NdisFSendNetBufferLists(Switch->NdisFilterHandle,
             nativeForwardedNbls,
-            SendFlags,
-            0);
+            NDIS_DEFAULT_PORT_NUMBER,
+            SendFlags);
     }
 
     // Release the lock, now interfaces can disconnect, etc.
@@ -872,8 +872,9 @@ SxExtStartNetBufferListsEgress(
     DbgPrint("SxExtStartNetBufferListsEgress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    SxLibSendNetBufferListsEgress(Switch,
+    NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
         NetBufferLists,
+        NDIS_DEFAULT_PORT_NUMBER,
         NumberOfNetBufferLists,
         ReceiveFlags);
 }
@@ -889,7 +890,7 @@ SxExtStartCompleteNetBufferListsEgress(
     DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    SxLibCompleteNetBufferListsEgress(Switch,
+    NdisFReturnNetBufferLists(Switch->NdisFilterHandle,
         NetBufferLists,
         ReturnFlags);
 }
