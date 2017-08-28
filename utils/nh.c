@@ -626,6 +626,7 @@ validate_options(void)
         return;
     }
 
+
     switch (command) {
     case SANDESH_OP_ADD:
         if (!nh_set)
@@ -760,6 +761,7 @@ validate_options(void)
 
     return;
 }
+
 
 int
 main(int argc, char *argv[])

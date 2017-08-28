@@ -35,6 +35,8 @@ libvrutil_objs = [env.Object('nl_util.lo', 'nl_util.c'), env.Object('udp_util.lo
 
 if sys.platform.startswith('win'):
     libvrutil_objs.append(env.Object('windows_util.lo', 'windows_util.c'))
+else:
+    libvrutil_objs.append(env.Object('unix_util.lo', 'unix_util.c'))
 
 env.StaticLibrary(libvrutil, libvrutil_objs)
 
