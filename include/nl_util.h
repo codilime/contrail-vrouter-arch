@@ -27,6 +27,12 @@ extern "C" {
 
 #define VR_NETLINK_PROTO_DEFAULT    0xFFFFFFFF
 
+#ifdef _WIN32
+#define CLEAN_SCREEN_CMD        "cls"
+#else
+#define CLEAN_SCREEN_CMD        "clear"
+#endif
+
 extern struct nl_sandesh_callbacks nl_cb;
 
 struct nl_response {

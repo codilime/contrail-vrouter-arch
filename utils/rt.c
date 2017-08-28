@@ -6,27 +6,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <getopt.h>
 #include <inttypes.h>
 
-#ifndef _WIN32
-#include <unistd.h>
-#include <getopt.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
 #include <net/if.h>
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 #include <netinet/ether.h>
 #else
 #include <net/ethernet.h>
-#endif
-#else
-#include <getopt.h>
 #endif
 
 #include "vr_types.h"
@@ -87,16 +83,6 @@ struct vr_util_flags bridge_flags[] = {
     {VR_BE_FLOOD_DHCP_FLAG,     "Df",   "DHCP flood"    },
 };
 
-void rt_response_process(void *s);
-void rt_route_req_process(void *s_req);
-
-void
-rt_fill_nl_callbacks()
-{
-    nl_cb.vr_response_process = rt_response_process;
-    nl_cb.vr_route_req_process = rt_route_req_process;
-}
-
 static void
 dump_legend(int family)
 {
@@ -145,7 +131,7 @@ family_string_to_id(char *fname)
 }
 
 void
-rt_route_req_process(void *s_req)
+route_req_process(void *s_req)
 {
     int ret = 0, i;
     char addr[INET6_ADDRSTRLEN];
@@ -244,10 +230,17 @@ rt_route_req_process(void *s_req)
 }
 
 void
-rt_response_process(void *s)
+response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
+}
+
+void
+rt_fill_nl_callbacks()
+{
+    nl_cb.vr_response_process = response_process;
+    nl_cb.vr_route_req_process = route_req_process;
 }
 
 

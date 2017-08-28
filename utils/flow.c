@@ -46,12 +46,6 @@
 #include "ini_parser.h"
 #include "vr_packet.h"
 
-#ifdef _WIN32
-#define CLEAN_SCREEN_CMD        "cls"
-#else
-#define CLEAN_SCREEN_CMD        "clear"
-#endif
-
 #define TABLE_FLAG_VALID        0x1
 #define MEM_DEV                 "/dev/flow"
 
@@ -1682,13 +1676,13 @@ flow_table_map(vr_flow_req *req)
 
         HANDLE hPipe = CreateFile(KSYNC_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if (!hPipe) {
-            printf("Error CreateFile\r\n");
+            printf("Error CreateFile\n");
             exit(-1);
         }
 
         BOOL transactionResult = DeviceIoControl(hPipe, IOCTL_SIOCTL_METHOD_OUT_DIRECT, NULL, 0, &sharedMem, sizeof(struct mem_wrapper), &bRetur, NULL);
         if (!transactionResult) {
-            printf("Error DeviceIoControl: [%d]\r\n", transactionResult);
+            printf("Error DeviceIoControl: [%d]\n", transactionResult);
             exit(transactionResult);
         }
 
