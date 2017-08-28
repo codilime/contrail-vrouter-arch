@@ -57,61 +57,6 @@ SxExtCreateSwitch(
     _Outptr_result_maybenull_ PNDIS_HANDLE *ExtensionContext
     );
 
-    
-/*++
-
-SxExtDeleteSwitch
-  
-Routine Description:
-    This function is called when an extension binds to a new switch.
-    All switch specific data should be allocated/initialized during
-    this function.
-      
-Arguments:
-    Switch - the Switch being deleted
-    
-    ExtensionContext - The extension context allocated in SxExtCreateSwitch
-                       for the switch being deleted.
-    
-Return Value:
-    VOID
-   
---*/
-VOID
-SxExtDeleteSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-    );
-
-
-/*++
-
-SxExtRestartSwitch
-  
-Routine Description:
-    This function is called to restart a switch from a paused state.
-      
-Arguments:
-    Switch - the Switch being restarted
-    
-    ExtensionContext - The extension context allocated in SxExtCreateSwitch
-                       for the switch being restarted.
-    
-Return Value:
-    NDIS_STATUS_SUCCESS succeeds switch restart.
-    
-    NDIS_STATUS_RESOURCES fails switch restart because of insufficient
-                          resources.
-                          
-    NDIS_STATUS_FAILURE fails switch restart.
-   
---*/
-NDIS_STATUS
-SxExtRestartSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-    );
-
 
 /*++
 

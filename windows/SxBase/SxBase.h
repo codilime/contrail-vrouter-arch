@@ -86,10 +86,6 @@ FILTER_SET_OPTIONS SxNdisSetOptions;
 
 FILTER_SET_MODULE_OPTIONS SxNdisSetFilterModuleOptions;
 
-FILTER_PAUSE SxNdisPause;
-
-FILTER_RESTART SxNdisRestart;
-
 FILTER_OID_REQUEST SxNdisOidRequest;
 
 FILTER_CANCEL_OID_REQUEST SxNdisCancelOidRequest;

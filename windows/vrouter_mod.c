@@ -41,9 +41,12 @@ extern void vr_transport_exit(void);
 
 // NDIS Function prototypes
 DRIVER_INITIALIZE DriverEntry;
-DRIVER_UNLOAD SxNdisUnload;
-FILTER_ATTACH SxNdisAttach;
-FILTER_DETACH SxNdisDetach;
+DRIVER_UNLOAD DriverUnload;
+
+FILTER_ATTACH FilterAttach;
+FILTER_DETACH FilterDetach;
+FILTER_PAUSE FilterPause;
+FILTER_RESTART FilterRestart;
 
 
 NTSTATUS
@@ -81,10 +84,10 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.SetOptionsHandler = SxNdisSetOptions;
     fChars.SetFilterModuleOptionsHandler = SxNdisSetFilterModuleOptions;
 
-    fChars.AttachHandler = SxNdisAttach;
-    fChars.DetachHandler = SxNdisDetach;
-    fChars.PauseHandler = SxNdisPause;
-    fChars.RestartHandler = SxNdisRestart;
+    fChars.AttachHandler = FilterAttach;
+    fChars.DetachHandler = FilterDetach;
+    fChars.PauseHandler = FilterPause;
+    fChars.RestartHandler = FilterRestart;
 
     fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
     fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
@@ -102,7 +105,7 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     NdisAllocateSpinLock(&SxExtensionListLock);
     InitializeListHead(&SxExtensionList);
 
-    DriverObject->DriverUnload = SxNdisUnload;
+    DriverObject->DriverUnload = DriverUnload;
 
     status = NdisFRegisterFilterDriver(DriverObject,
                                        (NDIS_HANDLE)SxDriverObject,
@@ -123,15 +126,61 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     return status;
 }
 
+static void
+vr_message_exit(void)
+{
+    vr_transport_exit();
+    vr_sandesh_exit();
+}
+
 void
-SxNdisUnload(PDRIVER_OBJECT DriverObject)
+SxExtUninitializeVRouter(struct vr_switch_context* ctx)
+{
+    if (ctx->vrouter_up)
+        vrouter_exit(false);
+
+    if (ctx->message_up)
+        vr_message_exit();
+
+    if (ctx->memory_up)
+        memory_exit();
+
+    if (ctx->device_up)
+        VRouterUninitializeDevices(SxDriverObject);
+
+    if (ctx->pkt0_up)
+        Pkt0DestroyDevice(SxDriverObject);
+
+    if (ctx->ksync_up)
+        KsyncDestroyDevice(SxDriverObject);
+}
+
+void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
+{
+    if (SxNBLPool)
+        vrouter_free_pool(SxNBLPool);
+
+    if (AsyncWorkRWLock)
+        NdisFreeRWLock(AsyncWorkRWLock);
+
+    if (ctx)
+    {
+        if (ctx->lock)
+            NdisFreeRWLock(ctx->lock);
+
+        ExFreePoolWithTag(ctx, SxExtAllocationTag);
+    }
+}
+
+void
+DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     NdisFDeregisterFilterDriver(DriverHandle);
     NdisFreeSpinLock(&SxExtensionListLock);
 }
 
 NDIS_STATUS
-SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
+FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
              PNDIS_FILTER_ATTACH_PARAMETERS AttachParameters)
 {
     NDIS_STATUS status;
@@ -183,18 +232,14 @@ SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
 
     RtlZeroMemory(switchObject, switchObjectSize);
 
-    //
     // Initialize NDIS related information.
-    //
     switchObject->NdisFilterHandle = NdisFilterHandle;
     switchObject->NdisSwitchContext = switchContext;
     RtlCopyMemory(&switchObject->NdisSwitchHandlers,
                   &switchHandler,
                   sizeof(NDIS_SWITCH_OPTIONAL_HANDLERS));
 
-    //
     // Let the extension create its own context.
-    //
     status = SxExtCreateSwitch(switchObject,
                                &(switchObject->ExtensionContext));
 
@@ -203,10 +248,8 @@ SxNdisAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
         goto Cleanup;
     }
 
-    //
     // Register the object with NDIS because NDIS passes this object when it
     // calls into the driver.
-    //
     NdisZeroMemory(&sxAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
     sxAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
     sxAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
@@ -243,7 +286,7 @@ Cleanup:
 }
 
 void
-SxNdisDetach(NDIS_HANDLE FilterModuleContext)
+FilterDetach(NDIS_HANDLE FilterModuleContext)
 {
     PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
 
@@ -260,13 +303,61 @@ SxNdisDetach(NDIS_HANDLE FilterModuleContext)
         NdisMSleep(1000);
     }
 
-    SxExtDeleteSwitch(switchObject, switchObject->ExtensionContext);
+    ASSERTMSG("Trying to delete another switch than currently active", switchObject == SxSwitchObject);
+
+    struct vr_switch_context* ctx = (struct vr_switch_context*)switchObject->ExtensionContext;
+
+    SxExtUninitializeVRouter(ctx);
+    SxExtUninitializeWindowsComponents(ctx);
+
+    SxSwitchObject = NULL;
 
     NdisAcquireSpinLock(&SxExtensionListLock);
     RemoveEntryList(&switchObject->Link);
     NdisReleaseSpinLock(&SxExtensionListLock);
 
     ExFreePool(switchObject);
+}
+
+NDIS_STATUS
+FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS PauseParameters)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)(FilterModuleContext);
+
+    UNREFERENCED_PARAMETER(PauseParameters);
+
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+
+    // Set the flag that the filter is going to pause.
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
+    switchObject->DataFlowState = SxSwitchPaused;
+
+    KeMemoryBarrier();
+
+    while(switchObject->PendingInjectedNblCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+NDIS_STATUS
+FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS RestartParameters)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(RestartParameters);
+
+    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
+
+    struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
+    ctx->restart = FALSE;
+
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+    switchObject->DataFlowState = SxSwitchRunning;
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 static NTSTATUS
@@ -286,13 +377,6 @@ vr_message_init(void)
     }
 
     return NDIS_STATUS_SUCCESS;
-}
-
-static void
-vr_message_exit(void)
-{
-    vr_transport_exit();
-    vr_sandesh_exit();
 }
 
 static struct vr_interface*
@@ -393,28 +477,6 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 #endif
 }
 
-void
-SxExtUninitializeVRouter(struct vr_switch_context* ctx)
-{
-    if (ctx->vrouter_up)
-        vrouter_exit(false);
-
-    if (ctx->message_up)
-        vr_message_exit();
-
-    if (ctx->memory_up)
-        memory_exit();
-
-    if (ctx->device_up)
-        VRouterUninitializeDevices(SxDriverObject);
-
-    if (ctx->pkt0_up)
-        Pkt0DestroyDevice(SxDriverObject);
-
-    if (ctx->ksync_up)
-        KsyncDestroyDevice(SxDriverObject);
-}
-
 NDIS_STATUS
 SxExtInitializeVRouter(struct vr_switch_context* ctx)
 {
@@ -460,23 +522,6 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
 cleanup:
     SxExtUninitializeVRouter(ctx);
     return NDIS_STATUS_FAILURE;
-}
-
-void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
-{
-    if (SxNBLPool)
-        vrouter_free_pool(SxNBLPool);
-
-    if (AsyncWorkRWLock)
-        NdisFreeRWLock(AsyncWorkRWLock);
-
-    if (ctx)
-    {
-        if (ctx->lock)
-            NdisFreeRWLock(ctx->lock);
-
-        ExFreePoolWithTag(ctx, SxExtAllocationTag);
-    }
 }
 
 NDIS_STATUS
@@ -565,41 +610,6 @@ cleanup:
     SxSwitchObject = NULL;
 
     return NDIS_STATUS_FAILURE;
-}
-
-VOID
-SxExtDeleteSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtDeleteSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-
-    ASSERTMSG("Trying to delete another switch than currently active", Switch == SxSwitchObject);
-
-    struct vr_switch_context* ctx = (struct vr_switch_context*)ExtensionContext;
-
-    SxExtUninitializeVRouter(ctx);
-    SxExtUninitializeWindowsComponents(ctx);
-
-    SxSwitchObject = NULL;
-}
-
-NDIS_STATUS
-SxExtRestartSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtRestartSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    ctx->restart = FALSE;
-
-    return 0;
 }
 
 NDIS_STATUS
