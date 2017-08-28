@@ -6,16 +6,12 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef __GNUC__
 #include <unistd.h>
-#include <sys/socket.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#endif
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <sys/socket.h>
 #if defined(__linux__)
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
@@ -24,6 +20,8 @@
 #include <net/ethernet.h>
 #endif
 
+#include <net/if.h>
+#include <netinet/in.h>
 
 #include "vr_types.h"
 #include "nl_util.h"
@@ -36,18 +34,14 @@
 #include "vr_bridge.h"
 #include "ini_parser.h"
 
-#ifdef _WIN32
-#include <Iphlpapi.h>
-#pragma warning(disable:4996)
-#endif
-
 /* Suppress NetLink error messages */
 bool vr_ignore_nl_errors = false;
 
 char *
 vr_extract_token(char *string, char token_separator)
 {
-    size_t length;
+    int ret;
+    unsigned int length;
 
     char *sep;
 
@@ -260,46 +254,11 @@ vr_sendmsg(struct nl_client *cl, void *request,
     return nl_sendmsg(cl);
 }
 
-#ifndef _WINDOWS
-static int
-__setup_nl_client(struct nl_client *cl, unsigned int proto)
-{
-    int ret = 0;
-    unsigned int sock_proto = proto;
-
-    parse_ini_file();
-
-    if (proto == VR_NETLINK_PROTO_DEFAULT)
-        sock_proto = get_protocol();
-
-    ret = nl_socket(cl, get_domain(), get_type(), sock_proto);
-    if (ret <= 0)
-        return ret;
-
-    ret = nl_connect(cl, get_ip(), get_port());
-    if (ret < 0)
-        return ret;
-
-    if ((proto == VR_NETLINK_PROTO_DEFAULT) &&
-            (vrouter_get_family_id(cl) <= 0))
-        return -EINVAL;
-
-    return 0;
-}
-#endif
-
-#ifdef _WINDOWS
-static int
-__setup_nl_client(struct nl_client *cl, unsigned int proto)
-{
-    return win_setup_nl_client(cl, proto);
-}
-#endif
-
 struct nl_client *
 vr_get_nl_client(unsigned int proto)
 {
     int ret;
+    unsigned int sock_proto = proto;
     struct nl_client *cl;
 
     cl = nl_register_client();
@@ -641,9 +600,9 @@ vr_send_interface_delete(struct nl_client *cl, unsigned int router_id,
 
 int
 vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
-    int os_index, int vif_index, int vif_xconnect_index, int vif_type,
-    unsigned int vrf, unsigned int flags, int8_t *vif_mac, int8_t vif_transport,
-    const char* guid)
+        int os_index, int vif_index, int vif_xconnect_index, int vif_type,
+        unsigned int vrf, unsigned int flags, int8_t *vif_mac, int8_t vif_transport,
+        const char* guid)
 {
     int platform;
     vr_interface_req req;
