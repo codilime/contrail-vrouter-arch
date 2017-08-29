@@ -1403,7 +1403,7 @@ rate_stats(struct nl_client *cl, unsigned int vr_op)
         }
 
 #ifdef _WIN32
-        kb_input[0] = _getch_nolock();
+        kb_input[0] = getch();
 #else
         /*
          * We must get minimum 2 characters,
@@ -1441,7 +1441,7 @@ static int
 is_stdin_hit()
 {
 #ifdef _WIN32
-    return _kbhit();
+    return kbhit();
 #else
     struct timeval tv;
     fd_set fds;
