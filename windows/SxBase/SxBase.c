@@ -272,51 +272,6 @@ Cleanup:
 
 
 //
-// FilterSendNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549966(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisSendNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    NDIS_PORT_NUMBER PortNumber,
-    ULONG SendFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    
-    UNREFERENCED_PARAMETER(PortNumber);
-
-    SxExtStartNetBufferListsIngress(switchObject,
-                                    switchObject->ExtensionContext,
-                                    NetBufferLists,
-                                    SendFlags);
-}
-
-
-//
-// FilterSendNetBufferListsComplete Function
-// http://msdn.microsoft.com/en-us/library/ff549967(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisSendNetBufferListsComplete(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    ULONG SendCompleteFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    SxExtStartCompleteNetBufferListsIngress(switchObject,
-                                            switchObject->ExtensionContext,
-                                            NetBufferLists,
-                                            SendCompleteFlags);
-}
-
-
-//
 // FilterReceiveNetBufferLists Function
 // http://msdn.microsoft.com/en-us/library/ff549960(v=VS.85).aspx
 //
@@ -360,22 +315,6 @@ SxNdisReturnNetBufferLists(
                                            switchObject->ExtensionContext,
                                            NetBufferLists,
                                            ReturnFlags);
-}
-
-
-//
-// FilterCancelSendNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549915(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisCancelSendNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PVOID CancelId
-    )
-{
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    UNREFERENCED_PARAMETER(CancelId);
 }
 
 

@@ -235,42 +235,6 @@ SxExtDeleteNic(
 
 /*++
 
-SxExtStartNetBufferListsIngress
-  
-Routine Description:
-    This function is called upon the receipt on an NBL on ingress.
-    The extension should call SxLibSendNetBufferListsIngress to continue
-    the send of the NBL on ingress.
-    The extension should call SxLibCompleteNetBufferListsIngress to
-    drop the NBL.
-    This function may also be call from egress to inject an NBL.
-
-Arguments:
-    Switch - the Switch context
-    
-    ExtensionContext - The extension context allocated in SxExtCreateSwitch
-                       for the switch
-                       
-    NetBufferLists - the NBL to be sent
-        
-    SendFlags - the send flags from NDIS, equivalent to NDIS send flags for
-                NdisFSendNetBufferLists
-    
-Return Value:
-    VOID
-   
---*/  
-VOID
-SxExtStartNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendFlags
-    );
-
-
-/*++
-
 SxExtStartNetBufferListsEgress
   
 Routine Description:
@@ -338,43 +302,3 @@ SxExtStartCompleteNetBufferListsEgress(
     _In_ PNET_BUFFER_LIST NetBufferLists,
     _In_ ULONG ReturnFlags
     );
-
-    
-/*++
-
-SxExtStartCompleteNetBufferListsIngress
-  
-Routine Description:
-    This function is called upon the completion of an NBL on ingress.
-    The extension must call SxLibCompleteNetBufferListsIngress
-    once it has finished processing the NBL.
-    
-    If there are NBLs injected by this extension in NetBufferLists,
-    the extension must NOT call SxLibCompleteNetBufferListsIngress, and
-    instead call SxLibCompletedInjectedNetBufferLists with the number
-    of injected NBLs completed.
-
-Arguments:
-    Switch - the Switch context
-    
-    ExtensionContext - The extension context allocated in SxExtCreateSwitch
-                       for the switch
-                       
-    NetBufferLists - the NBL being completed
-        
-    SendCompleteFlags - the send complete flags from NDIS, equivalent to
-                        NDIS send complete flags for
-                        NdisFSendNetBufferListsComplete
-    
-Return Value:
-    VOID
-   
---*/ 
-VOID
-SxExtStartCompleteNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendCompleteFlags
-    );
-    

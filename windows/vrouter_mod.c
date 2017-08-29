@@ -48,6 +48,10 @@ FILTER_DETACH FilterDetach;
 FILTER_PAUSE FilterPause;
 FILTER_RESTART FilterRestart;
 
+FILTER_SEND_NET_BUFFER_LISTS FilterSendNetBufferLists;
+FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
+FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
+
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -89,9 +93,9 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.PauseHandler = FilterPause;
     fChars.RestartHandler = FilterRestart;
 
-    fChars.SendNetBufferListsHandler = SxNdisSendNetBufferLists;
-    fChars.SendNetBufferListsCompleteHandler = SxNdisSendNetBufferListsComplete;
-    fChars.CancelSendNetBufferListsHandler = SxNdisCancelSendNetBufferLists;
+    fChars.SendNetBufferListsHandler = FilterSendNetBufferLists;
+    fChars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
+    fChars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
     fChars.ReceiveNetBufferListsHandler = SxNdisReceiveNetBufferLists;
     fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
 
@@ -761,15 +765,19 @@ vr_win_split_nbls_by_forwarding_type(
     }
 }
 
-VOID
-SxExtStartNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendFlags
-)
+void
+FilterSendNetBufferLists(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    NDIS_PORT_NUMBER PortNumber,
+    ULONG SendFlags
+    )
 {
-    struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
+    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(PortNumber);
+
+    struct vr_switch_context *ctx = (struct vr_switch_context*)Switch->ExtensionContext;
     LOCK_STATE_EX lockState;
 
     BOOLEAN sameSource;
@@ -902,16 +910,14 @@ SxExtStartCompleteNetBufferListsEgress(
         ReturnFlags);
 }
 
-VOID
-SxExtStartCompleteNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendCompleteFlags
-)
+void
+FilterSendNetBufferListsComplete(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    ULONG SendCompleteFlags
+    )
 {
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
 
     PNET_BUFFER_LIST next = NetBufferLists;
     PNET_BUFFER_LIST current;
@@ -922,4 +928,14 @@ SxExtStartCompleteNetBufferListsIngress(
 
         free_nbl(current, 0);
     } while (next != NULL);
+}
+
+void
+FilterCancelSendNetBufferLists(
+    NDIS_HANDLE FilterModuleContext,
+    PVOID CancelId
+    )
+{
+    UNREFERENCED_PARAMETER(FilterModuleContext);
+    UNREFERENCED_PARAMETER(CancelId);
 }
