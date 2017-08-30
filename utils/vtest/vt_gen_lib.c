@@ -11,13 +11,10 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <ctype.h>
+#include <strings.h>
 
 #include <vr_types.h>
 #include <vt_gen_lib.h>
-
-#ifdef _WINDOWS
-#define strncasecmp(x,y,z) _strnicmp(x,y,z)
-#endif /* _WINDOWS */
 
 unsigned char *
 vt_gen_skip_space(unsigned char *string)

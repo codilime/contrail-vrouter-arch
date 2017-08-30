@@ -23,12 +23,6 @@ if sys.platform.startswith('win'):
     env.Append(LINKFLAGS = '/STACK:"10000000"')
 else:
     env.Append(CPPPATH = '/usr/include/libxml2')
-    xml_cpppath = os.popen('xml2-config --cflags | sed \'s/\-I//g\'').read()
-    #env.Append(CPPPATH = xml_cpppath)
-
-if sys.platform.startswith('win'):
-    env.Append(CPPDEFINES='_WINDOWS')
-else:
     env.Append(CCFLAGS = '-g -std=gnu99')
 
 libvrutil = 'vrutil'
@@ -71,7 +65,7 @@ vtest_src = [
 
 if not sys.platform.startswith('win'):
     vtest_src.append('vt_packet.c')
-    
+
     env.Command('libjnprvnet.a', None, 'make', chdir=src_root+'/vrouter/utils/vtest/vhost')
 
 vtest = env.Program('vtest', vtest_src)
