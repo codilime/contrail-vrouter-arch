@@ -26,6 +26,7 @@
 
 #include <net/if.h>
 #include <nl_util.h>
+#include <vr_defs.h>
 
 #ifndef _WIN32
 #include <vt_packet.h>
