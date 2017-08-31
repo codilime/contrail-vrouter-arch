@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,30 +23,18 @@
 #include <vt_message.h>
 #include <vt_process_xml.h>
 
+
+#include <net/if.h>
 #include <nl_util.h>
 
-#ifndef _WINDOWS
-#include <unistd.h>
-#include <net/if.h>
+#ifndef _WIN32
 #include <vt_packet.h>
-#endif /* _WINDOWS */
+#endif
 
 extern struct expect_vrouter expect_msg;
 extern struct return_vrouter return_msg;
 
-extern void vt_interface_req_process(void *s);
-extern void vt_nexthop_req_process(void *s);
-extern void vt_route_req_process(void *s);
-extern void vt_response_process(void *s);
-extern void vt_vrf_stats_req_process(void *s);
-extern void vt_vrouter_ops_process(void *s);
-extern void vt_vrf_assign_req_process(void *s);
-extern void vt_flow_req_process(void *s);
-extern void vt_vxlan_req_process(void *s);
-extern void vt_drop_stats_req_process(void *s);
-extern void vt_mpls_req_process(void *s);
-extern void vt_mirror_req_process(void *s);
-extern void vt_mem_stats_req_process(void *s);
+extern void vt_fill_nl_callbacks();
 
 struct vtest_module vt_modules[] = {
     {   .vt_name        =   "test_name",
@@ -55,33 +44,15 @@ struct vtest_module vt_modules[] = {
         .vt_name        =   "message",
         .vt_node        =   vt_message,
     },
-#ifndef _WINDOWS
+#ifndef _WIN32
     {
         .vt_name        =   "packet",
         .vt_node        =   vt_packet,
     },
-#endif /* _WINDOWS */
+#endif
 };
 
 const size_t VTEST_NUM_MODULES = ARRAYSIZE(vt_modules);
-
-void
-vt_fill_nl_callbacks()
-{
-    nl_cb.vr_interface_req_process = vt_interface_req_process;
-    nl_cb.vr_nexthop_req_process = vt_nexthop_req_process;
-    nl_cb.vr_route_req_process = vt_route_req_process;
-    nl_cb.vr_response_process = vt_response_process;
-    nl_cb.vr_vrf_stats_req_process = vt_vrf_stats_req_process;
-    nl_cb.vrouter_ops_process = vt_vrouter_ops_process;
-    nl_cb.vr_vrf_assign_req_process = vt_vrf_assign_req_process;
-    nl_cb.vr_flow_req_process = vt_flow_req_process;
-    nl_cb.vr_vxlan_req_process = vt_vxlan_req_process;
-    nl_cb.vr_drop_stats_req_process = vt_drop_stats_req_process;
-    nl_cb.vr_mpls_req_process = vt_mpls_req_process;
-    nl_cb.vr_mirror_req_process = vt_mirror_req_process;
-    nl_cb.vr_mem_stats_req_process = vt_mem_stats_req_process;
-}
 
 static void
 vt_dealloc_test(struct vtest *test) {

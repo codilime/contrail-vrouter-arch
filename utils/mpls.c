@@ -4,20 +4,17 @@
  *  Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
 
-#ifndef _WIN32
-#include <unistd.h>
-#include <getopt.h>
-#include <net/if.h>
-#else
-#include <windows_getopt.h>
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <getopt.h>
 #include <stdbool.h>
+
 #include <sys/types.h>
+
+#include <net/if.h>
 
 #include "vr_types.h"
 #include "vr_mpls.h"
@@ -46,7 +43,7 @@ mpls_req_process(void *s_req)
 }
 
 void
-mpls_response_process(void *s)
+response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
@@ -55,7 +52,7 @@ mpls_response_process(void *s)
 void
 mpls_fill_nl_callbacks()
 {
-    nl_cb.vr_response_process = mpls_response_process;
+    nl_cb.vr_response_process = response_process;
     nl_cb.vr_mpls_req_process = mpls_req_process;
 }
 
@@ -230,7 +227,9 @@ int main(int argc, char *argv[])
     int ret;
     int opt;
     int option_index;
+
     mpls_fill_nl_callbacks();
+
     while ((opt = getopt_long(argc, argv, "bcdgn:l:",
                     long_options, &option_index)) >= 0) {
             switch (opt) {

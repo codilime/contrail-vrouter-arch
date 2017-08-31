@@ -3,28 +3,21 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <malloc.h>
 #include <stdbool.h>
+#include <arpa/inet.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <asm/types.h>
+#include <linux/netlink.h>
 #include <ctype.h>
 #include <stdlib.h>
 
 #include "vr_os.h"
 #include "ini_parser.h"
 
-#ifdef __GNUC__
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <asm/types.h>
-#include <linux/netlink.h>
-#endif
-
 #define BUF_LENGTH 256
-
-#if defined(_WINDOWS)
-#pragma warning(disable:4996)
-#endif
 
 static char value[BUF_LENGTH];
 static char *ini_data = NULL;
@@ -185,7 +178,7 @@ get_domain()
         strcmp(platform, PLATFORM_NIC) == 0)) {
         return AF_INET;
     }
-        return AF_NETLINK;
+    return AF_NETLINK;
 }
 
 int
@@ -197,7 +190,7 @@ get_type()
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return SOCK_STREAM;
     }
-	return SOCK_DGRAM;
+    return SOCK_DGRAM;
 }
 
 uint16_t
@@ -227,7 +220,7 @@ get_protocol()
          strcmp(platform, PLATFORM_NIC) == 0)) {
         return 0;
     }
-	return NETLINK_GENERIC;
+    return NETLINK_GENERIC;
 }
 
 int

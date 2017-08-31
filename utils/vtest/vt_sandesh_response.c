@@ -7,13 +7,13 @@
 #include <vtest.h>
 #include <vr_types.h>
 #include <vt_gen_lib.h>
-
+#include <nl_util.h>
 
 struct expect_vrouter expect_msg;
 struct return_vrouter return_msg;
 
 void
-vt_interface_req_process(void *s) {
+interface_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_interface_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -26,7 +26,7 @@ vt_interface_req_process(void *s) {
 }
 
 void
-vt_nexthop_req_process(void *s) {
+nexthop_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_nexthop_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -39,7 +39,7 @@ vt_nexthop_req_process(void *s) {
 }
 
 void
-vt_route_req_process(void *s) {
+route_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_route_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -53,7 +53,7 @@ vt_route_req_process(void *s) {
 }
 
 void
-vt_response_process(void *s) {
+response_process(void *s) {
     vr_response *buf = (vr_response *)s;
 
     return_msg.returned_ptr_num++;
@@ -61,7 +61,7 @@ vt_response_process(void *s) {
 }
 
 void
-vt_vrf_stats_req_process(void *s) {
+vrf_stats_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_vrf_stats_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -87,7 +87,7 @@ vt_vrouter_ops_process(void *s) {
 }
 
 void
-vt_vrf_assign_req_process(void *s) {
+vrf_assign_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_vrf_assign_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -101,7 +101,7 @@ vt_vrf_assign_req_process(void *s) {
 }
 
 void
-vt_flow_req_process(void *s) {
+flow_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_flow_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -115,7 +115,7 @@ vt_flow_req_process(void *s) {
 }
 
 void
-vt_vxlan_req_process(void *s) {
+vxlan_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_vxlan_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -129,7 +129,7 @@ vt_vxlan_req_process(void *s) {
 }
 
 void
-vt_drop_stats_req_process(void *s) {
+drop_stats_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_drop_stats_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -143,7 +143,7 @@ vt_drop_stats_req_process(void *s) {
 }
 
 void
-vt_mpls_req_process(void *s) {
+mpls_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_mpls_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -156,7 +156,7 @@ vt_mpls_req_process(void *s) {
 }
 
 void
-vt_mirror_req_process(void *s) {
+mirror_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_mirror_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -169,7 +169,7 @@ vt_mirror_req_process(void *s) {
 }
 
 void
-vt_mem_stats_req_process(void *s) {
+mem_stats_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_mem_stats_req));
     if (!buf) {
         fprintf(stderr, "Cannot alloc memory \n");
@@ -181,3 +181,20 @@ vt_mem_stats_req_process(void *s) {
     (memcpy(buf, s, sizeof(vr_mem_stats_req)));
 }
 
+void
+vt_fill_nl_callbacks()
+{
+    nl_cb.vr_interface_req_process = interface_req_process;
+    nl_cb.vr_nexthop_req_process = nexthop_req_process;
+    nl_cb.vr_route_req_process = route_req_process;
+    nl_cb.vr_response_process = response_process;
+    nl_cb.vr_vrf_stats_req_process = vrf_stats_req_process;
+    nl_cb.vrouter_ops_process = vt_vrouter_ops_process;
+    nl_cb.vr_vrf_assign_req_process = vrf_assign_req_process;
+    nl_cb.vr_flow_req_process = flow_req_process;
+    nl_cb.vr_vxlan_req_process = vxlan_req_process;
+    nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
+    nl_cb.vr_mpls_req_process = mpls_req_process;
+    nl_cb.vr_mirror_req_process = mirror_req_process;
+    nl_cb.vr_mem_stats_req_process = mem_stats_req_process;
+}

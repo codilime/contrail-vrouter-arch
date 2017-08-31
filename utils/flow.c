@@ -3,25 +3,36 @@
  *
  * Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
  */
-#include <vr_os.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <inttypes.h>
 
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/mman.h>
 #if defined(__linux__)
 #include <asm/types.h>
 
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
+#endif
+
+#include <net/if.h>
+#if defined(__linux__) || defined(_WIN32)
 #include <netinet/ether.h>
 #endif
 
@@ -35,27 +46,6 @@
 #include "ini_parser.h"
 #include "vr_packet.h"
 
-#ifdef _WIN32
-#include <windows_getopt.h>
-#include <Netioapi.h>
-
-char* ether_ntoa(const struct ether_addr *addr);
-int gettimeofday(struct timeval * tp, struct timezone * tzp);
-#define CLEAN_SCREEN            "cls"
-#else
-
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/mman.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-
-#define CLEAN_SCREEN            "clear"
-#endif
-
 #define TABLE_FLAG_VALID        0x1
 #define MEM_DEV                 "/dev/flow"
 
@@ -63,7 +53,7 @@ static int mem_fd;
 
 static int dvrf_set, mir_set, show_evicted_set;
 static int help_set, match_set, get_set;
-static unsigned long dvrf;
+static unsigned short dvrf;
 static int list, flow_cmd, mirror = -1;
 static unsigned long flow_index;
 static int rate, stats;
@@ -113,7 +103,7 @@ struct flow_table {
     u_int64_t ft_processed;
     u_int64_t ft_created;
     u_int64_t ft_added;
-    u_int64_t ft_num_entries;
+    unsigned int ft_num_entries;
     unsigned int ft_flags;
     unsigned int ft_cpus;
     unsigned int ft_hold_oflows;
@@ -129,26 +119,10 @@ vr_flow_req flow_req;
 static void flow_dump_nexthop(vr_nexthop_req *, vr_interface_req *,
         char *, bool);
 static vr_nexthop_req *flow_get_nexthop(int);
-static u_int64_t flow_table_map(vr_flow_req *);
-
-void fl_flow_req_process(void *sreq);
-void fl_interface_req_process(void *sreq);
-void fl_response_process(void *sresp);
-void fl_nexthop_req_process(void *sreq);
-void fl_drop_stats_req_process(void *sreq);
+static int flow_table_map(vr_flow_req *);
 
 void
-flow_fill_nl_callbacks()
-{
-    nl_cb.vr_flow_req_process = fl_flow_req_process;
-    nl_cb.vr_interface_req_process = fl_interface_req_process;
-    nl_cb.vr_response_process = fl_response_process;
-    nl_cb.vr_nexthop_req_process = fl_nexthop_req_process;
-    nl_cb.vr_drop_stats_req_process = fl_drop_stats_req_process;
-}
-
-void
-fl_response_process(void *sresp)
+response_process(void *sresp)
 {
     vr_response *resp = (vr_response *)sresp;
 
@@ -159,7 +133,7 @@ fl_response_process(void *sresp)
 }
 
 void
-fl_flow_req_process(void *sreq)
+flow_req_process(void *sreq)
 {
     vr_flow_req *req = (vr_flow_req *)sreq;
 
@@ -178,7 +152,7 @@ fl_flow_req_process(void *sreq)
 }
 
 void
-fl_interface_req_process(void *arg)
+interface_req_process(void *arg)
 {
     vr_interface_req *req = (vr_interface_req *)arg;
 
@@ -188,7 +162,7 @@ fl_interface_req_process(void *arg)
 }
 
 void
-fl_nexthop_req_process(void *arg)
+nexthop_req_process(void *arg)
 {
     vr_nexthop_req *req = (vr_nexthop_req *)arg;
 
@@ -198,7 +172,7 @@ fl_nexthop_req_process(void *arg)
 }
 
 void
-fl_route_req_process(void *arg)
+route_req_process(void *arg)
 {
     vr_route_req *req = (vr_route_req *)arg;
 
@@ -208,13 +182,23 @@ fl_route_req_process(void *arg)
 }
 
 void
-fl_drop_stats_req_process(void *arg)
+drop_stats_req_process(void *arg)
 {
     vr_drop_stats_req *req = (vr_drop_stats_req *)arg;
 
     resp_ds = vr_drop_stats_req_get_copy(req);
 
     return;
+}
+
+void
+flow_fill_nl_callbacks()
+{
+    nl_cb.vr_flow_req_process = flow_req_process;
+    nl_cb.vr_interface_req_process = interface_req_process;
+    nl_cb.vr_response_process = response_process;
+    nl_cb.vr_nexthop_req_process = nexthop_req_process;
+    nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
 }
 
 struct vr_flow_entry *
@@ -481,7 +465,7 @@ flow_print_vif(vr_interface_req *vif, char *vif_name, bool ingress)
                 vif->vifr_idx, vif->vifr_vrf, vif_name);
 
         flow_print_spaces();
-        printf("Interface Statistics(Out, In, Errors): %llu, %llu, %llu\n",
+        printf("Interface Statistics(Out, In, Errors): %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
                 vif->vifr_opackets, vif->vifr_ipackets,
                 vif->vifr_ierrors + vif->vifr_oerrors);
     }
@@ -631,10 +615,10 @@ flow_dump_mirror(vr_nexthop_req *req)
 }
 
 
-static unsigned long long
+static int64_t
 flow_sum_drops_stats(vr_drop_stats_req *req)
 {
-    unsigned long long sum = 0;
+    int64_t sum = 0;
 
     sum += req->vds_flow_queue_limit_exceeded;
     sum += req->vds_flow_no_memory;
@@ -657,9 +641,9 @@ flow_dump_entry(struct vr_flow_entry *fe)
     char in_rsrc[INET6_ADDRSTRLEN], in_rdest[INET6_ADDRSTRLEN];
     char in_rt[INET6_ADDRSTRLEN];
 
-    struct vr_flow_entry *rfe = NULL;
+    struct vr_flow_entry *rfe;
 
-    system(CLEAN_SCREEN);
+    system(CLEAN_SCREEN_CMD);
     flow_print_field_name("Flow Index");
     printf("%lu\n", flow_index);
 
@@ -920,11 +904,11 @@ flow_dump_entry(struct vr_flow_entry *fe)
     flow_print_field_name("Flow Statistics");
     printf("%u/%u\n", fe->fe_stats.flow_packets, fe->fe_stats.flow_bytes);
     flow_print_field_name("System Wide Packet Drops");
-    printf("%llu\n", vr_sum_drop_stats(global_ds));
+    printf("%" PRIu64 "\n", vr_sum_drop_stats(global_ds));
     flow_print_spaces();
-    printf("Reverse Path Failures: %llu\n", global_ds->vds_invalid_source);
+    printf("Reverse Path Failures: %" PRIu64 "\n", global_ds->vds_invalid_source);
     flow_print_spaces();
-    printf("Flow Block Drops: %llu\n", flow_sum_drops_stats(global_ds));
+    printf("Flow Block Drops: %" PRId64 "\n", flow_sum_drops_stats(global_ds));
 
     return;
 }
@@ -934,7 +918,7 @@ flow_get_routes(struct vr_flow_entry *fe)
 {
     unsigned int vrf;
     unsigned int family = VR_FLOW_FAMILY(fe->fe_type);
-    struct vr_flow_entry *rfe = NULL;
+    struct vr_flow_entry *rfe;
 
     if (fe->fe_action == VR_FLOW_ACTION_NAT) {
         if (!(fe->fe_flags & VR_RFLOW_VALID))
@@ -971,7 +955,7 @@ flow_get_routes(struct vr_flow_entry *fe)
     if (fe->fe_flags & VR_FLOW_FLAG_VRFT)
         vrf = fe->fe_dvrf;
 
-    if (fe->fe_flags & VR_FLOW_FLAG_DNAT && rfe) {
+    if (fe->fe_flags & VR_FLOW_FLAG_DNAT) {
         dst_l3_rt = flow_get_route(family, vrf, rfe->fe_key.flow_ip);
     } else {
         dst_l3_rt = flow_get_route(family, vrf,
@@ -1005,7 +989,7 @@ flow_get_routes(struct vr_flow_entry *fe)
 static void
 flow_get_source(struct vr_flow_entry *fe)
 {
-    unsigned int i;
+    int i;
     struct vr_flow_entry *rfe;
 
     if (fe->fe_src_nh_index >= 0) {
@@ -1131,9 +1115,9 @@ flow_dump_table(struct flow_table *ft)
     char addr[INET6_ADDRSTRLEN];
     bool smatch, dmatch;
 
-    printf("Flow table(size %llu, entries %llu)\n\n", ft->ft_span,
+    printf("Flow table(size %" PRIu64 ", entries %u)\n\n", ft->ft_span,
             ft->ft_num_entries);
-    printf("Entries: Created %llu Added %llu Processed %llu Used Overflow entries %u\n",
+    printf("Entries: Created %" PRIu64 " Added %" PRIu64 " Processed %" PRIu64 " Used Overflow entries %u\n",
             ft->ft_created, ft->ft_added, ft->ft_processed,
             ft->ft_oflow_entries);
     printf("(Created Flows/CPU: ");
@@ -1211,12 +1195,14 @@ flow_dump_table(struct flow_table *ft)
         need_flag_print = 0;
         need_drop_reason = 0;
         fe = (struct vr_flow_entry *)((char *)ft->ft_entries + (i * sizeof(*fe)));
-
         if (fe->fe_flags & VR_FLOW_FLAG_ACTIVE) {
+
             if ((fe->fe_flags & VR_FLOW_FLAG_EVICTED) &&
                     !show_evicted_set) {
                 continue;
             }
+
+
             if (match_vrf >= 0) {
                 if (fe->fe_vrf != match_vrf)
                     continue;
@@ -1226,6 +1212,7 @@ flow_dump_table(struct flow_table *ft)
                 if (fe->fe_key.flow_proto != match_proto)
                     continue;
             }
+
             if (match_family) {
                 if (match_family != VR_FLOW_FAMILY(fe->fe_type)) {
                     continue;
@@ -1266,7 +1253,8 @@ flow_dump_table(struct flow_table *ft)
                     }
                 }
             }
-            printf("%p %p\n", &fe->fe_key.flow_ip, fe->fe_key.flow_ip);
+
+
             if ((fe->fe_type == VP_TYPE_IP) || (fe->fe_type == VP_TYPE_IP6)) {
                 inet_ntop(VR_FLOW_FAMILY(fe->fe_type), fe->fe_key.flow_ip,
                             in_src, sizeof(in_src));
@@ -1305,6 +1293,7 @@ flow_dump_table(struct flow_table *ft)
                 printf("%25c", ' ');
                 printf("%s:%-5d    ", in_dest, ntohs(fe->fe_key.flow_dport));
             }
+
             printf("\n");
 
             switch (fe->fe_action) {
@@ -1462,15 +1451,6 @@ flow_list(void)
     return;
 }
 
-static void time_wait(int miliseconds)
-{
-#if defined(_WINDOWS)
-    Sleep(miliseconds);
-#else
-    usleep(miliseconds * 1000);
-#endif
-}
-
 static void
 flow_stats(void)
 {
@@ -1487,8 +1467,8 @@ flow_stats(void)
     int prev_total_entries = 0;
     int diff_ms;
     int rate;
-    uint64_t avg_setup_rate = 0;
-    uint64_t avg_teardown_rate = 0;
+    int avg_setup_rate = 0;
+    int avg_teardown_rate = 0;
     uint64_t setup_time = 0;
     uint64_t teardown_time = 0;
     int total_rate;
@@ -1504,7 +1484,7 @@ flow_stats(void)
         flow_action_drop = 0;
         flow_action_fwd = 0;
         flow_action_nat = 0;
-        time_wait(500);
+        usleep(500000);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries +
                                           (i * sizeof(*fe)));
@@ -1555,7 +1535,7 @@ flow_stats(void)
         /* On Ubuntu system() is declared with warn_unused_result
          * attribute, so we suppress the warning
          */
-        if (system(CLEAN_SCREEN) == -1) {
+        if (system(CLEAN_SCREEN_CMD) == -1) {
             printf("Error: system() failed\n");
         }
 
@@ -1582,8 +1562,8 @@ flow_stats(void)
         printf("    Rate of change of Active Entries\n");
         printf("    --------------------------------\n");
         printf("        current rate      = %8d\n", rate);
-        printf("        Avg setup rate    = %8llu\n", avg_setup_rate);
-        printf("        Avg teardown rate = %8llu\n", avg_teardown_rate);
+        printf("        Avg setup rate    = %8d\n", avg_setup_rate);
+        printf("        Avg teardown rate = %8d\n", avg_teardown_rate);
         printf("    Rate of change of Flow Entries\n");
         printf("    ------------------------------\n");
         printf("        current rate      = %8d\n", total_rate);
@@ -1615,7 +1595,7 @@ flow_rate(void)
     while (1) {
         active_entries = 0;
         total_entries = 0;
-        time_wait(500);
+        usleep(500000);
         for (i = 0; i < ft->ft_num_entries; i++) {
             fe = (struct vr_flow_entry *)((char *)ft->ft_entries + (i * sizeof(*fe)));
             if (fe->fe_flags & VR_FLOW_FLAG_ACTIVE) {
@@ -1649,12 +1629,10 @@ flow_rate(void)
     }
 }
 
-
-
-u_int64_t
+static int
 flow_table_map(vr_flow_req *req)
 {
-    int ret = 0;
+    int ret;
     unsigned int i;
     struct flow_table *ft = &main_table;
     const char *flow_path;
@@ -1668,42 +1646,8 @@ flow_table_map(vr_flow_req *req)
         flow_path = req->fr_file_path;
     } else {
         flow_path = MEM_DEV;
-#if defined(_WINDOWS)
 
-        struct mem_wrapper sharedMem;
-        DWORD bRetur;
-
-        HANDLE hPipe = CreateFile(KSYNC_PATH,
-
-            GENERIC_READ | GENERIC_WRITE,
-            0,
-            NULL,
-            OPEN_EXISTING,
-            0,
-            NULL);
-
-        if (!hPipe) {
-            printf("Error CreateFile\r\n");
-            exit(-1);
-        }
-
-        BOOL transactionResult = DeviceIoControl(hPipe,
-            (DWORD)IOCTL_SIOCTL_METHOD_OUT_DIRECT,
-            NULL,
-            0,
-            &sharedMem,
-            sizeof(struct mem_wrapper),
-            &bRetur,
-            NULL);
-
-        if (!transactionResult) {
-            printf("Error DeviceIoControl: [%d]\r\n", transactionResult);
-            exit(transactionResult);
-        }
-
-        ft->ft_entries = sharedMem.pBuffer;
-    }
-#else
+#ifndef _WIN32
         ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
                 makedev(req->fr_ftable_dev, req->fr_rid));
         if (ret && errno != EEXIST) {
@@ -1722,12 +1666,30 @@ flow_table_map(vr_flow_req *req)
             PROT_READ, MAP_SHARED, mem_fd, 0);
     /* the file descriptor is no longer needed */
     close(mem_fd);
-
-    if ((long long)ft->ft_entries == MAP_FAILED) {
+    if (ft->ft_entries == MAP_FAILED) {
         printf("flow table: %s\n", strerror(errno));
         exit(errno);
     }
+#else
+        struct mem_wrapper sharedMem;
+        DWORD bRetur;
+
+        HANDLE hPipe = CreateFile(KSYNC_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (!hPipe) {
+            printf("Error CreateFile\n");
+            exit(-1);
+        }
+
+        BOOL transactionResult = DeviceIoControl(hPipe, IOCTL_SIOCTL_METHOD_OUT_DIRECT, NULL, 0, &sharedMem, sizeof(struct mem_wrapper), &bRetur, NULL);
+        if (!transactionResult) {
+            printf("Error DeviceIoControl: [%d]\n", transactionResult);
+            exit(transactionResult);
+        }
+
+        ft->ft_entries = sharedMem.pBuffer;
+    }
 #endif
+
     ft->ft_span = req->fr_ftable_size;
     ft->ft_num_entries = ft->ft_span / sizeof(struct vr_flow_entry);
     ft->ft_processed = req->fr_processed;
@@ -1774,8 +1736,8 @@ flow_make_flow_req(vr_flow_req *req)
 
     error = 0;
     ret = sandesh_encode(req, "vr_flow_req", vr_find_sandesh_info,
-        (nl_get_buf_ptr(cl) + attr_len),
-        (nl_get_buf_len(cl) - attr_len), &error);
+                             (nl_get_buf_ptr(cl) + attr_len),
+                             (nl_get_buf_len(cl) - attr_len), &error);
 
     if ((ret <= 0) || error) {
         return ret;
@@ -1813,10 +1775,9 @@ flow_table_get(void)
 static int
 flow_table_setup(void)
 {
-    int ret = 1;
+    int ret;
 
-#ifndef _WINDOWS
-
+#ifndef _WIN32
     cl = nl_register_client();
     if (!cl)
         return -ENOMEM;
@@ -1835,6 +1796,7 @@ flow_table_setup(void)
         return ret;
 #else
     cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
+    ret = FAKE_NETLINK_FAMILY;
 #endif
 
     return ret;
@@ -2079,8 +2041,8 @@ flow_set_family(unsigned int family, char *addr, const char *port)
 static int
 flow_set_tuple(char *ip_port)
 {
-    size_t len = strlen(ip_port);
-    size_t address_len;
+    unsigned int len = strlen(ip_port);
+    unsigned int address_len;
 
     char *f_colon_sep, *b_colon_sep, *bracket_sep;
 
@@ -2145,7 +2107,7 @@ static int
 flow_set_ip(char *match_string)
 {
     int ret;
-    size_t length = strlen(match_string), token_length;
+    unsigned int length = strlen(match_string), token_length;
 
     char *token, *string = match_string;
 
@@ -2166,7 +2128,7 @@ flow_set_ip(char *match_string)
         }
 
         match_string = token + token_length;
-    } while (!ret && token && ((size_t)(match_string - string) < length));
+    } while (!ret && token && ((match_string - string) < length));
 
     return 0;
 }
@@ -2213,7 +2175,7 @@ static int
 flow_set_match(char *match_string)
 {
     int ret = 0;
-    size_t length = strlen(match_string), token_length;
+    unsigned int length = strlen(match_string), token_length;
     char *token, *string = match_string;
 
     do {
@@ -2230,7 +2192,7 @@ flow_set_match(char *match_string)
             }
         }
         match_string = token + token_length;
-    } while (!ret && token && ((size_t)(match_string - string) < length));
+    } while (!ret && token && ((match_string - string) < length));
 
     return ret;
 }
@@ -2288,7 +2250,6 @@ main(int argc, char *argv[])
 
     while ((opt = getopt_long(argc, argv, "d:f:g:i:lrs",
                     long_options, &option_index)) >= 0) {
-
         switch (opt) {
         case 'f':
         case 'g':
@@ -2335,7 +2296,7 @@ main(int argc, char *argv[])
         flow_stats();
     } else {
         if (flow_index >= main_table.ft_num_entries) {
-            printf("Flow index %lu is greater than available indices (%llu)\n",
+            printf("Flow index %lu is greater than available indices (%u)\n",
                     flow_index, main_table.ft_num_entries - 1);
             return -1;
         }

@@ -7,10 +7,6 @@
 #define ETHER_ADDR_LEN	   (6)
 #define ETHER_ADDR_STR_LEN (ETHER_ADDR_LEN * 3)
 
-// nl_*_sendmsg and nl_*_recvmsg functions use sendmsg and recvmsg
-// and they return -1 on error.
-#define GLIBC_ERROR (-1)
-
 const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
 
 // TODO: JW-120 - Refactoring of vr_win_utils.c
@@ -62,13 +58,13 @@ print_and_get_error_code()
 }
 
 int
-win_nl_sendmsg(struct nl_client *cl)
+nl_sendmsg(struct nl_client *cl)
 {
     DWORD written = 0;
     BOOL ret = WriteFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &written, NULL);
     if (!ret) {
         print_and_get_error_code();
-        return GLIBC_ERROR;
+        return -1;
     }
 
     return written;
@@ -85,7 +81,7 @@ win_nl_client_recvmsg(struct nl_client *cl)
     BOOL ret = ReadFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &read_bytes, NULL);
     if (!ret) {
         print_and_get_error_code();
-        return GLIBC_ERROR;
+        return -1;
     }
 
     cl->cl_recv_len = read_bytes;
