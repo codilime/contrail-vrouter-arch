@@ -30,7 +30,7 @@ static int get_set, nh_set, label_set;
 static int help_set, cmd_set;
 static int mpls_label, mpls_op = -1, mpls_nh;
 
-void
+static void
 mpls_req_process(void *s_req)
 {
    vr_mpls_req *req = (vr_mpls_req *)s_req;
@@ -42,14 +42,14 @@ mpls_req_process(void *s_req)
    return;
 }
 
-void
+static void
 response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
 }
 
-void
+static void
 mpls_fill_nl_callbacks()
 {
     nl_cb.vr_response_process = response_process;

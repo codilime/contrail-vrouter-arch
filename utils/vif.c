@@ -294,7 +294,7 @@ vr_interface_print_header(void)
     return;
 }
 
-void
+static void
 vrf_assign_req_process(void *s)
 {
     vr_vrf_assign_req *req = (vr_vrf_assign_req *)s;
@@ -699,7 +699,7 @@ rate_process(vr_interface_req *req, vr_interface_req *prev_req)
  * For SANDESH_OP_DUMP msg we SHOULD change variable dump_marker;
  * Otherwise we can be in infinity loop.
  */
-void
+static void
 interface_req_process(void *s)
 {
     vr_interface_req *req = (vr_interface_req *)s;
@@ -746,14 +746,14 @@ interface_req_process(void *s)
     return;
 }
 
-void
+static void
 response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
 }
 
-void
+static void
 vif_fill_nl_callbacks()
 {
     nl_cb.vr_interface_req_process = interface_req_process;

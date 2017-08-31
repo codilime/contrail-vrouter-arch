@@ -30,7 +30,7 @@ static struct nl_client *cl;
 static int help_set, core_set;
 static unsigned int core = (unsigned)-1;
 
-void
+static void
 drop_stats_req_process(void *s_req)
 {
     vr_drop_stats_req *stats = (vr_drop_stats_req *)s_req;
@@ -159,7 +159,7 @@ drop_stats_req_process(void *s_req)
     return;
 }
 
-void
+static void
 dropstats_fill_nl_callbacks()
 {
     nl_cb.vr_drop_stats_req_process = drop_stats_req_process;

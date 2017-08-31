@@ -12,7 +12,7 @@
 struct expect_vrouter expect_msg;
 struct return_vrouter return_msg;
 
-void
+static void
 interface_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_interface_req));
     if (!buf) {
@@ -25,7 +25,7 @@ interface_req_process(void *s) {
     (memcpy(buf, s, sizeof(vr_interface_req)));
 }
 
-void
+static void
 nexthop_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_nexthop_req));
     if (!buf) {
@@ -38,7 +38,7 @@ nexthop_req_process(void *s) {
     (memcpy(buf, s, sizeof(vr_nexthop_req)));
 }
 
-void
+static void
 route_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_route_req));
     if (!buf) {
@@ -52,7 +52,7 @@ route_req_process(void *s) {
 
 }
 
-void
+static void
 response_process(void *s) {
     vr_response *buf = (vr_response *)s;
 
@@ -60,7 +60,7 @@ response_process(void *s) {
     return_msg.return_val[return_msg.returned_ptr_num] = buf->resp_code;
 }
 
-void
+static void
 vrf_stats_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_vrf_stats_req));
     if (!buf) {
@@ -73,7 +73,7 @@ vrf_stats_req_process(void *s) {
         (memcpy(buf, s, sizeof(vr_vrf_stats_req)));
 }
 
-void
+static void
 vt_vrouter_ops_process(void *s) {
     void *buf = calloc(1, sizeof(vrouter_ops));
     if (!buf) {
@@ -86,7 +86,7 @@ vt_vrouter_ops_process(void *s) {
         (memcpy(buf, s, sizeof(vrouter_ops)));
 }
 
-void
+static void
 vrf_assign_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_vrf_assign_req));
     if (!buf) {
@@ -100,7 +100,7 @@ vrf_assign_req_process(void *s) {
 
 }
 
-void
+static void
 flow_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_flow_req));
     if (!buf) {
@@ -114,7 +114,7 @@ flow_req_process(void *s) {
 
 }
 
-void
+static void
 vxlan_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_vxlan_req));
     if (!buf) {
@@ -128,7 +128,7 @@ vxlan_req_process(void *s) {
 
 }
 
-void
+static void
 drop_stats_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_drop_stats_req));
     if (!buf) {
@@ -142,7 +142,7 @@ drop_stats_req_process(void *s) {
 
 }
 
-void
+static void
 mpls_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_mpls_req));
     if (!buf) {
@@ -155,7 +155,7 @@ mpls_req_process(void *s) {
     (memcpy(buf, s, sizeof(vr_mpls_req)));
 }
 
-void
+static void
 mirror_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_mirror_req));
     if (!buf) {
@@ -168,7 +168,7 @@ mirror_req_process(void *s) {
     (memcpy(buf, s, sizeof(vr_mirror_req)));
 }
 
-void
+static void
 mem_stats_req_process(void *s) {
     void *buf = calloc(1, sizeof(vr_mem_stats_req));
     if (!buf) {

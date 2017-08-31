@@ -130,7 +130,7 @@ family_string_to_id(char *fname)
     return -1;
 }
 
-void
+static void
 route_req_process(void *s_req)
 {
     int ret = 0, i;
@@ -229,14 +229,14 @@ route_req_process(void *s_req)
     return;
 }
 
-void
+static void
 response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
 }
 
-void
+static void
 rt_fill_nl_callbacks()
 {
     nl_cb.vr_response_process = response_process;
