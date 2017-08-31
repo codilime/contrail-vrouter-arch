@@ -372,8 +372,6 @@ SxNdisPause(
     DEBUGP(DL_TRACE,
            ("===>NDISLWF SxPause: SxInstance %p\n", FilterModuleContext));
 
-    SxExtPauseSwitch(switchObject, switchObject->ExtensionContext);
-           
     //
     // Set the flag that the filter is going to pause.
     //
@@ -583,14 +581,7 @@ SxNdisOidRequestComplete(
                 switchObject->OldNicRequest != NULL)
         {
             nicOidRequestBuf = NdisOidRequest->DATA.METHOD_INFORMATION.InformationBuffer;
-            Status = SxExtProcessNicRequestComplete(switchObject,
-                                                    switchObject->ExtensionContext,
-                                                    nicOidRequestBuf->OidRequest,
-                                                    nicOidRequestBuf->SourcePortId,
-                                                    nicOidRequestBuf->SourceNicIndex,
-                                                    nicOidRequestBuf->DestinationPortId,
-                                                    nicOidRequestBuf->DestinationNicIndex,
-                                                    Status);
+            Status = NDIS_STATUS_SUCCESS;
             
             originalRequest->DATA.METHOD_INFORMATION.InformationBuffer =
                                                     switchObject->OldNicRequest;
@@ -611,9 +602,6 @@ SxNdisOidRequestComplete(
         if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
             Status != NDIS_STATUS_SUCCESS)
         {
-            SxExtDeletePort(switchObject,
-                            switchObject->ExtensionContext,
-                            (PNDIS_SWITCH_PORT_PARAMETERS)header);
         }
         else if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
                  Status != NDIS_STATUS_SUCCESS)
@@ -773,13 +761,7 @@ SxNdisNetPnPEvent(
     PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
     
     if (NetPnPEvent->NetPnPEvent.NetEvent == NetEventSwitchActivate)
-    {   
-        //
-        // Switch Activation must be passed along regardless of successful
-        // initialization.
-        //
-        SxExtActivateSwitch(switchObject,
-                            switchObject->ExtensionContext);
+    {
     }
     
     return NdisFNetPnPEvent(switchObject->NdisFilterHandle,
@@ -830,11 +812,7 @@ SxNdisStatus(
     
     originalIndication = nicIndication->StatusIndication;
     
-    status = SxExtProcessNicStatus(switchObject,
-                                   switchObject->ExtensionContext,
-                                   originalIndication,
-                                   nicIndication->SourcePortId,
-                                   nicIndication->SourceNicIndex);
+    status = NDIS_STATUS_SUCCESS;
                                    
 Cleanup:
     if (status == NDIS_STATUS_SUCCESS)
@@ -894,15 +872,11 @@ SxpNdisProcessSetOid(
             
             if (oid == OID_SWITCH_PROPERTY_ADD)
             {
-                status = SxExtAddSwitchProperty(Switch,
-                                                Switch->ExtensionContext,
-                                                (PNDIS_SWITCH_PROPERTY_PARAMETERS)header);
+                status = NDIS_STATUS_SUCCESS;
             }
             else
             {
-                status = SxExtUpdateSwitchProperty(Switch,
-                                                   Switch->ExtensionContext,
-                                                   (PNDIS_SWITCH_PROPERTY_PARAMETERS)header);
+                status = NDIS_STATUS_SUCCESS;
             }
             
             if (status == NDIS_STATUS_NOT_SUPPORTED)
@@ -926,9 +900,7 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
             
-            *Complete = SxExtDeleteSwitchProperty(Switch,
-                                                  Switch->ExtensionContext,
-                                                 (PNDIS_SWITCH_PROPERTY_DELETE_PARAMETERS)header);
+            *Complete = FALSE;
                                                  
             break;
         
@@ -945,15 +917,11 @@ SxpNdisProcessSetOid(
         
             if (oid == OID_SWITCH_PORT_PROPERTY_ADD)
             {
-                status = SxExtAddPortProperty(Switch,
-                                              Switch->ExtensionContext,
-                                              (PNDIS_SWITCH_PORT_PROPERTY_PARAMETERS)header);
+                status = NDIS_STATUS_SUCCESS;
             }
             else
             {
-                status = SxExtUpdatePortProperty(Switch,
-                                                 Switch->ExtensionContext,
-                                                 (PNDIS_SWITCH_PORT_PROPERTY_PARAMETERS)header);
+                status = NDIS_STATUS_SUCCESS;
             }
             
             if (status == NDIS_STATUS_NOT_SUPPORTED)
@@ -978,9 +946,7 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
             
-            *Complete = SxExtDeletePortProperty(Switch,
-                                                Switch->ExtensionContext,
-                                                (PNDIS_SWITCH_PORT_PROPERTY_DELETE_PARAMETERS)header);
+            *Complete = FALSE;
             
             break;
             
@@ -1009,22 +975,13 @@ SxpNdisProcessSetOid(
                 }
             }
             else if (oid == OID_SWITCH_PORT_UPDATED)
-            {   
-                SxExtUpdatePort(Switch,
-                                Switch->ExtensionContext,
-                                (PNDIS_SWITCH_PORT_PARAMETERS)header);
+            {
             }
             else if (oid == OID_SWITCH_PORT_TEARDOWN)
-            {   
-                SxExtTeardownPort(Switch,
-                                  Switch->ExtensionContext,
-                                  (PNDIS_SWITCH_PORT_PARAMETERS)header);
+            {
             }
             else
             {
-                SxExtDeletePort(Switch,
-                                Switch->ExtensionContext,
-                                (PNDIS_SWITCH_PORT_PARAMETERS)header);
             }
         
             break;
@@ -1089,10 +1046,7 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
             
-            status = SxExtNicRestore(Switch,
-                                     Switch->ExtensionContext,
-                                     (PNDIS_SWITCH_NIC_SAVE_STATE)header,
-                                     &bytesRestored);
+            status = NDIS_STATUS_SUCCESS;
                                      
             if (status != NDIS_STATUS_SUCCESS)
             {
@@ -1114,10 +1068,6 @@ SxpNdisProcessSetOid(
                 *Complete = TRUE;
                 goto Cleanup;
             }
-            
-            SxExtSaveNicComplete(Switch,
-                                 Switch->ExtensionContext,
-                                 (PNDIS_SWITCH_NIC_SAVE_STATE)header);    
 
             break;
             
@@ -1130,10 +1080,6 @@ SxpNdisProcessSetOid(
                 *Complete = TRUE;
                 goto Cleanup;
             }
-            
-            SxExtNicRestoreComplete(Switch,
-                                    Switch->ExtensionContext,
-                                    (PNDIS_SWITCH_NIC_SAVE_STATE)header);    
 
             break;
             
@@ -1181,10 +1127,7 @@ SxpNdisProcessMethodOid(
                 goto Cleanup;
             }
             
-            *Complete = SxExtQuerySwitchFeatureStatus(Switch,
-                                                      Switch->ExtensionContext,
-                                                      (PNDIS_SWITCH_FEATURE_STATUS_PARAMETERS)header,
-                                                      BytesNeeded);
+            *Complete = FALSE;
                                                       
             if (*BytesNeeded > 0)
             {
@@ -1203,10 +1146,7 @@ SxpNdisProcessMethodOid(
                 goto Cleanup;
             }
             
-            *Complete = SxExtQueryPortFeatureStatus(Switch,
-                                                    Switch->ExtensionContext,
-                                                    (PNDIS_SWITCH_PORT_FEATURE_STATUS_PARAMETERS)header,
-                                                    BytesNeeded);
+            *Complete = FALSE;
                                                     
             if (*BytesNeeded > 0)
             {
@@ -1232,13 +1172,7 @@ SxpNdisProcessMethodOid(
             destPort = nicOidRequest->DestinationPortId;
             destNic = nicOidRequest->DestinationNicIndex;
             
-            status = SxExtProcessNicRequest(Switch,
-                                            Switch->ExtensionContext,
-                                            nicOidRequest->OidRequest,
-                                            &sourcePort,
-                                            &sourceNic,
-                                            &destPort,
-                                            &destNic);
+            status = NDIS_STATUS_SUCCESS;
                                            
             if (status != NDIS_STATUS_SUCCESS)
             {
@@ -1288,11 +1222,7 @@ SxpNdisProcessMethodOid(
                 goto Cleanup;
             }
             
-            status = SxExtSaveNic(Switch,
-                                  Switch->ExtensionContext,
-                                  (PNDIS_SWITCH_NIC_SAVE_STATE)header,
-                                  &bytesWritten,
-                                  &bytesNeeded);
+            status = NDIS_STATUS_SUCCESS;
                                        
             if (status == NDIS_STATUS_SUCCESS &&
                 bytesWritten > 0)
