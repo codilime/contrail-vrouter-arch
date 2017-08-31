@@ -1,4 +1,4 @@
-
+#include "nl_util.h"
 
 int
 nl_socket(struct nl_client *cl, int domain, int type, int protocol)
