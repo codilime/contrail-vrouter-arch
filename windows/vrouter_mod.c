@@ -47,14 +47,9 @@ FILTER_SEND_NET_BUFFER_LISTS FilterSendNetBufferLists;
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
 
-FILTER_RECEIVE_NET_BUFFER_LISTS FilterReceiveNetBufferLists;
-FILTER_RETURN_NET_BUFFER_LISTS FilterReturnNetBufferLists;
-
 FILTER_OID_REQUEST FilterOidRequest;
 FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
 FILTER_CANCEL_OID_REQUEST FilterCancelOidRequest;
-
-FILTER_STATUS FilterStatus;
 
 
 NTSTATUS
@@ -99,14 +94,9 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
     fChars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
 
-    fChars.ReceiveNetBufferListsHandler = FilterReceiveNetBufferLists;
-    fChars.ReturnNetBufferListsHandler = FilterReturnNetBufferLists;
-
     fChars.OidRequestHandler = FilterOidRequest;
     fChars.OidRequestCompleteHandler = FilterOidRequestComplete;
     fChars.CancelOidRequestHandler = FilterCancelOidRequest;
-
-    fChars.StatusHandler = FilterStatus;
 
     DriverObject->DriverUnload = DriverUnload;
 
@@ -848,41 +838,6 @@ FilterSendNetBufferLists(
 }
 
 void
-FilterReceiveNetBufferLists( // TODO: JW-1097: can be removed?
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    NDIS_PORT_NUMBER PortNumber,
-    ULONG NumberOfNetBufferLists,
-    ULONG ReceiveFlags)
-{
-    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    UNREFERENCED_PARAMETER(PortNumber);
-
-    ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1097: Refactor: cannot be assert!
-
-    NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
-                                       NetBufferLists,
-                                       NDIS_DEFAULT_PORT_NUMBER,
-                                       NumberOfNetBufferLists,
-                                       ReceiveFlags);
-}
-
-void
-FilterReturnNetBufferLists( // TODO: JW-1097: can be removed?
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    ULONG ReturnFlags
-    )
-{
-    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    NdisFReturnNetBufferLists(Switch->NdisFilterHandle,
-                              NetBufferLists,
-                              ReturnFlags);
-}
-
-void
 FilterSendNetBufferListsComplete(
     NDIS_HANDLE FilterModuleContext,
     PNET_BUFFER_LIST NetBufferLists,
@@ -910,19 +865,6 @@ FilterCancelSendNetBufferLists( // TODO: JW-1096: check if this can be removed
 {
     UNREFERENCED_PARAMETER(FilterModuleContext);
     UNREFERENCED_PARAMETER(CancelId);
-}
-
-void
-FilterStatus( // TODO: JW-1097: can be removed?
-    NDIS_HANDLE FilterModuleContext,
-    PNDIS_STATUS_INDICATION StatusIndication
-    )
-{
-    // FilterStatus handler is required when Egress handlers are implemented by driver
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    NdisFIndicateStatus(switchObject->NdisFilterHandle,
-                        StatusIndication);
 }
 
 NDIS_STATUS
