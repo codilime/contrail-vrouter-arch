@@ -6,20 +6,19 @@
 #include "vr_sandesh.h"
 #include "windows_mem.h"
 
-UCHAR SxExtMajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
-UCHAR SxExtMinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
-
-PWCHAR SxExtFriendlyName = L"OpenContrail's vRouter forwarding extension";
-
-PWCHAR SxExtUniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
-
-PWCHAR SxExtServiceName = L"vRouter";
+static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
+static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
+static const PWSTR ServiceName = L"vRouter";
 
 ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
+static NDIS_HANDLE DriverHandle = NULL;
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
+
+NDIS_SPIN_LOCK SxExtensionListLock;
+LIST_ENTRY SxExtensionList;
 
 // This is exported by SxLibrary
 extern PDRIVER_OBJECT SxDriverObject;
@@ -40,6 +39,337 @@ static char hex_table[] = {
 extern int vr_transport_init(void);
 extern void vr_transport_exit(void);
 
+// NDIS Function prototypes
+DRIVER_INITIALIZE DriverEntry;
+DRIVER_UNLOAD DriverUnload;
+
+FILTER_ATTACH FilterAttach;
+FILTER_DETACH FilterDetach;
+FILTER_PAUSE FilterPause;
+FILTER_RESTART FilterRestart;
+
+FILTER_SEND_NET_BUFFER_LISTS FilterSendNetBufferLists;
+FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
+FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
+
+FILTER_RECEIVE_NET_BUFFER_LISTS FilterReceiveNetBufferLists;
+FILTER_RETURN_NET_BUFFER_LISTS FilterReturnNetBufferLists;
+
+FILTER_OID_REQUEST FilterOidRequest;
+FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
+FILTER_CANCEL_OID_REQUEST FilterCancelOidRequest;
+
+FILTER_STATUS FilterStatus;
+
+
+NTSTATUS
+DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
+{
+    NDIS_STATUS status;
+    NDIS_FILTER_DRIVER_CHARACTERISTICS fChars;
+    NDIS_STRING service_name;
+    NDIS_STRING friendly_name;
+    NDIS_STRING unique_name;
+
+    UNREFERENCED_PARAMETER(RegistryPath);
+
+    RtlInitUnicodeString(&service_name, ServiceName);
+    RtlInitUnicodeString(&friendly_name, FriendlyName);
+    RtlInitUnicodeString(&unique_name, UniqueName);
+    SxDriverObject = DriverObject;
+
+    NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
+    fChars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
+    fChars.Header.Size = sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS);
+    fChars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_2;
+
+    fChars.MajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
+    fChars.MinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
+
+    fChars.MajorDriverVersion = 1;
+    fChars.MinorDriverVersion = 0;
+    fChars.Flags = 0;
+
+    fChars.FriendlyName = friendly_name;
+    fChars.UniqueName = unique_name;
+    fChars.ServiceName = service_name;
+
+    fChars.AttachHandler = FilterAttach;
+    fChars.DetachHandler = FilterDetach;
+    fChars.PauseHandler = FilterPause;
+    fChars.RestartHandler = FilterRestart;
+
+    fChars.SendNetBufferListsHandler = FilterSendNetBufferLists;
+    fChars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
+    fChars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
+
+    fChars.ReceiveNetBufferListsHandler = FilterReceiveNetBufferLists;
+    fChars.ReturnNetBufferListsHandler = FilterReturnNetBufferLists;
+
+    fChars.OidRequestHandler = FilterOidRequest;
+    fChars.OidRequestCompleteHandler = FilterOidRequestComplete;
+    fChars.CancelOidRequestHandler = FilterCancelOidRequest;
+
+    fChars.StatusHandler = FilterStatus;
+
+    NdisAllocateSpinLock(&SxExtensionListLock);
+    InitializeListHead(&SxExtensionList);
+
+    DriverObject->DriverUnload = DriverUnload;
+
+    status = NdisFRegisterFilterDriver(DriverObject,
+                                       (NDIS_HANDLE)SxDriverObject,
+                                       &fChars,
+                                       &DriverHandle);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        if (DriverHandle != NULL)
+        {
+            NdisFDeregisterFilterDriver(DriverHandle);
+            DriverHandle = NULL;
+        }
+
+        NdisFreeSpinLock(&SxExtensionListLock);
+    }
+
+    return status;
+}
+
+static void
+vr_message_exit(void)
+{
+    vr_transport_exit();
+    vr_sandesh_exit();
+}
+
+void
+SxExtUninitializeVRouter(struct vr_switch_context* ctx)
+{
+    if (ctx->vrouter_up)
+        vrouter_exit(false);
+
+    if (ctx->message_up)
+        vr_message_exit();
+
+    if (ctx->memory_up)
+        memory_exit();
+
+    if (ctx->device_up)
+        VRouterUninitializeDevices(SxDriverObject);
+
+    if (ctx->pkt0_up)
+        Pkt0DestroyDevice(SxDriverObject);
+
+    if (ctx->ksync_up)
+        KsyncDestroyDevice(SxDriverObject);
+}
+
+void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
+{
+    if (SxNBLPool)
+        vrouter_free_pool(SxNBLPool);
+
+    if (AsyncWorkRWLock)
+        NdisFreeRWLock(AsyncWorkRWLock);
+
+    if (ctx)
+    {
+        if (ctx->lock)
+            NdisFreeRWLock(ctx->lock);
+
+        ExFreePoolWithTag(ctx, SxExtAllocationTag);
+    }
+}
+
+void
+DriverUnload(PDRIVER_OBJECT DriverObject)
+{
+    NdisFDeregisterFilterDriver(DriverHandle);
+    NdisFreeSpinLock(&SxExtensionListLock);
+}
+
+NDIS_STATUS
+FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
+             PNDIS_FILTER_ATTACH_PARAMETERS AttachParameters)
+{
+    NDIS_STATUS status;
+    NDIS_FILTER_ATTRIBUTES sxAttributes;
+    ULONG switchObjectSize;
+    NDIS_SWITCH_CONTEXT switchContext;
+    NDIS_SWITCH_OPTIONAL_HANDLERS switchHandler;
+    PSX_SWITCH_OBJECT switchObject;
+
+    UNREFERENCED_PARAMETER(SxDriverContext);
+
+    DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
+
+    status = NDIS_STATUS_SUCCESS;
+    switchObject = NULL;
+
+    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)SxDriverObject);
+
+    if (AttachParameters->MiniportMediaType != NdisMedium802_3)
+    {
+        status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Cleanup;
+    }
+
+    switchHandler.Header.Type = NDIS_OBJECT_TYPE_SWITCH_OPTIONAL_HANDLERS;
+    switchHandler.Header.Size = NDIS_SIZEOF_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
+    switchHandler.Header.Revision = NDIS_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
+
+    status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle,
+                                            &switchContext,
+                                            &switchHandler);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DbgPrint("%s: Extension is running in non-switch environment.\r\n", __func__);
+        goto Cleanup;
+    }
+
+    switchObjectSize = sizeof(SX_SWITCH_OBJECT);
+    switchObject = ExAllocatePoolWithTag(NonPagedPoolNx,
+                                         switchObjectSize,
+                                         SxExtAllocationTag);
+
+    if (switchObject == NULL)
+    {
+        status = NDIS_STATUS_RESOURCES;
+        goto Cleanup;
+    }
+
+    RtlZeroMemory(switchObject, switchObjectSize);
+
+    // Initialize NDIS related information.
+    switchObject->NdisFilterHandle = NdisFilterHandle;
+    switchObject->NdisSwitchContext = switchContext;
+    RtlCopyMemory(&switchObject->NdisSwitchHandlers,
+                  &switchHandler,
+                  sizeof(NDIS_SWITCH_OPTIONAL_HANDLERS));
+
+    // Let the extension create its own context.
+    status = SxExtCreateSwitch(switchObject,
+                               &(switchObject->ExtensionContext));
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        goto Cleanup;
+    }
+
+    // Register the object with NDIS because NDIS passes this object when it
+    // calls into the driver.
+    NdisZeroMemory(&sxAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
+    sxAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
+    sxAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
+    sxAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
+    sxAttributes.Flags = 0;
+
+    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SX_SWITCH_OBJECT);
+    status = NdisFSetAttributes(NdisFilterHandle, switchObject, &sxAttributes);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DbgPrint("%s: Failed to set attributes.\r\n", __func__);
+        goto Cleanup;
+    }
+
+    switchObject->ControlFlowState = SxSwitchAttached;
+    switchObject->DataFlowState = SxSwitchPaused;
+
+    NdisAcquireSpinLock(&SxExtensionListLock);
+    InsertHeadList(&SxExtensionList, &switchObject->Link);
+    NdisReleaseSpinLock(&SxExtensionListLock);
+
+Cleanup:
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        if (switchObject != NULL)
+        {
+            ExFreePool(switchObject);
+        }
+    }
+
+    return status;
+}
+
+void
+FilterDetach(NDIS_HANDLE FilterModuleContext)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+
+    // The extension must be in paused state.
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+    switchObject->ControlFlowState = SxSwitchDetached;
+
+    KeMemoryBarrier();
+
+    while(switchObject->PendingOidCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    ASSERTMSG("Trying to delete another switch than currently active", switchObject == SxSwitchObject);
+
+    struct vr_switch_context* ctx = (struct vr_switch_context*)switchObject->ExtensionContext;
+
+    SxExtUninitializeVRouter(ctx);
+    SxExtUninitializeWindowsComponents(ctx);
+
+    SxSwitchObject = NULL;
+
+    NdisAcquireSpinLock(&SxExtensionListLock);
+    RemoveEntryList(&switchObject->Link);
+    NdisReleaseSpinLock(&SxExtensionListLock);
+
+    ExFreePool(switchObject);
+}
+
+NDIS_STATUS
+FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS PauseParameters)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)(FilterModuleContext);
+
+    UNREFERENCED_PARAMETER(PauseParameters);
+
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+
+    // Set the flag that the filter is going to pause.
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
+    switchObject->DataFlowState = SxSwitchPaused;
+
+    KeMemoryBarrier();
+
+    while(switchObject->PendingInjectedNblCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+NDIS_STATUS
+FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS RestartParameters)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(RestartParameters);
+
+    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
+
+    struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
+    ctx->restart = FALSE;
+
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+    switchObject->DataFlowState = SxSwitchRunning;
+
+    return NDIS_STATUS_SUCCESS;
+}
+
 static NTSTATUS
 vr_message_init(void)
 {
@@ -57,13 +387,6 @@ vr_message_init(void)
     }
 
     return NDIS_STATUS_SUCCESS;
-}
-
-static void
-vr_message_exit(void)
-{
-    vr_transport_exit();
-    vr_sandesh_exit();
 }
 
 static struct vr_interface*
@@ -135,7 +458,7 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
         str[j + 2] = '|';
     }
     str[j] = 0;
-    
+
     // DbgPrint only transmits at most 512 bytes in single call, so multiple prints are needed
     // to dump whole packet contents.
     DbgPrint("%s data[length=%d,copied=%d]: ", prefix, data_length, bytes_copied);
@@ -162,42 +485,6 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
     ExFreePoolWithTag(str, SxExtAllocationTag);
     ExFreePoolWithTag(buffer, SxExtAllocationTag);
 #endif
-}
-
-NDIS_STATUS
-SxExtInitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtInitialize\r\n");
-
-    return NDIS_STATUS_SUCCESS;
-}
-
-VOID
-SxExtUninitialize(PDRIVER_OBJECT DriverObject)
-{
-    DbgPrint("SxExtUninitialize\r\n");
-}
-
-void
-SxExtUninitializeVRouter(struct vr_switch_context* ctx)
-{
-    if (ctx->vrouter_up)
-        vrouter_exit(false);
-
-    if (ctx->message_up)
-        vr_message_exit();
-
-    if (ctx->memory_up)
-        memory_exit();
-
-    if (ctx->device_up)
-        VRouterUninitializeDevices(SxDriverObject);
-
-    if (ctx->pkt0_up)
-        Pkt0DestroyDevice(SxDriverObject);
-
-    if (ctx->ksync_up)
-        KsyncDestroyDevice(SxDriverObject);
 }
 
 NDIS_STATUS
@@ -245,23 +532,6 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
 cleanup:
     SxExtUninitializeVRouter(ctx);
     return NDIS_STATUS_FAILURE;
-}
-
-void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
-{
-    if (SxNBLPool)
-        vrouter_free_pool(SxNBLPool);
-
-    if (AsyncWorkRWLock)
-        NdisFreeRWLock(AsyncWorkRWLock);
-
-    if (ctx)
-    {
-        if (ctx->lock)
-            NdisFreeRWLock(ctx->lock);
-
-        ExFreePoolWithTag(ctx, SxExtAllocationTag);
-    }
 }
 
 NDIS_STATUS
@@ -350,41 +620,6 @@ cleanup:
     SxSwitchObject = NULL;
 
     return NDIS_STATUS_FAILURE;
-}
-
-VOID
-SxExtDeleteSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtDeleteSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-
-    ASSERTMSG("Trying to delete another switch than currently active", Switch == SxSwitchObject);
-
-    struct vr_switch_context* ctx = (struct vr_switch_context*)ExtensionContext;
-
-    SxExtUninitializeVRouter(ctx);
-    SxExtUninitializeWindowsComponents(ctx);
-
-    SxSwitchObject = NULL;
-}
-
-NDIS_STATUS
-SxExtRestartSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext
-)
-{
-    DbgPrint("SxExtRestartSwitch\r\n");
-    UNREFERENCED_PARAMETER(Switch);
-
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    ctx->restart = FALSE;
-
-    return 0;
 }
 
 NDIS_STATUS
@@ -536,15 +771,19 @@ vr_win_split_nbls_by_forwarding_type(
     }
 }
 
-VOID
-SxExtStartNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendFlags
-)
+void
+FilterSendNetBufferLists(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    NDIS_PORT_NUMBER PortNumber,
+    ULONG SendFlags
+    )
 {
-    struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
+    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(PortNumber);
+
+    struct vr_switch_context *ctx = (struct vr_switch_context*)Switch->ExtensionContext;
     LOCK_STATE_EX lockState;
 
     BOOLEAN sameSource;
@@ -591,7 +830,7 @@ SxExtStartNetBufferListsIngress(
         if (!vif) {
             // If no vif attached yet, then drop NBL.
             windows_host.hos_printf("%s: No vif found\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
 
@@ -605,7 +844,7 @@ SxExtStartNetBufferListsIngress(
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
             windows_host.hos_printf("%s: pkt is NULL\n", __func__);
-            SxLibCompleteNetBufferListsIngress(Switch, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
 
@@ -627,60 +866,62 @@ SxExtStartNetBufferListsIngress(
 
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
-        SxLibSendNetBufferListsIngress(Switch,
+
+        ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1096: Refactor: cannot be assert!
+
+        NdisFSendNetBufferLists(Switch->NdisFilterHandle,
             nativeForwardedNbls,
-            SendFlags,
-            0);
+            NDIS_DEFAULT_PORT_NUMBER,
+            SendFlags);
     }
 
     // Release the lock, now interfaces can disconnect, etc.
     NdisReleaseRWLock(ctx->lock, &lockState);
 }
 
-VOID
-SxExtStartNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG NumberOfNetBufferLists,
-    _In_ ULONG ReceiveFlags
-)
+void
+FilterReceiveNetBufferLists( // TODO: JW-1097: can be removed?
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    NDIS_PORT_NUMBER PortNumber,
+    ULONG NumberOfNetBufferLists,
+    ULONG ReceiveFlags)
 {
-    DbgPrint("SxExtStartNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
+    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
 
-    SxLibSendNetBufferListsEgress(Switch,
-        NetBufferLists,
-        NumberOfNetBufferLists,
-        ReceiveFlags);
+    UNREFERENCED_PARAMETER(PortNumber);
+
+    ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1097: Refactor: cannot be assert!
+
+    NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
+                                       NetBufferLists,
+                                       NDIS_DEFAULT_PORT_NUMBER,
+                                       NumberOfNetBufferLists,
+                                       ReceiveFlags);
 }
 
-VOID
-SxExtStartCompleteNetBufferListsEgress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG ReturnFlags
-)
+void
+FilterReturnNetBufferLists( // TODO: JW-1097: can be removed?
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    ULONG ReturnFlags
+    )
 {
-    DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
+    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
 
-    SxLibCompleteNetBufferListsEgress(Switch,
-        NetBufferLists,
-        ReturnFlags);
+    NdisFReturnNetBufferLists(Switch->NdisFilterHandle,
+                              NetBufferLists,
+                              ReturnFlags);
 }
 
-VOID
-SxExtStartCompleteNetBufferListsIngress(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG SendCompleteFlags
-)
+void
+FilterSendNetBufferListsComplete(
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    ULONG SendCompleteFlags
+    )
 {
     DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
 
     PNET_BUFFER_LIST next = NetBufferLists;
     PNET_BUFFER_LIST current;
@@ -691,4 +932,634 @@ SxExtStartCompleteNetBufferListsIngress(
 
         free_nbl(current, 0);
     } while (next != NULL);
+}
+
+void
+FilterCancelSendNetBufferLists( // TODO: JW-1096: check if this can be removed
+    NDIS_HANDLE FilterModuleContext,
+    PVOID CancelId
+    )
+{
+    UNREFERENCED_PARAMETER(FilterModuleContext);
+    UNREFERENCED_PARAMETER(CancelId);
+}
+
+void
+FilterStatus( // TODO: JW-1097: can be removed?
+    NDIS_HANDLE FilterModuleContext,
+    PNDIS_STATUS_INDICATION StatusIndication
+    )
+{
+    // FilterStatus handler is required when Egress handlers are implemented by driver
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    NdisFIndicateStatus(switchObject->NdisFilterHandle,
+                        StatusIndication);
+}
+
+NDIS_STATUS
+SxpNdisProcessSetOid(
+    _In_ PSX_SWITCH_OBJECT Switch,
+    _Inout_ PNDIS_OID_REQUEST OidRequest,
+    _Out_ PBOOLEAN Complete
+    )
+{
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+    NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
+    PNDIS_OBJECT_HEADER header;
+    ULONG bytesRestored = 0;
+
+    *Complete = FALSE;
+
+    header = OidRequest->DATA.SET_INFORMATION.InformationBuffer;
+
+    if (OidRequest->DATA.SET_INFORMATION.InformationBufferLength != 0 &&
+        OidRequest->DATA.SET_INFORMATION.InformationBufferLength <
+            sizeof(NDIS_OBJECT_HEADER))
+    {
+        status = NDIS_STATUS_NOT_SUPPORTED;
+        *Complete = TRUE;
+        goto Cleanup;
+    }
+
+    if (OidRequest->DATA.SET_INFORMATION.InformationBufferLength == 0)
+    {
+        *Complete = FALSE;
+        goto Cleanup;
+    }
+
+    switch(oid)
+    {
+        case OID_SWITCH_PROPERTY_ADD:
+        case OID_SWITCH_PROPERTY_UPDATE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_PROPERTY_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_PROPERTY_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            if (oid == OID_SWITCH_PROPERTY_ADD)
+            {
+                status = NDIS_STATUS_SUCCESS;
+            }
+            else
+            {
+                status = NDIS_STATUS_SUCCESS;
+            }
+
+            if (status == NDIS_STATUS_NOT_SUPPORTED)
+            {
+                status = NDIS_STATUS_SUCCESS;
+            }
+            else
+            {
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            break;
+        case OID_SWITCH_PROPERTY_DELETE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_PROPERTY_DELETE_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_PROPERTY_DELETE_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            *Complete = FALSE;
+
+            break;
+
+        case OID_SWITCH_PORT_PROPERTY_ADD:
+        case OID_SWITCH_PORT_PROPERTY_UPDATE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_PORT_PROPERTY_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_PORT_PROPERTY_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            if (oid == OID_SWITCH_PORT_PROPERTY_ADD)
+            {
+                status = NDIS_STATUS_SUCCESS;
+            }
+            else
+            {
+                status = NDIS_STATUS_SUCCESS;
+            }
+
+            if (status == NDIS_STATUS_NOT_SUPPORTED)
+            {
+                status = NDIS_STATUS_SUCCESS;
+            }
+            else
+            {
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            break;
+
+        case OID_SWITCH_PORT_PROPERTY_DELETE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_PORT_PROPERTY_DELETE_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_PORT_PROPERTY_DELETE_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            *Complete = FALSE;
+
+            break;
+
+        case OID_SWITCH_PORT_CREATE:
+        case OID_SWITCH_PORT_UPDATED:
+        case OID_SWITCH_PORT_TEARDOWN:
+        case OID_SWITCH_PORT_DELETE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_PORT_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_PORT_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            if (oid == OID_SWITCH_PORT_CREATE)
+            {
+                status = SxExtCreatePort(Switch,
+                                         Switch->ExtensionContext,
+                                         (PNDIS_SWITCH_PORT_PARAMETERS)header);
+
+                if (status != NDIS_STATUS_SUCCESS)
+                {
+                    *Complete = TRUE;
+                }
+            }
+            else if (oid == OID_SWITCH_PORT_UPDATED)
+            {
+            }
+            else if (oid == OID_SWITCH_PORT_TEARDOWN)
+            {
+            }
+            else
+            {
+            }
+
+            break;
+
+        case OID_SWITCH_NIC_CREATE:
+        case OID_SWITCH_NIC_CONNECT:
+        case OID_SWITCH_NIC_UPDATED:
+        case OID_SWITCH_NIC_DISCONNECT:
+        case OID_SWITCH_NIC_DELETE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_NIC_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            if (oid == OID_SWITCH_NIC_CREATE)
+            {
+                status = SxExtCreateNic(Switch,
+                                        Switch->ExtensionContext,
+                                        (PNDIS_SWITCH_NIC_PARAMETERS)header);
+                if (status != NDIS_STATUS_SUCCESS)
+                {
+                    *Complete = TRUE;
+                }
+            }
+            else if (oid == OID_SWITCH_NIC_CONNECT)
+            {
+                SxExtConnectNic(Switch,
+                                Switch->ExtensionContext,
+                                (PNDIS_SWITCH_NIC_PARAMETERS)header);
+            }
+            else if (oid == OID_SWITCH_NIC_UPDATED)
+            {
+                SxExtUpdateNic(Switch,
+                               Switch->ExtensionContext,
+                               (PNDIS_SWITCH_NIC_PARAMETERS)header);
+            }
+            else if (oid == OID_SWITCH_NIC_DISCONNECT)
+            {
+                SxExtDisconnectNic(Switch,
+                                   Switch->ExtensionContext,
+                                   (PNDIS_SWITCH_NIC_PARAMETERS)header);
+            }
+            else
+            {
+                SxExtDeleteNic(Switch,
+                               Switch->ExtensionContext,
+                               (PNDIS_SWITCH_NIC_PARAMETERS)header);
+            }
+
+            break;
+
+        case OID_SWITCH_NIC_RESTORE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                goto Cleanup;
+            }
+
+            status = NDIS_STATUS_SUCCESS;
+
+            if (status != NDIS_STATUS_SUCCESS)
+            {
+                *Complete = TRUE;
+            }
+            else if (bytesRestored > 0)
+            {
+                *Complete = TRUE;
+            }
+
+            break;
+
+        case OID_SWITCH_NIC_SAVE_COMPLETE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            break;
+
+        case OID_SWITCH_NIC_RESTORE_COMPLETE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+Cleanup:
+    return status;
+}
+
+NDIS_STATUS
+SxpNdisProcessMethodOid(
+    _In_ PSX_SWITCH_OBJECT Switch,
+    _Inout_ PNDIS_OID_REQUEST OidRequest,
+    _Out_ PBOOLEAN Complete,
+    _Out_ PULONG BytesNeeded
+    )
+{
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+    NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
+    PNDIS_OBJECT_HEADER header;
+    PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequest;
+    PNDIS_SWITCH_NIC_OID_REQUEST newNicOidRequest = NULL;
+    NDIS_SWITCH_PORT_ID destPort, sourcePort;
+    NDIS_SWITCH_NIC_INDEX destNic, sourceNic;
+    ULONG bytesWritten = 0;
+    ULONG bytesNeeded = 0;
+
+    *Complete = FALSE;
+    *BytesNeeded = 0;
+
+    header = OidRequest->DATA.METHOD_INFORMATION.InformationBuffer;
+
+    switch(oid)
+    {
+        case OID_SWITCH_FEATURE_STATUS_QUERY:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            *Complete = FALSE;
+
+            if (*BytesNeeded > 0)
+            {
+                status = NDIS_STATUS_BUFFER_TOO_SHORT;
+            }
+
+            break;
+
+        case OID_SWITCH_PORT_FEATURE_STATUS_QUERY:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            *Complete = FALSE;
+
+            if (*BytesNeeded > 0)
+            {
+                status = NDIS_STATUS_BUFFER_TOO_SHORT;
+            }
+
+            break;
+
+        case OID_SWITCH_NIC_REQUEST:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_NIC_OID_REQUEST_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_OID_REQUEST_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            nicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)header;
+
+            sourcePort = nicOidRequest->SourcePortId;
+            sourceNic = nicOidRequest->SourceNicIndex;
+            destPort = nicOidRequest->DestinationPortId;
+            destNic = nicOidRequest->DestinationNicIndex;
+
+            status = NDIS_STATUS_SUCCESS;
+
+            if (status != NDIS_STATUS_SUCCESS)
+            {
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            if (sourcePort != nicOidRequest->SourcePortId ||
+                sourceNic != nicOidRequest->SourceNicIndex ||
+                destPort != nicOidRequest->DestinationPortId ||
+                destNic != nicOidRequest->DestinationNicIndex)
+            {
+                ASSERT(Switch->OldNicRequest == NULL);
+                Switch->OldNicRequest = nicOidRequest;
+
+                newNicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)ExAllocatePoolWithTag(
+                                                                    NonPagedPoolNx,
+                                                                    sizeof(NDIS_SWITCH_NIC_OID_REQUEST),
+                                                                    SxExtAllocationTag);
+
+                if (newNicOidRequest == NULL)
+                {
+                    status = NDIS_STATUS_RESOURCES;
+                    *Complete = TRUE;
+                    goto Cleanup;
+                }
+
+                newNicOidRequest->Header = nicOidRequest->Header;
+                newNicOidRequest->SourcePortId = sourcePort;
+                newNicOidRequest->SourceNicIndex = sourceNic;
+                newNicOidRequest->DestinationPortId = destPort;
+                newNicOidRequest->DestinationNicIndex = destNic;
+                newNicOidRequest->OidRequest = nicOidRequest->OidRequest;
+
+                OidRequest->DATA.METHOD_INFORMATION.InformationBuffer = newNicOidRequest;
+            }
+
+            break;
+
+        case OID_SWITCH_NIC_SAVE:
+            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
+                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
+                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
+            {
+                status = NDIS_STATUS_NOT_SUPPORTED;
+                *Complete = TRUE;
+                goto Cleanup;
+            }
+
+            status = NDIS_STATUS_SUCCESS;
+
+            if (status == NDIS_STATUS_SUCCESS &&
+                bytesWritten > 0)
+            {
+                *Complete = TRUE;
+            }
+            else if (status == NDIS_STATUS_BUFFER_TOO_SHORT)
+            {
+                *BytesNeeded = ((PNDIS_SWITCH_NIC_SAVE_STATE)header)->SaveDataOffset +
+                                bytesNeeded;
+                *Complete = TRUE;
+            }
+            else if (status != NDIS_STATUS_SUCCESS)
+            {
+                *Complete = TRUE;
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+Cleanup:
+    return status;
+}
+
+NDIS_STATUS
+FilterOidRequest(
+    NDIS_HANDLE FilterModuleContext,
+    PNDIS_OID_REQUEST OidRequest
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    NDIS_STATUS status;
+    PNDIS_OID_REQUEST clonedRequest=NULL;
+    PVOID *cloneRequestContext;
+    BOOLEAN completeOid = FALSE;
+    ULONG bytesNeeded = 0;
+
+    status = NDIS_STATUS_SUCCESS;
+
+    DbgPrint("%s: OidRequest %p.\r\n", __func__, OidRequest);
+
+    NdisInterlockedIncrement(&switchObject->PendingOidCount);
+
+    status = NdisAllocateCloneOidRequest(switchObject->NdisFilterHandle,
+                                         OidRequest,
+                                         SxExtAllocationTag,
+                                         &clonedRequest);
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DbgPrint("%s: Cannot Clone OidRequest\r\n", __func__);
+        goto Cleanup;
+    }
+
+    cloneRequestContext = (PVOID*)(&clonedRequest->SourceReserved[0]);
+    *cloneRequestContext = OidRequest;
+
+    switch (clonedRequest->RequestType)
+    {
+        case NdisRequestSetInformation:
+            status = SxpNdisProcessSetOid(switchObject,
+                                          clonedRequest,
+                                          &completeOid);
+            break;
+
+        case NdisRequestMethod:
+            status = SxpNdisProcessMethodOid(switchObject,
+                                             clonedRequest,
+                                             &completeOid,
+                                             &bytesNeeded);
+
+            break;
+    }
+
+    if (completeOid)
+    {
+        NdisFreeCloneOidRequest(switchObject->NdisFilterHandle, clonedRequest);
+        OidRequest->DATA.METHOD_INFORMATION.BytesNeeded = bytesNeeded;
+        NdisInterlockedDecrement(&switchObject->PendingOidCount);
+        goto Cleanup;
+    }
+
+    status = NdisFOidRequest(switchObject->NdisFilterHandle, clonedRequest);
+
+    if (status != NDIS_STATUS_PENDING)
+    {
+        FilterOidRequestComplete(switchObject, clonedRequest, status);
+
+        //
+        // We must still return status as pending because we complete the
+        // request using NdisFOidRequestComplete() in SxOidRequestComplete().
+        //
+        status = NDIS_STATUS_PENDING;
+    }
+
+Cleanup:
+    return status;
+}
+
+void
+FilterCancelOidRequest(
+    NDIS_HANDLE FilterModuleContext,
+    PVOID RequestId
+    )
+{
+    UNREFERENCED_PARAMETER(FilterModuleContext);
+    UNREFERENCED_PARAMETER(RequestId);
+}
+
+void
+FilterOidRequestComplete(
+    NDIS_HANDLE FilterModuleContext,
+    PNDIS_OID_REQUEST NdisOidRequest,
+    NDIS_STATUS Status
+    )
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    PNDIS_OID_REQUEST originalRequest;
+    PVOID *oidRequestContext;
+    PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequestBuf;
+    PNDIS_OBJECT_HEADER header;
+
+    DbgPrint("%s: NdisOidRequest %p.\r\n", __func__, NdisOidRequest);
+
+    oidRequestContext = (PVOID*)(&NdisOidRequest->SourceReserved[0]);
+    originalRequest = (*oidRequestContext);
+
+    //
+    // This is the internal request
+    //
+    if (originalRequest == NULL)
+    {
+        SxpNdisCompleteInternalOidRequest(switchObject, NdisOidRequest, Status);
+        goto Cleanup;
+    }
+
+    //
+    // Copy the information from the returned request to the original request
+    //
+    switch(NdisOidRequest->RequestType)
+    {
+    case NdisRequestMethod:
+        originalRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
+            NdisOidRequest->DATA.METHOD_INFORMATION.OutputBufferLength;
+        originalRequest->DATA.METHOD_INFORMATION.BytesRead =
+            NdisOidRequest->DATA.METHOD_INFORMATION.BytesRead;
+        originalRequest->DATA.METHOD_INFORMATION.BytesNeeded =
+            NdisOidRequest->DATA.METHOD_INFORMATION.BytesNeeded;
+        originalRequest->DATA.METHOD_INFORMATION.BytesWritten =
+            NdisOidRequest->DATA.METHOD_INFORMATION.BytesWritten;
+
+        if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_NIC_REQUEST &&
+                switchObject->OldNicRequest != NULL)
+        {
+            nicOidRequestBuf = NdisOidRequest->DATA.METHOD_INFORMATION.InformationBuffer;
+            Status = NDIS_STATUS_SUCCESS;
+
+            originalRequest->DATA.METHOD_INFORMATION.InformationBuffer =
+                                                    switchObject->OldNicRequest;
+            switchObject->OldNicRequest = NULL;
+            ExFreePoolWithTag(nicOidRequestBuf, SxExtAllocationTag);
+        }
+
+        break;
+
+    case NdisRequestSetInformation:
+        header = originalRequest->DATA.SET_INFORMATION.InformationBuffer;
+
+        originalRequest->DATA.SET_INFORMATION.BytesRead =
+            NdisOidRequest->DATA.SET_INFORMATION.BytesRead;
+        originalRequest->DATA.SET_INFORMATION.BytesNeeded =
+            NdisOidRequest->DATA.SET_INFORMATION.BytesNeeded;
+
+        if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
+            Status != NDIS_STATUS_SUCCESS)
+        {
+        }
+        else if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
+                 Status != NDIS_STATUS_SUCCESS)
+        {
+            SxExtDeleteNic(switchObject,
+                           switchObject->ExtensionContext,
+                           (PNDIS_SWITCH_NIC_PARAMETERS)header);
+        }
+
+        break;
+
+    case NdisRequestQueryInformation:
+    case NdisRequestQueryStatistics:
+    default:
+        originalRequest->DATA.QUERY_INFORMATION.BytesWritten =
+            NdisOidRequest->DATA.QUERY_INFORMATION.BytesWritten;
+        originalRequest->DATA.QUERY_INFORMATION.BytesNeeded =
+            NdisOidRequest->DATA.QUERY_INFORMATION.BytesNeeded;
+        break;
+    }
+
+    (*oidRequestContext) = NULL;
+
+    NdisFreeCloneOidRequest(switchObject->NdisFilterHandle, NdisOidRequest);
+
+    NdisFOidRequestComplete(switchObject->NdisFilterHandle,
+                            originalRequest,
+                            Status);
+
+Cleanup:
+    NdisInterlockedDecrement(&switchObject->PendingOidCount);
 }
