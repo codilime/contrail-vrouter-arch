@@ -861,7 +861,7 @@ FilterSendNetBufferLists(
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
 
-        ASSERT(Switch->DataFlowState == SxSwitchRunning);
+        ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1096: Refactor: cannot be assert!
 
         NdisFSendNetBufferLists(Switch->NdisFilterHandle,
             nativeForwardedNbls,
@@ -874,7 +874,7 @@ FilterSendNetBufferLists(
 }
 
 VOID
-SxExtStartNetBufferListsEgress(
+SxExtStartNetBufferListsEgress( // TODO: JW-1097: can be removed?
     _In_ PSX_SWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNET_BUFFER_LIST NetBufferLists,
@@ -885,7 +885,7 @@ SxExtStartNetBufferListsEgress(
     DbgPrint("SxExtStartNetBufferListsEgress\r\n");
     UNREFERENCED_PARAMETER(ExtensionContext);
 
-    ASSERT(Switch->DataFlowState == SxSwitchRunning);
+    ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1097: Refactor: cannot be assert!
 
     NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
         NetBufferLists,
@@ -895,7 +895,7 @@ SxExtStartNetBufferListsEgress(
 }
 
 VOID
-SxExtStartCompleteNetBufferListsEgress(
+SxExtStartCompleteNetBufferListsEgress( // TODO: JW-1097: can be removed?
     _In_ PSX_SWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNET_BUFFER_LIST NetBufferLists,
@@ -931,7 +931,7 @@ FilterSendNetBufferListsComplete(
 }
 
 void
-FilterCancelSendNetBufferLists(
+FilterCancelSendNetBufferLists( // TODO: JW-1096: check if this can be removed
     NDIS_HANDLE FilterModuleContext,
     PVOID CancelId
     )
