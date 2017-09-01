@@ -18,9 +18,6 @@ static NDIS_HANDLE DriverHandle = NULL;
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
 
-NDIS_SPIN_LOCK SxExtensionListLock;
-LIST_ENTRY SxExtensionList;
-
 unsigned int vr_num_cpus;
 int vrouter_dbg = 0;
 
@@ -111,9 +108,6 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     fChars.StatusHandler = FilterStatus;
 
-    NdisAllocateSpinLock(&SxExtensionListLock);
-    InitializeListHead(&SxExtensionList);
-
     DriverObject->DriverUnload = DriverUnload;
 
     status = NdisFRegisterFilterDriver(DriverObject,
@@ -128,8 +122,6 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
             NdisFDeregisterFilterDriver(DriverHandle);
             DriverHandle = NULL;
         }
-
-        NdisFreeSpinLock(&SxExtensionListLock);
     }
 
     return status;
@@ -185,7 +177,6 @@ void
 DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     NdisFDeregisterFilterDriver(DriverHandle);
-    NdisFreeSpinLock(&SxExtensionListLock);
 }
 
 static NTSTATUS
@@ -678,10 +669,6 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
     switchObject->ControlFlowState = SxSwitchAttached;
     switchObject->DataFlowState = SxSwitchPaused;
 
-    NdisAcquireSpinLock(&SxExtensionListLock);
-    InsertHeadList(&SxExtensionList, &switchObject->Link);
-    NdisReleaseSpinLock(&SxExtensionListLock);
-
 Cleanup:
 
     if (status != NDIS_STATUS_SUCCESS)
@@ -721,10 +708,6 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
     SxExtUninitializeWindowsComponents(ctx);
 
     SxSwitchObject = NULL;
-
-    NdisAcquireSpinLock(&SxExtensionListLock);
-    RemoveEntryList(&switchObject->Link);
-    NdisReleaseSpinLock(&SxExtensionListLock);
 
     ExFreePool(switchObject);
 }
