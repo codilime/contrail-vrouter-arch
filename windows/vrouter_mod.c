@@ -13,15 +13,13 @@ static const PWSTR ServiceName = L"vRouter";
 ULONG  SxExtAllocationTag = 'RVCO';
 ULONG  SxExtOidRequestId = 'RVCO';
 
+static PDRIVER_OBJECT VrDriverObject;
 static NDIS_HANDLE DriverHandle = NULL;
 PSX_SWITCH_OBJECT SxSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
 
 NDIS_SPIN_LOCK SxExtensionListLock;
 LIST_ENTRY SxExtensionList;
-
-// This is exported by SxLibrary
-extern PDRIVER_OBJECT SxDriverObject;
 
 unsigned int vr_num_cpus;
 int vrouter_dbg = 0;
@@ -76,7 +74,8 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     RtlInitUnicodeString(&service_name, ServiceName);
     RtlInitUnicodeString(&friendly_name, FriendlyName);
     RtlInitUnicodeString(&unique_name, UniqueName);
-    SxDriverObject = DriverObject;
+
+    VrDriverObject = DriverObject;
 
     NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
     fChars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
@@ -118,7 +117,7 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     DriverObject->DriverUnload = DriverUnload;
 
     status = NdisFRegisterFilterDriver(DriverObject,
-                                       (NDIS_HANDLE)SxDriverObject,
+                                       (NDIS_HANDLE)VrDriverObject,
                                        &fChars,
                                        &DriverHandle);
 
@@ -156,13 +155,13 @@ SxExtUninitializeVRouter(struct vr_switch_context* ctx)
         memory_exit();
 
     if (ctx->device_up)
-        VRouterUninitializeDevices(SxDriverObject);
+        VRouterUninitializeDevices(VrDriverObject);
 
     if (ctx->pkt0_up)
-        Pkt0DestroyDevice(SxDriverObject);
+        Pkt0DestroyDevice(VrDriverObject);
 
     if (ctx->ksync_up)
-        KsyncDestroyDevice(SxDriverObject);
+        KsyncDestroyDevice(VrDriverObject);
 }
 
 void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
@@ -316,17 +315,17 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
     ASSERT(!ctx->message_up);
     ASSERT(!ctx->vrouter_up);
 
-    ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(SxDriverObject));
+    ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(VrDriverObject));
 
     if (!ctx->ksync_up)
         goto cleanup;
 
-    ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(SxDriverObject));
+    ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(VrDriverObject));
 
     if (!ctx->pkt0_up)
         goto cleanup;
 
-    ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(SxDriverObject));
+    ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(VrDriverObject));
 
     if (!ctx->device_up)
         goto cleanup;
@@ -608,7 +607,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
     status = NDIS_STATUS_SUCCESS;
     switchObject = NULL;
 
-    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)SxDriverObject);
+    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)VrDriverObject);
 
     if (AttachParameters->MiniportMediaType != NdisMedium802_3)
     {
