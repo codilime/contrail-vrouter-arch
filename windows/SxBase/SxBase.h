@@ -82,10 +82,6 @@ typedef struct _SX_OID_REQUEST
 //
 // Function prototypes
 //
-FILTER_SET_OPTIONS SxNdisSetOptions;
-
-FILTER_SET_MODULE_OPTIONS SxNdisSetFilterModuleOptions;
-
 FILTER_OID_REQUEST SxNdisOidRequest;
 
 FILTER_CANCEL_OID_REQUEST SxNdisCancelOidRequest;

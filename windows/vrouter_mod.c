@@ -88,9 +88,6 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.UniqueName = unique_name;
     fChars.ServiceName = service_name;
 
-    fChars.SetOptionsHandler = SxNdisSetOptions;
-    fChars.SetFilterModuleOptionsHandler = SxNdisSetFilterModuleOptions;
-
     fChars.AttachHandler = FilterAttach;
     fChars.DetachHandler = FilterDetach;
     fChars.PauseHandler = FilterPause;
