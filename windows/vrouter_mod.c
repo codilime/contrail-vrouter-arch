@@ -52,6 +52,9 @@ FILTER_SEND_NET_BUFFER_LISTS FilterSendNetBufferLists;
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
 
+FILTER_RECEIVE_NET_BUFFER_LISTS FilterReceiveNetBufferLists;
+FILTER_RETURN_NET_BUFFER_LISTS FilterReturnNetBufferLists;
+
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -96,8 +99,9 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.SendNetBufferListsHandler = FilterSendNetBufferLists;
     fChars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
     fChars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
-    fChars.ReceiveNetBufferListsHandler = SxNdisReceiveNetBufferLists;
-    fChars.ReturnNetBufferListsHandler = SxNdisReturnNetBufferLists;
+
+    fChars.ReceiveNetBufferListsHandler = FilterReceiveNetBufferLists;
+    fChars.ReturnNetBufferListsHandler = FilterReturnNetBufferLists;
 
     fChars.OidRequestHandler = SxNdisOidRequest;
     fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
@@ -873,41 +877,39 @@ FilterSendNetBufferLists(
     NdisReleaseRWLock(ctx->lock, &lockState);
 }
 
-VOID
-SxExtStartNetBufferListsEgress( // TODO: JW-1097: can be removed?
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG NumberOfNetBufferLists,
-    _In_ ULONG ReceiveFlags
-)
+void
+FilterReceiveNetBufferLists( // TODO: JW-1097: can be removed?
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    NDIS_PORT_NUMBER PortNumber,
+    ULONG NumberOfNetBufferLists,
+    ULONG ReceiveFlags)
 {
-    DbgPrint("SxExtStartNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
+    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(PortNumber);
 
     ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1097: Refactor: cannot be assert!
 
     NdisFIndicateReceiveNetBufferLists(Switch->NdisFilterHandle,
-        NetBufferLists,
-        NDIS_DEFAULT_PORT_NUMBER,
-        NumberOfNetBufferLists,
-        ReceiveFlags);
+                                       NetBufferLists,
+                                       NDIS_DEFAULT_PORT_NUMBER,
+                                       NumberOfNetBufferLists,
+                                       ReceiveFlags);
 }
 
-VOID
-SxExtStartCompleteNetBufferListsEgress( // TODO: JW-1097: can be removed?
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNET_BUFFER_LIST NetBufferLists,
-    _In_ ULONG ReturnFlags
-)
+void
+FilterReturnNetBufferLists( // TODO: JW-1097: can be removed?
+    NDIS_HANDLE FilterModuleContext,
+    PNET_BUFFER_LIST NetBufferLists,
+    ULONG ReturnFlags
+    )
 {
-    DbgPrint("SxExtStartCompleteNetBufferListsEgress\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
+    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
 
     NdisFReturnNetBufferLists(Switch->NdisFilterHandle,
-        NetBufferLists,
-        ReturnFlags);
+                              NetBufferLists,
+                              ReturnFlags);
 }
 
 void

@@ -272,53 +272,6 @@ Cleanup:
 
 
 //
-// FilterReceiveNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549960(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisReceiveNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    NDIS_PORT_NUMBER PortNumber,
-    ULONG NumberOfNetBufferLists,
-    ULONG ReceiveFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    
-    UNREFERENCED_PARAMETER(PortNumber);
-
-    SxExtStartNetBufferListsEgress(switchObject,
-                                   switchObject->ExtensionContext,
-                                   NetBufferLists,
-                                   NumberOfNetBufferLists,
-                                   ReceiveFlags);
-}
-
-
-//
-// FilterReturnNetBufferLists Function
-// http://msdn.microsoft.com/en-us/library/ff549964(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisReturnNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    ULONG ReturnFlags
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    SxExtStartCompleteNetBufferListsEgress(switchObject,
-                                           switchObject->ExtensionContext,
-                                           NetBufferLists,
-                                           ReturnFlags);
-}
-
-
-//
 // FilterNetPnPEvent Function
 // http://msdn.microsoft.com/en-us/library/ff549952(v=vs.85).aspx
 //
