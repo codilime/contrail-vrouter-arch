@@ -79,15 +79,6 @@ typedef struct _SX_OID_REQUEST
 } SX_OID_REQUEST, *PSX_OID_REQUEST;
 
 
-//
-// Function prototypes
-//
-FILTER_OID_REQUEST SxNdisOidRequest;
-
-FILTER_CANCEL_OID_REQUEST SxNdisCancelOidRequest;
-
-FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;
-
 VOID
 SxpNdisCompleteInternalOidRequest(
     _In_ PSX_SWITCH_OBJECT Switch,
