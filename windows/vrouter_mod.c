@@ -368,8 +368,6 @@ SxExtInitializeWindowsComponents(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *Extensi
     if (SxNBLPool == NULL)
         goto cleanup;
 
-    *ExtensionContext = (NDIS_HANDLE) ctx;
-
     return NDIS_STATUS_SUCCESS;
 
 cleanup:
