@@ -189,187 +189,6 @@ DriverUnload(PDRIVER_OBJECT DriverObject)
     NdisFreeSpinLock(&SxExtensionListLock);
 }
 
-NDIS_STATUS
-FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
-             PNDIS_FILTER_ATTACH_PARAMETERS AttachParameters)
-{
-    NDIS_STATUS status;
-    NDIS_FILTER_ATTRIBUTES sxAttributes;
-    ULONG switchObjectSize;
-    NDIS_SWITCH_CONTEXT switchContext;
-    NDIS_SWITCH_OPTIONAL_HANDLERS switchHandler;
-    PSX_SWITCH_OBJECT switchObject;
-
-    UNREFERENCED_PARAMETER(SxDriverContext);
-
-    DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
-
-    status = NDIS_STATUS_SUCCESS;
-    switchObject = NULL;
-
-    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)SxDriverObject);
-
-    if (AttachParameters->MiniportMediaType != NdisMedium802_3)
-    {
-        status = NDIS_STATUS_INVALID_PARAMETER;
-        goto Cleanup;
-    }
-
-    switchHandler.Header.Type = NDIS_OBJECT_TYPE_SWITCH_OPTIONAL_HANDLERS;
-    switchHandler.Header.Size = NDIS_SIZEOF_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
-    switchHandler.Header.Revision = NDIS_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
-
-    status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle,
-                                            &switchContext,
-                                            &switchHandler);
-
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("%s: Extension is running in non-switch environment.\r\n", __func__);
-        goto Cleanup;
-    }
-
-    switchObjectSize = sizeof(SX_SWITCH_OBJECT);
-    switchObject = ExAllocatePoolWithTag(NonPagedPoolNx,
-                                         switchObjectSize,
-                                         SxExtAllocationTag);
-
-    if (switchObject == NULL)
-    {
-        status = NDIS_STATUS_RESOURCES;
-        goto Cleanup;
-    }
-
-    RtlZeroMemory(switchObject, switchObjectSize);
-
-    // Initialize NDIS related information.
-    switchObject->NdisFilterHandle = NdisFilterHandle;
-    switchObject->NdisSwitchContext = switchContext;
-    RtlCopyMemory(&switchObject->NdisSwitchHandlers,
-                  &switchHandler,
-                  sizeof(NDIS_SWITCH_OPTIONAL_HANDLERS));
-
-    // Let the extension create its own context.
-    status = SxExtCreateSwitch(switchObject,
-                               &(switchObject->ExtensionContext));
-
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        goto Cleanup;
-    }
-
-    // Register the object with NDIS because NDIS passes this object when it
-    // calls into the driver.
-    NdisZeroMemory(&sxAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
-    sxAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
-    sxAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
-    sxAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
-    sxAttributes.Flags = 0;
-
-    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SX_SWITCH_OBJECT);
-    status = NdisFSetAttributes(NdisFilterHandle, switchObject, &sxAttributes);
-
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("%s: Failed to set attributes.\r\n", __func__);
-        goto Cleanup;
-    }
-
-    switchObject->ControlFlowState = SxSwitchAttached;
-    switchObject->DataFlowState = SxSwitchPaused;
-
-    NdisAcquireSpinLock(&SxExtensionListLock);
-    InsertHeadList(&SxExtensionList, &switchObject->Link);
-    NdisReleaseSpinLock(&SxExtensionListLock);
-
-Cleanup:
-
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        if (switchObject != NULL)
-        {
-            ExFreePool(switchObject);
-        }
-    }
-
-    return status;
-}
-
-void
-FilterDetach(NDIS_HANDLE FilterModuleContext)
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
-
-    // The extension must be in paused state.
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
-    switchObject->ControlFlowState = SxSwitchDetached;
-
-    KeMemoryBarrier();
-
-    while(switchObject->PendingOidCount > 0)
-    {
-        NdisMSleep(1000);
-    }
-
-    ASSERTMSG("Trying to delete another switch than currently active", switchObject == SxSwitchObject);
-
-    struct vr_switch_context* ctx = (struct vr_switch_context*)switchObject->ExtensionContext;
-
-    SxExtUninitializeVRouter(ctx);
-    SxExtUninitializeWindowsComponents(ctx);
-
-    SxSwitchObject = NULL;
-
-    NdisAcquireSpinLock(&SxExtensionListLock);
-    RemoveEntryList(&switchObject->Link);
-    NdisReleaseSpinLock(&SxExtensionListLock);
-
-    ExFreePool(switchObject);
-}
-
-NDIS_STATUS
-FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS PauseParameters)
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)(FilterModuleContext);
-
-    UNREFERENCED_PARAMETER(PauseParameters);
-
-    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
-
-    // Set the flag that the filter is going to pause.
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
-    switchObject->DataFlowState = SxSwitchPaused;
-
-    KeMemoryBarrier();
-
-    while(switchObject->PendingInjectedNblCount > 0)
-    {
-        NdisMSleep(1000);
-    }
-
-    return NDIS_STATUS_SUCCESS;
-}
-
-NDIS_STATUS
-FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS RestartParameters)
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-
-    UNREFERENCED_PARAMETER(RestartParameters);
-
-    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
-
-    struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
-    ctx->restart = FALSE;
-
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
-    switchObject->DataFlowState = SxSwitchRunning;
-
-    return NDIS_STATUS_SUCCESS;
-}
-
 static NTSTATUS
 vr_message_init(void)
 {
@@ -769,6 +588,187 @@ vr_win_split_nbls_by_forwarding_type(
             nextExtForwardNbl = &(curNbl->Next);
         }
     }
+}
+
+NDIS_STATUS
+FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
+             PNDIS_FILTER_ATTACH_PARAMETERS AttachParameters)
+{
+    NDIS_STATUS status;
+    NDIS_FILTER_ATTRIBUTES sxAttributes;
+    ULONG switchObjectSize;
+    NDIS_SWITCH_CONTEXT switchContext;
+    NDIS_SWITCH_OPTIONAL_HANDLERS switchHandler;
+    PSX_SWITCH_OBJECT switchObject;
+
+    UNREFERENCED_PARAMETER(SxDriverContext);
+
+    DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
+
+    status = NDIS_STATUS_SUCCESS;
+    switchObject = NULL;
+
+    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)SxDriverObject);
+
+    if (AttachParameters->MiniportMediaType != NdisMedium802_3)
+    {
+        status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Cleanup;
+    }
+
+    switchHandler.Header.Type = NDIS_OBJECT_TYPE_SWITCH_OPTIONAL_HANDLERS;
+    switchHandler.Header.Size = NDIS_SIZEOF_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
+    switchHandler.Header.Revision = NDIS_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
+
+    status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle,
+                                            &switchContext,
+                                            &switchHandler);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DbgPrint("%s: Extension is running in non-switch environment.\r\n", __func__);
+        goto Cleanup;
+    }
+
+    switchObjectSize = sizeof(SX_SWITCH_OBJECT);
+    switchObject = ExAllocatePoolWithTag(NonPagedPoolNx,
+                                         switchObjectSize,
+                                         SxExtAllocationTag);
+
+    if (switchObject == NULL)
+    {
+        status = NDIS_STATUS_RESOURCES;
+        goto Cleanup;
+    }
+
+    RtlZeroMemory(switchObject, switchObjectSize);
+
+    // Initialize NDIS related information.
+    switchObject->NdisFilterHandle = NdisFilterHandle;
+    switchObject->NdisSwitchContext = switchContext;
+    RtlCopyMemory(&switchObject->NdisSwitchHandlers,
+                  &switchHandler,
+                  sizeof(NDIS_SWITCH_OPTIONAL_HANDLERS));
+
+    // Let the extension create its own context.
+    status = SxExtCreateSwitch(switchObject,
+                               &(switchObject->ExtensionContext));
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        goto Cleanup;
+    }
+
+    // Register the object with NDIS because NDIS passes this object when it
+    // calls into the driver.
+    NdisZeroMemory(&sxAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
+    sxAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
+    sxAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
+    sxAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
+    sxAttributes.Flags = 0;
+
+    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SX_SWITCH_OBJECT);
+    status = NdisFSetAttributes(NdisFilterHandle, switchObject, &sxAttributes);
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DbgPrint("%s: Failed to set attributes.\r\n", __func__);
+        goto Cleanup;
+    }
+
+    switchObject->ControlFlowState = SxSwitchAttached;
+    switchObject->DataFlowState = SxSwitchPaused;
+
+    NdisAcquireSpinLock(&SxExtensionListLock);
+    InsertHeadList(&SxExtensionList, &switchObject->Link);
+    NdisReleaseSpinLock(&SxExtensionListLock);
+
+Cleanup:
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        if (switchObject != NULL)
+        {
+            ExFreePool(switchObject);
+        }
+    }
+
+    return status;
+}
+
+void
+FilterDetach(NDIS_HANDLE FilterModuleContext)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+
+    // The extension must be in paused state.
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+    switchObject->ControlFlowState = SxSwitchDetached;
+
+    KeMemoryBarrier();
+
+    while(switchObject->PendingOidCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    ASSERTMSG("Trying to delete another switch than currently active", switchObject == SxSwitchObject);
+
+    struct vr_switch_context* ctx = (struct vr_switch_context*)switchObject->ExtensionContext;
+
+    SxExtUninitializeVRouter(ctx);
+    SxExtUninitializeWindowsComponents(ctx);
+
+    SxSwitchObject = NULL;
+
+    NdisAcquireSpinLock(&SxExtensionListLock);
+    RemoveEntryList(&switchObject->Link);
+    NdisReleaseSpinLock(&SxExtensionListLock);
+
+    ExFreePool(switchObject);
+}
+
+NDIS_STATUS
+FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS PauseParameters)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)(FilterModuleContext);
+
+    UNREFERENCED_PARAMETER(PauseParameters);
+
+    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+
+    // Set the flag that the filter is going to pause.
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
+    switchObject->DataFlowState = SxSwitchPaused;
+
+    KeMemoryBarrier();
+
+    while(switchObject->PendingInjectedNblCount > 0)
+    {
+        NdisMSleep(1000);
+    }
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+NDIS_STATUS
+FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS RestartParameters)
+{
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    UNREFERENCED_PARAMETER(RestartParameters);
+
+    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
+
+    struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
+    ctx->restart = FALSE;
+
+    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
+    switchObject->DataFlowState = SxSwitchRunning;
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 void
