@@ -54,7 +54,6 @@ typedef struct _SX_SWITCH_OBJECT
     //
     // Management fields.
     //
-    volatile LONG PendingInjectedNblCount;
     volatile LONG PendingOidCount;
     
     //

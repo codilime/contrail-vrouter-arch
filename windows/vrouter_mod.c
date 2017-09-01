@@ -687,8 +687,6 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
 
     DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
 
-    // The extension must be in paused state.
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
     switchObject->ControlFlowState = SxSwitchDetached;
 
     KeMemoryBarrier();
@@ -719,16 +717,7 @@ FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS Pause
 
     DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
 
-    // Set the flag that the filter is going to pause.
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchRunning);
     switchObject->DataFlowState = SxSwitchPaused;
-
-    KeMemoryBarrier();
-
-    while(switchObject->PendingInjectedNblCount > 0)
-    {
-        NdisMSleep(1000);
-    }
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -745,7 +734,6 @@ FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS R
     struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
     ctx->restart = FALSE;
 
-    NT_ASSERT(switchObject->DataFlowState == SxSwitchPaused);
     switchObject->DataFlowState = SxSwitchRunning;
 
     return NDIS_STATUS_SUCCESS;
