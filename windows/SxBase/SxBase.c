@@ -240,28 +240,6 @@ Cleanup:
 
 
 //
-// FilterNetPnPEvent Function
-// http://msdn.microsoft.com/en-us/library/ff549952(v=vs.85).aspx
-//
-_Use_decl_annotations_
-NDIS_STATUS
-SxNdisNetPnPEvent(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_PNP_EVENT_NOTIFICATION NetPnPEvent
-    )
-{
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    
-    if (NetPnPEvent->NetPnPEvent.NetEvent == NetEventSwitchActivate)
-    {
-    }
-    
-    return NdisFNetPnPEvent(switchObject->NdisFilterHandle,
-                            NetPnPEvent);
-}
-
-
-//
 // FilterStatus Function
 // http://msdn.microsoft.com/en-us/library/ff549973(v=VS.85).aspx
 //

@@ -104,7 +104,6 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
     fChars.CancelOidRequestHandler = SxNdisCancelOidRequest;
 
-    fChars.NetPnPEventHandler = SxNdisNetPnPEvent;
     fChars.StatusHandler = SxNdisStatus;
 
     NdisAllocateSpinLock(&SxExtensionListLock);

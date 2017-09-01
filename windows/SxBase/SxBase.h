@@ -90,8 +90,6 @@ FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;
 
 FILTER_STATUS SxNdisStatus;
 
-FILTER_NET_PNP_EVENT SxNdisNetPnPEvent;
-
 VOID
 SxpNdisCompleteInternalOidRequest(
     _In_ PSX_SWITCH_OBJECT Switch,
