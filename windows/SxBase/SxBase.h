@@ -88,8 +88,6 @@ FILTER_CANCEL_OID_REQUEST SxNdisCancelOidRequest;
 
 FILTER_OID_REQUEST_COMPLETE SxNdisOidRequestComplete;
 
-FILTER_STATUS SxNdisStatus;
-
 VOID
 SxpNdisCompleteInternalOidRequest(
     _In_ PSX_SWITCH_OBJECT Switch,

@@ -55,6 +55,8 @@ FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
 FILTER_RECEIVE_NET_BUFFER_LISTS FilterReceiveNetBufferLists;
 FILTER_RETURN_NET_BUFFER_LISTS FilterReturnNetBufferLists;
 
+FILTER_STATUS FilterStatus;
+
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -104,7 +106,7 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     fChars.OidRequestCompleteHandler = SxNdisOidRequestComplete;
     fChars.CancelOidRequestHandler = SxNdisCancelOidRequest;
 
-    fChars.StatusHandler = SxNdisStatus;
+    fChars.StatusHandler = FilterStatus;
 
     NdisAllocateSpinLock(&SxExtensionListLock);
     InitializeListHead(&SxExtensionList);
@@ -936,4 +938,17 @@ FilterCancelSendNetBufferLists( // TODO: JW-1096: check if this can be removed
 {
     UNREFERENCED_PARAMETER(FilterModuleContext);
     UNREFERENCED_PARAMETER(CancelId);
+}
+
+void
+FilterStatus( // TODO: JW-1097: can be removed?
+    NDIS_HANDLE FilterModuleContext,
+    PNDIS_STATUS_INDICATION StatusIndication
+    )
+{
+    // FilterStatus handler is required when Egress handlers are implemented by driver
+    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+
+    NdisFIndicateStatus(switchObject->NdisFilterHandle,
+                        StatusIndication);
 }

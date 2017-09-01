@@ -239,63 +239,6 @@ Cleanup:
 }
 
 
-//
-// FilterStatus Function
-// http://msdn.microsoft.com/en-us/library/ff549973(v=VS.85).aspx
-//
-_Use_decl_annotations_
-VOID
-SxNdisStatus(
-    NDIS_HANDLE FilterModuleContext,
-    PNDIS_STATUS_INDICATION StatusIndication
-    )
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
-    PNDIS_SWITCH_NIC_STATUS_INDICATION nicIndication;
-    PNDIS_STATUS_INDICATION originalIndication;
-    
-    if (StatusIndication->Header.Type != NDIS_OBJECT_TYPE_STATUS_INDICATION ||
-        StatusIndication->Header.Revision != NDIS_STATUS_INDICATION_REVISION_1 ||
-        StatusIndication->Header.Size < NDIS_SIZEOF_STATUS_INDICATION_REVISION_1)
-    {
-        goto Cleanup;
-    }
-    
-    //
-    // Only NDIS_STATUS_SWITCH_NIC_STAUTUS indications need to be processed
-    // by switch extensions.
-    //
-    if (StatusIndication->StatusCode != NDIS_STATUS_SWITCH_NIC_STATUS)
-    {
-        goto Cleanup;
-    }
-    
-    nicIndication = StatusIndication->StatusBuffer;
-    
-    if (nicIndication->Header.Type != NDIS_OBJECT_TYPE_STATUS_INDICATION ||
-        nicIndication->Header.Revision != NDIS_SWITCH_NIC_STATUS_INDICATION_REVISION_1 ||
-        nicIndication->Header.Size < NDIS_SIZEOF_SWITCH_NIC_STATUS_REVISION_1)
-    {
-        goto Cleanup;
-    }
-    
-    originalIndication = nicIndication->StatusIndication;
-    
-    status = NDIS_STATUS_SUCCESS;
-                                   
-Cleanup:
-    if (status == NDIS_STATUS_SUCCESS)
-    {
-        NdisFIndicateStatus(switchObject->NdisFilterHandle,
-                            StatusIndication);
-    }
-
-    return;
-                           
-}
-
-
 NDIS_STATUS
 SxpNdisProcessSetOid(
     _In_ PSX_SWITCH_OBJECT Switch,
