@@ -33,8 +33,8 @@ static int get_set, nh_set, vnid_set;
 static int help_set, cmd_set;
 static int vxlan_op = -1;
 
-void
-vr_vxlan_req_process(void *s_req)
+static void
+vxlan_req_process(void *s_req)
 {
    vr_vxlan_req *req = (vr_vxlan_req *)s_req;
 
@@ -45,11 +45,18 @@ vr_vxlan_req_process(void *s_req)
    return;
 }
 
-void
-vr_response_process(void *s)
+static void
+response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
+}
+
+static void
+vxlan_fill_nl_callbacks()
+{
+    nl_cb.vr_vxlan_req_process = vxlan_req_process;
+    nl_cb.vr_response_process = response_process;
 }
 
 static int
@@ -64,7 +71,7 @@ op_retry:
         ret = vr_send_vxlan_add(cl, 0, vxlan_vnid, vxlan_nh);
         break;
 
-    case SANDESH_OP_DELETE:
+    case SANDESH_OP_DEL:
         ret = vr_send_vxlan_delete(cl, 0, vxlan_vnid);
         break;
 
@@ -162,7 +169,7 @@ parse_long_opts(int opt_index, char *opt_arg)
         break;
 
     case DELETE_OPT_INDEX:
-        vxlan_op = SANDESH_OP_DELETE;
+        vxlan_op = SANDESH_OP_DEL;
         vxlan_vnid = strtoul(opt_arg, NULL, 0);
         if (errno)
             usage_internal();
@@ -221,6 +228,8 @@ int main(int argc, char *argv[])
 {
     int ret, opt, option_index;
 
+    vxlan_fill_nl_callbacks();
+
     while ((opt = getopt_long(argc, argv, "bcdgn:l:",
                     long_options, &option_index)) >= 0) {
             switch (opt) {
@@ -236,7 +245,7 @@ int main(int argc, char *argv[])
                 if (vxlan_op >= 0)
                     Usage();
 
-                vxlan_op = SANDESH_OP_DELETE;
+                vxlan_op = SANDESH_OP_DEL;
                 delete_set = 1;
                 break;
 

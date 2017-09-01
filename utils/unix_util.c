@@ -1,4 +1,13 @@
+#include <sys/socket.h>
+#if defined(__linux__)
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <linux/if_ether.h>
+#elif defined(__FreeBSD__)
+#include <net/ethernet.h>
+#endif
 
+#include "nl_util.h"
 
 int
 nl_socket(struct nl_client *cl, int domain, int type, int protocol)

@@ -192,7 +192,7 @@ nh_print_newline_header(void)
     return;
 }
 
-void
+static void
 nexthop_req_process(void *s_req)
 {
     unsigned int i, printed = 0;
@@ -298,14 +298,14 @@ nexthop_req_process(void *s_req)
     }
 }
 
-void
+static void
 response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, &dump_pending);
     return;
 }
 
-void
+static void
 nh_fill_nl_callbacks()
 {
     nl_cb.vr_response_process = response_process;

@@ -4,11 +4,11 @@ Param ([Parameter(Mandatory = $true)] [string] $VMSwitchName,
        [Parameter(Mandatory = $false)] [string] $ExtensionName = "vRouter forwarding extension")
 
 function RestartExtension {
-    Disable-VMSwitchExtension -Name $ExtensionName -VMSwitchName $VMSwitchName -ErrorVariable Err | out-null
+    Disable-VMSwitchExtension -Name $ExtensionName -VMSwitchName $VMSwitchName -ErrorVariable Err | Out-Null
     If ($Err) {
         throw "Error while disabling the extension"
     }
-    Enable-VMSwitchExtension -Name $ExtensionName -VMSwitchName $VMSwitchName -ErrorVariable Err | out-null
+    Enable-VMSwitchExtension -Name $ExtensionName -VMSwitchName $VMSwitchName -ErrorVariable Err | Out-Null
     If ($Err) {
         throw "Error while enabling the extension"
     }

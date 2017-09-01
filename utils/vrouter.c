@@ -367,8 +367,8 @@ print_enabled_log_types(vrouter_ops *req)
     return;
 }
 
-void
-vrouter_ops_process(void *s_req)
+static void
+local_vrouter_ops_process(void *s_req)
 {
     vrouter_ops *req = (vrouter_ops *)s_req;
 
@@ -391,11 +391,18 @@ vrouter_ops_process(void *s_req)
     return;
 }
 
-void
-vr_response_process(void *s)
+static void
+response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, NULL);
     return;
+}
+
+static void
+vrouter_fill_nl_callbacks()
+{
+    nl_cb.vrouter_ops_process = local_vrouter_ops_process;
+    nl_cb.vr_response_process = response_process;
 }
 
 static int
@@ -837,6 +844,8 @@ main(int argc, char *argv[])
 {
     int ret, opt, option_index;
     vrouter_ops req;
+
+    vrouter_fill_nl_callbacks();
 
     parse_ini_file();
     platform = get_platform();
