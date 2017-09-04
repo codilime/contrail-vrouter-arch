@@ -16,30 +16,7 @@ Abstract:
 
 --*/
 
-typedef struct _SWITCH_OBJECT
-{
-    //
-    // The extension context is the context used in the specific logic
-    // of this extension.
-    // This is allocated and returned in SxExtSwitchCreate
-    //
-    PNDIS_HANDLE ExtensionContext;
-
-    // Ndis related fields.
-    NDIS_HANDLE NdisFilterHandle;
-    NDIS_SWITCH_CONTEXT NdisSwitchContext;
-    NDIS_SWITCH_OPTIONAL_HANDLERS NdisSwitchHandlers;
-
-    // Switch state.
-    volatile BOOLEAN Running;
-    
-    // Management fields.
-    volatile LONG PendingOidCount;
-    
-    // Control Path Management.
-    PNDIS_SWITCH_NIC_OID_REQUEST OldNicRequest;
-    
-} SWITCH_OBJECT, *PSWITCH_OBJECT;
+#include "vr_windows.h"
 
 typedef struct _SX_OID_REQUEST
 {

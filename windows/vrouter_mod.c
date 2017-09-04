@@ -124,7 +124,7 @@ vr_message_exit(void)
 }
 
 void
-UninitializeVRouter(struct vr_switch_context* ctx)
+UninitializeVRouter(pvr_switch_context ctx)
 {
     if (ctx->vrouter_up)
         vrouter_exit(false);
@@ -145,7 +145,7 @@ UninitializeVRouter(struct vr_switch_context* ctx)
         KsyncDestroyDevice(VrDriverObject);
 }
 
-void UninitializeWindowsComponents(struct vr_switch_context* ctx)
+void UninitializeWindowsComponents(pvr_switch_context ctx)
 {
     if (SxNBLPool)
         vrouter_free_pool(SxNBLPool);
@@ -286,7 +286,7 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 }
 
 NDIS_STATUS
-SxExtInitializeVRouter(struct vr_switch_context* ctx)
+SxExtInitializeVRouter(pvr_switch_context ctx)
 {
     ASSERT(!ctx->ksync_up);
     ASSERT(!ctx->pkt0_up);
@@ -333,19 +333,17 @@ cleanup:
 }
 
 NDIS_STATUS
-InitializeWindowsComponents(PSWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
+InitializeWindowsComponents(PSWITCH_OBJECT Switch, pvr_switch_context *ExtensionContext)
 {
-    struct vr_switch_context *ctx = NULL;
+    pvr_switch_context ctx = NULL;
 
-    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), VrAllocationTag);
+    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(vr_switch_context), VrAllocationTag);
     if (ctx == NULL)
         return NDIS_STATUS_RESOURCES;
 
-    RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
+    RtlZeroMemory(ctx, sizeof(vr_switch_context));
 
     ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
-
-    *ExtensionContext = (NDIS_HANDLE)ctx;
 
     AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
     if (AsyncWorkRWLock == NULL)
@@ -355,12 +353,12 @@ InitializeWindowsComponents(PSWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContex
     if (SxNBLPool == NULL)
         goto cleanup;
 
+    *ExtensionContext = ctx;
+
     return NDIS_STATUS_SUCCESS;
 
 cleanup:
     UninitializeWindowsComponents(ctx);
-
-    *ExtensionContext = NULL;
 
     return NDIS_STATUS_FAILURE;
 }
@@ -368,7 +366,7 @@ cleanup:
 NDIS_STATUS
 CreateSwitch(
     PSWITCH_OBJECT Switch,
-    PNDIS_HANDLE *ExtensionContext
+    pvr_switch_context *ExtensionContext
 )
 {
     DbgPrint("CreateSwitch\r\n");
@@ -388,14 +386,13 @@ CreateSwitch(
     BOOLEAN vrouter = FALSE;
 
     NDIS_STATUS status = InitializeWindowsComponents(Switch, ExtensionContext);
-    struct vr_switch_context* ctx = (struct vr_switch_context*)*ExtensionContext;
 
     if (!NT_SUCCESS(status))
         goto cleanup;
 
     windows = TRUE;
 
-    status = SxExtInitializeVRouter(ctx);
+    status = SxExtInitializeVRouter(*ExtensionContext);
 
     if (!NT_SUCCESS(status))
         goto cleanup;
@@ -406,10 +403,10 @@ CreateSwitch(
 
 cleanup:
     if (vrouter)
-        UninitializeVRouter(ctx);
+        UninitializeVRouter(*ExtensionContext);
 
     if (windows)
-        UninitializeWindowsComponents(ctx);
+        UninitializeWindowsComponents(*ExtensionContext);
 
     VrSwitchObject = NULL;
 
@@ -609,7 +606,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE DriverContext,
     switchObject->NdisSwitchContext = switchContext;
     switchObject->NdisSwitchHandlers = switchHandler;
 
-    status = CreateSwitch(switchObject, &(switchObject->ExtensionContext)); // TODO: change
+    status = CreateSwitch(switchObject, &(switchObject->ExtensionContext)); // TODO: do not need 2 params
     if (status != NDIS_STATUS_SUCCESS)
     {
         goto Cleanup;
@@ -659,10 +656,8 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
 
     ASSERTMSG("Trying to delete another switch than currently active", switchObject == VrSwitchObject);
 
-    struct vr_switch_context* ctx = (struct vr_switch_context*)switchObject->ExtensionContext;
-
-    UninitializeVRouter(ctx);
-    UninitializeWindowsComponents(ctx);
+    UninitializeVRouter(switchObject->ExtensionContext);
+    UninitializeWindowsComponents(switchObject->ExtensionContext);
 
     VrSwitchObject = NULL;
 
@@ -709,7 +704,6 @@ FilterSendNetBufferLists(
 
     UNREFERENCED_PARAMETER(PortNumber);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context*)Switch->ExtensionContext;
     LOCK_STATE_EX lockState;
 
     BOOLEAN sameSource;
@@ -734,7 +728,7 @@ FilterSendNetBufferLists(
     }
 
     // Acquire the lock, now interfaces cannot disconnect, etc.
-    NdisAcquireRWLockRead(ctx->lock, &lockState, on_dispatch_level);
+    NdisAcquireRWLockRead(Switch->ExtensionContext->lock, &lockState, on_dispatch_level);
 
     vr_win_split_nbls_by_forwarding_type(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
@@ -802,7 +796,7 @@ FilterSendNetBufferLists(
     }
 
     // Release the lock, now interfaces can disconnect, etc.
-    NdisReleaseRWLock(ctx->lock, &lockState);
+    NdisReleaseRWLock(Switch->ExtensionContext->lock, &lockState);
 }
 
 void
