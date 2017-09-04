@@ -15,7 +15,7 @@ ULONG  SxExtOidRequestId = 'RVCO';
 
 static PDRIVER_OBJECT VrDriverObject;
 static NDIS_HANDLE DriverHandle = NULL;
-PSX_SWITCH_OBJECT SxSwitchObject = NULL;
+PSWITCH_OBJECT VrSwitchObject = NULL;
 NDIS_HANDLE SxNBLPool = NULL;
 
 unsigned int vr_num_cpus;
@@ -124,7 +124,7 @@ vr_message_exit(void)
 }
 
 void
-SxExtUninitializeVRouter(struct vr_switch_context* ctx)
+UninitializeVRouter(struct vr_switch_context* ctx)
 {
     if (ctx->vrouter_up)
         vrouter_exit(false);
@@ -145,7 +145,7 @@ SxExtUninitializeVRouter(struct vr_switch_context* ctx)
         KsyncDestroyDevice(VrDriverObject);
 }
 
-void SxExtUninitializeWindowsComponents(struct vr_switch_context* ctx)
+void UninitializeWindowsComponents(struct vr_switch_context* ctx)
 {
     if (SxNBLPool)
         vrouter_free_pool(SxNBLPool);
@@ -328,12 +328,12 @@ SxExtInitializeVRouter(struct vr_switch_context* ctx)
     return NDIS_STATUS_SUCCESS;
 
 cleanup:
-    SxExtUninitializeVRouter(ctx);
+    UninitializeVRouter(ctx);
     return NDIS_STATUS_FAILURE;
 }
 
 NDIS_STATUS
-SxExtInitializeWindowsComponents(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
+InitializeWindowsComponents(PSWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContext)
 {
     struct vr_switch_context *ctx = NULL;
 
@@ -344,8 +344,6 @@ SxExtInitializeWindowsComponents(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *Extensi
     RtlZeroMemory(ctx, sizeof(struct vr_switch_context));
 
     ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
-
-    ctx->restart = TRUE;
 
     *ExtensionContext = (NDIS_HANDLE)ctx;
 
@@ -360,7 +358,7 @@ SxExtInitializeWindowsComponents(PSX_SWITCH_OBJECT Switch, PNDIS_HANDLE *Extensi
     return NDIS_STATUS_SUCCESS;
 
 cleanup:
-    SxExtUninitializeWindowsComponents(ctx);
+    UninitializeWindowsComponents(ctx);
 
     *ExtensionContext = NULL;
 
@@ -368,14 +366,14 @@ cleanup:
 }
 
 NDIS_STATUS
-SxExtCreateSwitch(
-    _In_ PSX_SWITCH_OBJECT Switch,
-    _Outptr_result_maybenull_ PNDIS_HANDLE *ExtensionContext
+CreateSwitch(
+    PSWITCH_OBJECT Switch,
+    PNDIS_HANDLE *ExtensionContext
 )
 {
-    DbgPrint("SxExtCreateSwitch\r\n");
+    DbgPrint("CreateSwitch\r\n");
 
-    if (SxSwitchObject != NULL)
+    if (VrSwitchObject != NULL)
         return NDIS_STATUS_FAILURE;
 
     vr_num_cpus = KeQueryActiveProcessorCount(NULL);
@@ -384,12 +382,12 @@ SxExtCreateSwitch(
         return NDIS_STATUS_FAILURE;
     }
 
-    SxSwitchObject = Switch;
+    VrSwitchObject = Switch;
 
     BOOLEAN windows = FALSE;
     BOOLEAN vrouter = FALSE;
 
-    NDIS_STATUS status = SxExtInitializeWindowsComponents(Switch, ExtensionContext);
+    NDIS_STATUS status = InitializeWindowsComponents(Switch, ExtensionContext);
     struct vr_switch_context* ctx = (struct vr_switch_context*)*ExtensionContext;
 
     if (!NT_SUCCESS(status))
@@ -408,19 +406,19 @@ SxExtCreateSwitch(
 
 cleanup:
     if (vrouter)
-        SxExtUninitializeVRouter(ctx);
+        UninitializeVRouter(ctx);
 
     if (windows)
-        SxExtUninitializeWindowsComponents(ctx);
+        UninitializeWindowsComponents(ctx);
 
-    SxSwitchObject = NULL;
+    VrSwitchObject = NULL;
 
     return NDIS_STATUS_FAILURE;
 }
 
 NDIS_STATUS
 SxExtCreatePort(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNDIS_SWITCH_PORT_PARAMETERS Port
 )
@@ -436,17 +434,15 @@ SxExtCreatePort(
 
 NDIS_STATUS
 SxExtCreateNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
     DbgPrint("SxExtCreateNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
+    UNREFERENCED_PARAMETER(ExtensionContext);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    while (ctx->restart)
+    while (!Switch->Running)
     {
         NdisMSleep(100);
     }
@@ -459,17 +455,16 @@ SxExtCreateNic(
 
 VOID
 SxExtConnectNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
     DbgPrint("SxExtConnectNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
+    UNREFERENCED_PARAMETER(ExtensionContext);
+    UNREFERENCED_PARAMETER(Nic);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context*)ExtensionContext;
-
-    while (ctx->restart)
+    while (!Switch->Running)
     {
         NdisMSleep(100);
     }
@@ -477,18 +472,16 @@ SxExtConnectNic(
 
 VOID
 SxExtUpdateNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
     DbgPrint("SxExtUpdateNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
+    UNREFERENCED_PARAMETER(ExtensionContext);
     UNREFERENCED_PARAMETER(Nic);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    while (ctx->restart)
+    while (!Switch->Running)
     {
         NdisMSleep(100);
     }
@@ -496,18 +489,16 @@ SxExtUpdateNic(
 
 VOID
 SxExtDisconnectNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
     DbgPrint("SxExtDisconnectNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
+    UNREFERENCED_PARAMETER(ExtensionContext);
     UNREFERENCED_PARAMETER(Nic);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    while (ctx->restart)
+    while (!Switch->Running)
     {
         NdisMSleep(100);
     }
@@ -515,18 +506,16 @@ SxExtDisconnectNic(
 
 VOID
 SxExtDeleteNic(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_HANDLE ExtensionContext,
     _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
 )
 {
     DbgPrint("SxExtDeleteNic\r\n");
-    UNREFERENCED_PARAMETER(Switch);
+    UNREFERENCED_PARAMETER(ExtensionContext);
     UNREFERENCED_PARAMETER(Nic);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context *)ExtensionContext;
-
-    while (ctx->restart)
+    while (!Switch->Running)
     {
         NdisMSleep(100);
     }
@@ -568,25 +557,27 @@ vr_win_split_nbls_by_forwarding_type(
 }
 
 NDIS_STATUS
-FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
+FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE DriverContext,
              PNDIS_FILTER_ATTACH_PARAMETERS AttachParameters)
 {
     NDIS_STATUS status;
-    NDIS_FILTER_ATTRIBUTES sxAttributes;
+    NDIS_FILTER_ATTRIBUTES filterAttributes;
     ULONG switchObjectSize;
     NDIS_SWITCH_CONTEXT switchContext;
     NDIS_SWITCH_OPTIONAL_HANDLERS switchHandler;
-    PSX_SWITCH_OBJECT switchObject;
+    PSWITCH_OBJECT switchObject;
 
-    UNREFERENCED_PARAMETER(SxDriverContext);
+    UNREFERENCED_PARAMETER(DriverContext);
 
     DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
 
     status = NDIS_STATUS_SUCCESS;
     switchObject = NULL;
+    switchObjectSize = sizeof(SWITCH_OBJECT);
 
-    NT_ASSERT(SxDriverContext == (NDIS_HANDLE)VrDriverObject);
+    NT_ASSERT(DriverContext == (NDIS_HANDLE)VrDriverObject);
 
+    // Accept Ethernet only
     if (AttachParameters->MiniportMediaType != NdisMedium802_3)
     {
         status = NDIS_STATUS_INVALID_PARAMETER;
@@ -603,14 +594,13 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
 
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DbgPrint("%s: Extension is running in non-switch environment.\r\n", __func__);
+        DbgPrint("%s: Extension is not bound to the underlying extensible switch component.\r\n", __func__);
         goto Cleanup;
     }
 
-    switchObjectSize = sizeof(SX_SWITCH_OBJECT);
     switchObject = ExAllocatePoolWithTag(NonPagedPoolNx,
                                          switchObjectSize,
-                                         SxExtAllocationTag);
+                                         SxExtAllocationTag); // TODO: change
 
     if (switchObject == NULL)
     {
@@ -623,29 +613,21 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
     // Initialize NDIS related information.
     switchObject->NdisFilterHandle = NdisFilterHandle;
     switchObject->NdisSwitchContext = switchContext;
-    RtlCopyMemory(&switchObject->NdisSwitchHandlers,
-                  &switchHandler,
-                  sizeof(NDIS_SWITCH_OPTIONAL_HANDLERS));
+    switchObject->NdisSwitchHandlers = switchHandler;
 
-    // Let the extension create its own context.
-    status = SxExtCreateSwitch(switchObject,
-                               &(switchObject->ExtensionContext));
-
+    status = CreateSwitch(switchObject, &(switchObject->ExtensionContext)); // TODO: change
     if (status != NDIS_STATUS_SUCCESS)
     {
         goto Cleanup;
     }
 
-    // Register the object with NDIS because NDIS passes this object when it
-    // calls into the driver.
-    NdisZeroMemory(&sxAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
-    sxAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
-    sxAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
-    sxAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
-    sxAttributes.Flags = 0;
+    filterAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
+    filterAttributes.Header.Size = NDIS_SIZEOF_FILTER_ATTRIBUTES_REVISION_1;
+    filterAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
+    filterAttributes.Flags = 0;
 
-    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SX_SWITCH_OBJECT);
-    status = NdisFSetAttributes(NdisFilterHandle, switchObject, &sxAttributes);
+    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SWITCH_OBJECT); // TODO: ?
+    status = NdisFSetAttributes(NdisFilterHandle, switchObject, &filterAttributes);
 
     if (status != NDIS_STATUS_SUCCESS)
     {
@@ -653,8 +635,8 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE SxDriverContext,
         goto Cleanup;
     }
 
-    switchObject->ControlFlowState = SxSwitchAttached;
-    switchObject->DataFlowState = SxSwitchPaused;
+    switchObject->ControlFlowState = SxSwitchAttached; // TODO: change
+    switchObject->Running = FALSE;
 
 Cleanup:
 
@@ -672,9 +654,9 @@ Cleanup:
 void
 FilterDetach(NDIS_HANDLE FilterModuleContext)
 {
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
-    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+    DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
 
     switchObject->ControlFlowState = SxSwitchDetached;
 
@@ -685,14 +667,14 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
         NdisMSleep(1000);
     }
 
-    ASSERTMSG("Trying to delete another switch than currently active", switchObject == SxSwitchObject);
+    ASSERTMSG("Trying to delete another switch than currently active", switchObject == VrSwitchObject);
 
     struct vr_switch_context* ctx = (struct vr_switch_context*)switchObject->ExtensionContext;
 
-    SxExtUninitializeVRouter(ctx);
-    SxExtUninitializeWindowsComponents(ctx);
+    UninitializeVRouter(ctx);
+    UninitializeWindowsComponents(ctx);
 
-    SxSwitchObject = NULL;
+    VrSwitchObject = NULL;
 
     ExFreePool(switchObject);
 }
@@ -700,13 +682,13 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
 NDIS_STATUS
 FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS PauseParameters)
 {
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)(FilterModuleContext);
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)(FilterModuleContext);
 
     UNREFERENCED_PARAMETER(PauseParameters);
 
     DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
 
-    switchObject->DataFlowState = SxSwitchPaused;
+    switchObject->Running = FALSE;
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -714,16 +696,13 @@ FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS Pause
 NDIS_STATUS
 FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS RestartParameters)
 {
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
     UNREFERENCED_PARAMETER(RestartParameters);
 
     DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
 
-    struct vr_switch_context *ctx = (struct vr_switch_context *)switchObject->ExtensionContext;
-    ctx->restart = FALSE;
-
-    switchObject->DataFlowState = SxSwitchRunning;
+    switchObject->Running = TRUE;
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -736,7 +715,7 @@ FilterSendNetBufferLists(
     ULONG SendFlags
     )
 {
-    PSX_SWITCH_OBJECT Switch = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    PSWITCH_OBJECT Switch = (PSWITCH_OBJECT)FilterModuleContext;
 
     UNREFERENCED_PARAMETER(PortNumber);
 
@@ -824,7 +803,7 @@ FilterSendNetBufferLists(
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
 
-        ASSERT(Switch->DataFlowState == SxSwitchRunning); // TODO: JW-1096: Refactor: cannot be assert!
+        ASSERT(Switch->Running == TRUE); // TODO: JW-1096: Refactor: cannot be assert!
 
         NdisFSendNetBufferLists(Switch->NdisFilterHandle,
             nativeForwardedNbls,
@@ -868,7 +847,7 @@ FilterCancelSendNetBufferLists( // TODO: JW-1096: check if this can be removed
 
 NDIS_STATUS
 SxpNdisProcessSetOid(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _Inout_ PNDIS_OID_REQUEST OidRequest,
     _Out_ PBOOLEAN Complete
     )
@@ -1133,7 +1112,7 @@ Cleanup:
 
 NDIS_STATUS
 SxpNdisProcessMethodOid(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _Inout_ PNDIS_OID_REQUEST OidRequest,
     _Out_ PBOOLEAN Complete,
     _Out_ PULONG BytesNeeded
@@ -1295,7 +1274,7 @@ FilterOidRequest(
     PNDIS_OID_REQUEST OidRequest
     )
 {
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
     NDIS_STATUS status;
     PNDIS_OID_REQUEST clonedRequest=NULL;
     PVOID *cloneRequestContext;
@@ -1380,7 +1359,7 @@ FilterOidRequestComplete(
     NDIS_STATUS Status
     )
 {
-    PSX_SWITCH_OBJECT switchObject = (PSX_SWITCH_OBJECT)FilterModuleContext;
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
     PNDIS_OID_REQUEST originalRequest;
     PVOID *oidRequestContext;
     PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequestBuf;

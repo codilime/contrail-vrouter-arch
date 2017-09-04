@@ -20,7 +20,6 @@ struct vr_packet;
 
 struct vr_switch_context {
     PNDIS_RW_LOCK_EX        lock;
-    BOOLEAN                 restart;
 
     /* Following flags are ordered in module initialization order */
     BOOLEAN                 ksync_up;

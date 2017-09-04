@@ -5,7 +5,7 @@
 #include "vr_windows.h"
 #include "windows_devices.h"
 
-extern PSX_SWITCH_OBJECT SxSwitchObject;
+extern PSWITCH_OBJECT VrSwitchObject;
 static NDIS_MUTEX win_if_mutex;
 
 void
@@ -210,14 +210,14 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     newDestination.NicIndex = vif->vif_nic;
     DbgPrint("Adding target, PID: %u, NID: %u\r\n", newDestination.PortId, newDestination.NicIndex);
 
-    SxSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(SxSwitchObject->NdisSwitchContext, nbl, &newDestination);
+    VrSwitchObject->NdisSwitchHandlers.AddNetBufferListDestination(VrSwitchObject->NdisSwitchContext, nbl, &newDestination);
 
     PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(nbl);
     fwd->IsPacketDataSafe = TRUE;
 
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data, TRUE, NULL);
 
-    NdisFSendNetBufferLists(SxSwitchObject->NdisFilterHandle,
+    NdisFSendNetBufferLists(VrSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_DEFAULT_PORT_NUMBER,
         0);

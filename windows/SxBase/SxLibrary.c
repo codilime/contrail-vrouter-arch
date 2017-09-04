@@ -19,7 +19,7 @@ Abstract:
 
 NDIS_STATUS
 SxLibIssueOidRequest(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_REQUEST_TYPE RequestType,
     _In_ NDIS_OID Oid,
     _In_opt_ PVOID InformationBuffer,
@@ -144,7 +144,7 @@ Cleanup:
 
 NDIS_STATUS
 SxLibGetNicArrayUnsafe(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _Out_ PNDIS_SWITCH_NIC_ARRAY *NicArray
     )
 {

@@ -15,7 +15,7 @@
 #define CONTEXT_SIZE (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * MEMORY_ALLOCATION_ALIGNMENT)
 
 /* Defined in windows/vrouter_mod.c */
-extern PSX_SWITCH_OBJECT SxSwitchObject;
+extern PSWITCH_OBJECT VrSwitchObject;
 extern NDIS_HANDLE SxNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
@@ -41,14 +41,14 @@ static NDIS_STATUS
 create_forwarding_context(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
-    return SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    return VrSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(VrSwitchObject->NdisSwitchContext, nbl);
 }
 
 static void
 free_forwarding_context(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
-    SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    VrSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(VrSwitchObject->NdisSwitchContext, nbl);
 }
 
 static PNET_BUFFER_LIST
@@ -61,7 +61,7 @@ create_nbl_based_on_buffer(unsigned int size, void *buffer)
     PNET_BUFFER_LIST nbl = NULL;
     NDIS_STATUS status;
 
-    mdl = NdisAllocateMdl(SxSwitchObject->NdisFilterHandle, buffer, size);
+    mdl = NdisAllocateMdl(VrSwitchObject->NdisFilterHandle, buffer, size);
     if (mdl == NULL)
         goto fail;
     mdl->Next = NULL;
@@ -69,7 +69,7 @@ create_nbl_based_on_buffer(unsigned int size, void *buffer)
     nbl = NdisAllocateNetBufferAndNetBufferList(SxNBLPool, 0, 0, mdl, 0, size);
     if (nbl == NULL)
         goto fail;
-    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+    nbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
 
     status = create_forwarding_context(nbl);
     if (!NT_SUCCESS(status))
@@ -157,7 +157,7 @@ complete_received_nbl(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
 
     /* Flag SINGLE_SOURCE is used, because of singular NBLS */
-    NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
+    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP);
 }
@@ -208,7 +208,7 @@ delete_unbound_nbl(PNET_BUFFER_LIST nbl, unsigned long flags)
 {
     ASSERT(nbl != NULL);
 
-    NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
+    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
         nbl,
         flags);
 }
@@ -225,7 +225,7 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
     if (nbl == NULL)
         goto cleanup;
 
-    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+    nbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
     nbl->ParentNetBufferList = original_nbl;
     original_nbl->ChildRefCount++;
 
@@ -234,7 +234,7 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
 
     fwd_ctx = true;
 
-    NDIS_STATUS status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(SxSwitchObject->NdisSwitchContext, nbl, original_nbl, 0);
+    NDIS_STATUS status = VrSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(VrSwitchObject->NdisSwitchContext, nbl, original_nbl, 0);
     if (status != NDIS_STATUS_SUCCESS)
         goto cleanup;
 
@@ -623,8 +623,8 @@ win_pclone(struct vr_packet *pkt)
 
     npkt->vp_cpu = (unsigned char)win_get_cpu();
 
-    NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
-        SxSwitchObject->NdisSwitchContext,
+    NDIS_STATUS copy_status = VrSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
+        VrSwitchObject->NdisSwitchContext,
         nbl,
         original_nbl,
         0);
@@ -904,7 +904,7 @@ win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
     cb_data->user_cb = fn;
     cb_data->data = arg;
 
-    work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
+    work_item = NdisAllocateIoWorkItem(VrSwitchObject->NdisFilterHandle);
     if (!work_item) {
         DbgPrint("%s: NdisAllocateIoWorkItem failed", __func__);
         scheduled_work_routine((PVOID)(cb_data), NULL);
@@ -961,7 +961,7 @@ win_defer(struct vrouter *router, vr_defer_cb user_cb, void *data)
     cb_data->user_cb = user_cb;
     cb_data->router = router;
 
-    work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
+    work_item = NdisAllocateIoWorkItem(VrSwitchObject->NdisFilterHandle);
     if (!work_item) {
         deferred_work_routine((PVOID)(cb_data), NULL);
     } else {
@@ -1242,7 +1242,7 @@ win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
 
     win_if_lock();
 
-    SxLibGetNicArrayUnsafe(SxSwitchObject, &array);
+    SxLibGetNicArrayUnsafe(VrSwitchObject, &array);
 
     for (unsigned i = 0; i < array->NumElements; i++){
         PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
@@ -1363,7 +1363,7 @@ vrouter_generate_pool()
     params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
     params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
 
-    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(SxSwitchObject->NdisFilterHandle, &params);
+    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(VrSwitchObject->NdisFilterHandle, &params);
 
     ASSERT(pool != NULL);
 
