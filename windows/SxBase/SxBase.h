@@ -16,19 +16,6 @@ Abstract:
 
 --*/
 
-typedef enum _SX_SWITCH_DATAFLOW_STATE
-{
-    SxSwitchPaused,
-    SxSwitchRunning
-} SX_SWITCH_DATAFLOW_STATE, *PSX_SWITCH_DATAFLOW_STATE;
-
-typedef enum _SX_SWITCH_CONTROFLOW_STATE
-{
-    SxSwitchUnknown,
-    SxSwitchAttached,
-    SxSwitchDetached
-} SX_SWITCH_CONTROLFLOW_STATE, *PSX_SWITCH_CONTROLFLOW_STATE;
-
 typedef struct _SWITCH_OBJECT
 {
     //
@@ -45,7 +32,6 @@ typedef struct _SWITCH_OBJECT
 
     // Switch state.
     volatile BOOLEAN Running;
-    SX_SWITCH_CONTROLFLOW_STATE ControlFlowState;
     
     // Management fields.
     volatile LONG PendingOidCount;

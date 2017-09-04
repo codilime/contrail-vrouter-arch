@@ -626,16 +626,14 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE DriverContext,
     filterAttributes.Header.Type = NDIS_OBJECT_TYPE_FILTER_ATTRIBUTES;
     filterAttributes.Flags = 0;
 
-    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SWITCH_OBJECT); // TODO: ?
+    NDIS_DECLARE_FILTER_MODULE_CONTEXT(SWITCH_OBJECT);
     status = NdisFSetAttributes(NdisFilterHandle, switchObject, &filterAttributes);
-
     if (status != NDIS_STATUS_SUCCESS)
     {
         DbgPrint("%s: Failed to set attributes.\r\n", __func__);
         goto Cleanup;
     }
 
-    switchObject->ControlFlowState = SxSwitchAttached; // TODO: change
     switchObject->Running = FALSE;
 
 Cleanup:
@@ -657,8 +655,6 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
     DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
-
-    switchObject->ControlFlowState = SxSwitchDetached;
 
     KeMemoryBarrier();
 

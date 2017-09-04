@@ -43,12 +43,6 @@ SxLibIssueOidRequest(
 
     NdisInterlockedIncrement(&Switch->PendingOidCount);
 
-    if (Switch->ControlFlowState != SxSwitchAttached)
-    {
-        status = NDIS_STATUS_CLOSING;
-        goto Cleanup;
-    }
-
     //
     // Dynamically allocate filter request so that we can handle asynchronous
     // completion.
