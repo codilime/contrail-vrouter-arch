@@ -56,7 +56,7 @@ NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NDIS_STATUS status;
-    NDIS_FILTER_DRIVER_CHARACTERISTICS fChars;
+    NDIS_FILTER_DRIVER_CHARACTERISTICS f_chars;
     NDIS_STRING service_name;
     NDIS_STRING friendly_name;
     NDIS_STRING unique_name;
@@ -68,41 +68,40 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     RtlInitUnicodeString(&unique_name, UniqueName);
 
     VrDriverObject = DriverObject;
+    VrDriverObject->DriverUnload = DriverUnload;
 
-    NdisZeroMemory(&fChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
-    fChars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
-    fChars.Header.Size = sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS);
-    fChars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_2;
+    NdisZeroMemory(&f_chars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
+    f_chars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
+    f_chars.Header.Size = NDIS_SIZEOF_FILTER_DRIVER_CHARACTERISTICS_REVISION_2;
+    f_chars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_2;
 
-    fChars.MajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
-    fChars.MinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
+    f_chars.MajorNdisVersion = NDIS_FILTER_MAJOR_VERSION;
+    f_chars.MinorNdisVersion = NDIS_FILTER_MINOR_VERSION;
 
-    fChars.MajorDriverVersion = 1;
-    fChars.MinorDriverVersion = 0;
-    fChars.Flags = 0;
+    f_chars.MajorDriverVersion = 1;
+    f_chars.MinorDriverVersion = 0;
+    f_chars.Flags = 0;
 
-    fChars.FriendlyName = friendly_name;
-    fChars.UniqueName = unique_name;
-    fChars.ServiceName = service_name;
+    f_chars.FriendlyName = friendly_name;
+    f_chars.UniqueName = unique_name;
+    f_chars.ServiceName = service_name;
 
-    fChars.AttachHandler = FilterAttach;
-    fChars.DetachHandler = FilterDetach;
-    fChars.PauseHandler = FilterPause;
-    fChars.RestartHandler = FilterRestart;
+    f_chars.AttachHandler = FilterAttach;
+    f_chars.DetachHandler = FilterDetach;
+    f_chars.PauseHandler = FilterPause;
+    f_chars.RestartHandler = FilterRestart;
 
-    fChars.SendNetBufferListsHandler = FilterSendNetBufferLists;
-    fChars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
-    fChars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
+    f_chars.SendNetBufferListsHandler = FilterSendNetBufferLists;
+    f_chars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
+    f_chars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
 
-    fChars.OidRequestHandler = FilterOidRequest;
-    fChars.OidRequestCompleteHandler = FilterOidRequestComplete;
-    fChars.CancelOidRequestHandler = FilterCancelOidRequest;
-
-    DriverObject->DriverUnload = DriverUnload;
+    f_chars.OidRequestHandler = FilterOidRequest;
+    f_chars.OidRequestCompleteHandler = FilterOidRequestComplete;
+    f_chars.CancelOidRequestHandler = FilterCancelOidRequest;
 
     status = NdisFRegisterFilterDriver(DriverObject,
                                        (NDIS_HANDLE)VrDriverObject,
-                                       &fChars,
+                                       &f_chars,
                                        &DriverHandle);
 
     if (status != NDIS_STATUS_SUCCESS)
