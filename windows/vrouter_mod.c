@@ -10,8 +10,8 @@ static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension"
 static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
 static const PWSTR ServiceName = L"vRouter";
 
-ULONG  SxExtAllocationTag = 'RVCO';
-ULONG  SxExtOidRequestId = 'RVCO';
+ULONG VrAllocationTag = 'RVCO';
+ULONG SxExtOidRequestId = 'RVCO';
 
 static PDRIVER_OBJECT VrDriverObject;
 static NDIS_HANDLE DriverHandle = NULL;
@@ -158,7 +158,7 @@ void UninitializeWindowsComponents(struct vr_switch_context* ctx)
         if (ctx->lock)
             NdisFreeRWLock(ctx->lock);
 
-        ExFreePoolWithTag(ctx, SxExtAllocationTag);
+        ExFreePoolWithTag(ctx, VrAllocationTag);
     }
 }
 
@@ -232,20 +232,20 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
     str_length = data_length * 3 + 1;  // '|' + 3 chars ("FF|") per byte
     str_alloc_size = str_length + 1;  // additional '\0' at the end
 
-    buffer = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, data_length, SxExtAllocationTag);
+    buffer = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, data_length, VrAllocationTag);
     if (!buffer) {
         return;
     }
-    str = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, str_alloc_size, SxExtAllocationTag);
+    str = (unsigned char *)ExAllocatePoolWithTag(NonPagedPoolNx, str_alloc_size, VrAllocationTag);
     if (!str) {
-        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        ExFreePoolWithTag(buffer, VrAllocationTag);
         return;
     }
 
     bytes_copied = win_pcopy_from_nb(buffer, nb, 0, data_length);
     if (bytes_copied < 0) {
         DbgPrint("%s: win_pcopy_from_nbl failed; result = %d\n", bytes_copied);
-        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        ExFreePoolWithTag(buffer, VrAllocationTag);
         return;
     }
 
@@ -280,8 +280,8 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
     }
     DbgPrint("\n");
 
-    ExFreePoolWithTag(str, SxExtAllocationTag);
-    ExFreePoolWithTag(buffer, SxExtAllocationTag);
+    ExFreePoolWithTag(str, VrAllocationTag);
+    ExFreePoolWithTag(buffer, VrAllocationTag);
 #endif
 }
 
@@ -337,7 +337,7 @@ InitializeWindowsComponents(PSWITCH_OBJECT Switch, PNDIS_HANDLE *ExtensionContex
 {
     struct vr_switch_context *ctx = NULL;
 
-    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), SxExtAllocationTag);
+    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct vr_switch_context), VrAllocationTag);
     if (ctx == NULL)
         return NDIS_STATUS_RESOURCES;
 
@@ -588,20 +588,14 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE DriverContext,
     switchHandler.Header.Size = NDIS_SIZEOF_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
     switchHandler.Header.Revision = NDIS_SWITCH_OPTIONAL_HANDLERS_REVISION_1;
 
-    status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle,
-                                            &switchContext,
-                                            &switchHandler);
-
+    status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle, &switchContext, &switchHandler);
     if (status != NDIS_STATUS_SUCCESS)
     {
         DbgPrint("%s: Extension is not bound to the underlying extensible switch component.\r\n", __func__);
         goto Cleanup;
     }
 
-    switchObject = ExAllocatePoolWithTag(NonPagedPoolNx,
-                                         switchObjectSize,
-                                         SxExtAllocationTag); // TODO: change
-
+    switchObject = ExAllocatePoolWithTag(NonPagedPoolNx, switchObjectSize, VrAllocationTag);
     if (switchObject == NULL)
     {
         status = NDIS_STATUS_RESOURCES;
@@ -1205,7 +1199,7 @@ SxpNdisProcessMethodOid(
                 newNicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)ExAllocatePoolWithTag(
                                                                     NonPagedPoolNx,
                                                                     sizeof(NDIS_SWITCH_NIC_OID_REQUEST),
-                                                                    SxExtAllocationTag);
+                                                                    VrAllocationTag);
 
                 if (newNicOidRequest == NULL)
                 {
@@ -1285,7 +1279,7 @@ FilterOidRequest(
 
     status = NdisAllocateCloneOidRequest(switchObject->NdisFilterHandle,
                                          OidRequest,
-                                         SxExtAllocationTag,
+                                         VrAllocationTag,
                                          &clonedRequest);
     if (status != NDIS_STATUS_SUCCESS)
     {
@@ -1399,7 +1393,7 @@ FilterOidRequestComplete(
             originalRequest->DATA.METHOD_INFORMATION.InformationBuffer =
                                                     switchObject->OldNicRequest;
             switchObject->OldNicRequest = NULL;
-            ExFreePoolWithTag(nicOidRequestBuf, SxExtAllocationTag);
+            ExFreePoolWithTag(nicOidRequestBuf, VrAllocationTag);
         }
 
         break;

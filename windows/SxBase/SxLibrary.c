@@ -16,6 +16,8 @@ Abstract:
 
 #include "precomp.h"
 
+extern ULONG VrAllocationTag;
+
 
 NDIS_STATUS
 SxLibIssueOidRequest(
@@ -49,7 +51,7 @@ SxLibIssueOidRequest(
     //
     oidRequest = (PSX_OID_REQUEST)ExAllocatePoolWithTag(NonPagedPoolNx,
                                                         sizeof(SX_OID_REQUEST),
-                                                        SxExtAllocationTag);
+                                                        VrAllocationTag);
     if (oidRequest == NULL)
     {
         goto Cleanup;
@@ -129,7 +131,7 @@ Cleanup:
     
     if (oidRequest != NULL)
     {
-        ExFreePoolWithTag(oidRequest, SxExtAllocationTag);
+        ExFreePoolWithTag(oidRequest, VrAllocationTag);
     }
     
     return status;
@@ -151,7 +153,7 @@ SxLibGetNicArrayUnsafe(
     {
         if (nicArray != NULL)
         {
-            ExFreePoolWithTag(nicArray, SxExtAllocationTag);
+            ExFreePoolWithTag(nicArray, VrAllocationTag);
         }
         
         if (BytesNeeded != 0)
@@ -159,7 +161,7 @@ SxLibGetNicArrayUnsafe(
             arrayLength = BytesNeeded;
             nicArray = ExAllocatePoolWithTag(NonPagedPoolNx,
                                              arrayLength,
-                                             SxExtAllocationTag);
+                                             VrAllocationTag);
             
             if (nicArray == NULL)
             {
@@ -189,7 +191,7 @@ Cleanup:
     if (status != NDIS_STATUS_SUCCESS &&
         nicArray != NULL)
     {
-        ExFreePoolWithTag(nicArray, SxExtAllocationTag);
+        ExFreePoolWithTag(nicArray, VrAllocationTag);
     }
     
     return status;

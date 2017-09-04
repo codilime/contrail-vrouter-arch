@@ -15,11 +15,6 @@ Abstract:
 --*/
 
 //
-// The memory pool tag using in the extension.
-//
-extern ULONG  SxExtAllocationTag;
-
-//
 // The request ID used to identify OIDs initiated from this extension. 
 //
 extern ULONG  SxExtOidRequestId;

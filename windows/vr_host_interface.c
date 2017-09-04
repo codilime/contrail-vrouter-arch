@@ -114,7 +114,7 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
 
-    void* packet_data_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, NET_BUFFER_DATA_LENGTH(nb), SxExtAllocationTag);
+    void* packet_data_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, NET_BUFFER_DATA_LENGTH(nb), VrAllocationTag);
 
     // Copy the packet. This function will not fail if ExAllocatePoolWithTag succeeded
     // So no need to clean it up
@@ -153,7 +153,7 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     }
 
     if (packet_data_buffer)
-        ExFreePoolWithTag(packet_data_buffer, SxExtAllocationTag);
+        ExFreePoolWithTag(packet_data_buffer, VrAllocationTag);
 
     return true;
 }
