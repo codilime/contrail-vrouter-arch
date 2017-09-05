@@ -40,11 +40,11 @@ env.StaticLibrary(libvrutil, libvrutil_objs)
 
 env.Replace(LIBPATH = env['TOP_LIB'])
 env.Append(LIBPATH = ['.', '../../sandesh', './vhost/lib/'])
-env.Replace(LIBS = [libvrutil, 'sandesh-c', 'dp_sandesh_c'])
+env.Replace(LIBS = [libvrutil, 'sandesh-c', 'dp_sandesh_c', 'xml2'])
 if sys.platform.startswith('win'):
-    env.Append(LIBS = ['ws2_32', 'Iphlpapi', 'libxml2'])
+    env.Append(LIBS = ['windowsstubs', 'ws2_32', 'Iphlpapi'])
 else:
-    env.Append(LIBS = ['jnprvnet', 'xml2', 'pcap', 'rt', 'nl-3', 'nl-genl-3'])
+    env.Append(LIBS = ['jnprvnet', 'pcap', 'rt', 'nl-3', 'nl-genl-3'])
 
 sandesh_gen = env.Program('sandesh_gen.c')
 
