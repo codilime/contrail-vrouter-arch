@@ -670,7 +670,7 @@ FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS Pause
 
     UNREFERENCED_PARAMETER(PauseParameters);
 
-    DbgPrint("%s: SxInstance %p\r\n", __func__, FilterModuleContext);
+    DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
 
     switchObject->Running = FALSE;
 
