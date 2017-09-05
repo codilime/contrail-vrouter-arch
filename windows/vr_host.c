@@ -7,7 +7,7 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
-#define IS_OWNED(nbl) (nbl->NdisPoolHandle == SxNBLPool)
+#define IS_OWNED(nbl) (nbl->NdisPoolHandle == VrNBLPool)
 #define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
 
 #define VP_DEFAULT_INITIAL_TTL 64
@@ -16,7 +16,7 @@
 
 /* Defined in windows/vrouter_mod.c */
 extern PSWITCH_OBJECT VrSwitchObject;
-extern NDIS_HANDLE SxNBLPool;
+extern NDIS_HANDLE VrNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
 typedef void(*scheduled_work_cb)(void *arg);
@@ -66,7 +66,7 @@ create_nbl_based_on_buffer(unsigned int size, void *buffer)
         goto fail;
     mdl->Next = NULL;
 
-    nbl = NdisAllocateNetBufferAndNetBufferList(SxNBLPool, 0, 0, mdl, 0, size);
+    nbl = NdisAllocateNetBufferAndNetBufferList(VrNBLPool, 0, 0, mdl, 0, size);
     if (nbl == NULL)
         goto fail;
     nbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
@@ -220,7 +220,7 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
 
     BOOLEAN fwd_ctx = false;
 
-    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, SxNBLPool, NULL, 0);
+    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, VrNBLPool, NULL, 0);
 
     if (nbl == NULL)
         goto cleanup;

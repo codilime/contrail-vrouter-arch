@@ -16,7 +16,7 @@ Abstract:
 
 #include "precomp.h"
 
-extern ULONG VrAllocationTag;
+extern const ULONG VrAllocationTag;
 
 
 NDIS_STATUS

@@ -51,7 +51,7 @@ typedef struct _SWITCH_OBJECT
 
 } SWITCH_OBJECT, *PSWITCH_OBJECT;
 
-extern ULONG VrAllocationTag;
+extern const ULONG VrAllocationTag;
 
 /* Extracts interface name from provided friendly name and stores it in provided `name` buffer. */
 NDIS_STATUS vr_get_name_from_friendly_name(NDIS_IF_COUNTED_STRING friendly, char *name, size_t name_buffer_size);

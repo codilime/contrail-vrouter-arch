@@ -10,13 +10,13 @@ static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension"
 static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
 static const PWSTR ServiceName = L"vRouter";
 
-ULONG VrAllocationTag = 'RVCO';
+const ULONG VrAllocationTag = 'RVCO';
 ULONG SxExtOidRequestId = 'RVCO';
 
 static PDRIVER_OBJECT VrDriverObject;
 static NDIS_HANDLE DriverHandle = NULL;
 PSWITCH_OBJECT VrSwitchObject = NULL;
-NDIS_HANDLE SxNBLPool = NULL;
+NDIS_HANDLE VrNBLPool = NULL;
 
 unsigned int vr_num_cpus;
 int vrouter_dbg = 0;
@@ -147,8 +147,8 @@ UninitializeVRouter(pvr_switch_context ctx)
 
 void UninitializeWindowsComponents(pvr_switch_context ctx)
 {
-    if (SxNBLPool)
-        vrouter_free_pool(SxNBLPool);
+    if (VrNBLPool)
+        vrouter_free_pool(VrNBLPool);
 
     if (AsyncWorkRWLock)
         NdisFreeRWLock(AsyncWorkRWLock);
@@ -286,7 +286,7 @@ debug_print_net_buffer(PNET_BUFFER nb, const char *prefix)
 }
 
 NDIS_STATUS
-SxExtInitializeVRouter(pvr_switch_context ctx)
+InitializeVRouter(pvr_switch_context ctx)
 {
     ASSERT(!ctx->ksync_up);
     ASSERT(!ctx->pkt0_up);
@@ -333,7 +333,7 @@ cleanup:
 }
 
 NDIS_STATUS
-InitializeWindowsComponents(PSWITCH_OBJECT Switch, pvr_switch_context *ExtensionContext)
+InitializeWindowsComponents(PSWITCH_OBJECT Switch)
 {
     pvr_switch_context ctx = NULL;
 
@@ -344,16 +344,18 @@ InitializeWindowsComponents(PSWITCH_OBJECT Switch, pvr_switch_context *Extension
     RtlZeroMemory(ctx, sizeof(vr_switch_context));
 
     ctx->lock = NdisAllocateRWLock(Switch->NdisFilterHandle);
+    if (ctx->lock == NULL)
+        goto cleanup;
 
     AsyncWorkRWLock = NdisAllocateRWLock(Switch->NdisFilterHandle);
     if (AsyncWorkRWLock == NULL)
         goto cleanup;
 
-    SxNBLPool = vrouter_generate_pool();
-    if (SxNBLPool == NULL)
+    VrNBLPool = vrouter_generate_pool();
+    if (VrNBLPool == NULL)
         goto cleanup;
 
-    *ExtensionContext = ctx;
+    Switch->ExtensionContext = ctx;
 
     return NDIS_STATUS_SUCCESS;
 
@@ -364,10 +366,7 @@ cleanup:
 }
 
 NDIS_STATUS
-CreateSwitch(
-    PSWITCH_OBJECT Switch,
-    pvr_switch_context *ExtensionContext
-)
+CreateSwitch(PSWITCH_OBJECT Switch)
 {
     DbgPrint("CreateSwitch\r\n");
 
@@ -385,14 +384,14 @@ CreateSwitch(
     BOOLEAN windows = FALSE;
     BOOLEAN vrouter = FALSE;
 
-    NDIS_STATUS status = InitializeWindowsComponents(Switch, ExtensionContext);
+    NDIS_STATUS status = InitializeWindowsComponents(Switch);
 
     if (!NT_SUCCESS(status))
         goto cleanup;
 
     windows = TRUE;
 
-    status = SxExtInitializeVRouter(*ExtensionContext);
+    status = InitializeVRouter(Switch->ExtensionContext);
 
     if (!NT_SUCCESS(status))
         goto cleanup;
@@ -403,10 +402,10 @@ CreateSwitch(
 
 cleanup:
     if (vrouter)
-        UninitializeVRouter(*ExtensionContext);
+        UninitializeVRouter(Switch->ExtensionContext);
 
     if (windows)
-        UninitializeWindowsComponents(*ExtensionContext);
+        UninitializeWindowsComponents(Switch->ExtensionContext);
 
     VrSwitchObject = NULL;
 
@@ -606,7 +605,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle, NDIS_HANDLE DriverContext,
     switchObject->NdisSwitchContext = switchContext;
     switchObject->NdisSwitchHandlers = switchHandler;
 
-    status = CreateSwitch(switchObject, &(switchObject->ExtensionContext)); // TODO: do not need 2 params
+    status = CreateSwitch(switchObject);
     if (status != NDIS_STATUS_SUCCESS)
     {
         goto Cleanup;
