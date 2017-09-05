@@ -32,11 +32,6 @@ typedef enum _SX_SWITCH_CONTROFLOW_STATE
 typedef struct _SX_SWITCH_OBJECT
 {
     //
-    // The Link *must* always be the first field.
-    //
-    LIST_ENTRY Link;
-
-    //
     // The extension context is the context used in the specific logic
     // of this extension.
     // This is allocated and returned in SxExtSwitchCreate
@@ -59,7 +54,6 @@ typedef struct _SX_SWITCH_OBJECT
     //
     // Management fields.
     //
-    volatile LONG PendingInjectedNblCount;
     volatile LONG PendingOidCount;
     
     //

@@ -18,8 +18,6 @@ Abstract:
 
 #include "precomp.h"
 
-NDIS_HANDLE SxDriverObject;
-
 
 VOID
 SxpNdisCompleteInternalOidRequest(
