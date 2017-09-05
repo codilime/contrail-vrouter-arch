@@ -45,7 +45,6 @@ FILTER_RESTART FilterRestart;
 
 FILTER_SEND_NET_BUFFER_LISTS FilterSendNetBufferLists;
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
-FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
 
 FILTER_OID_REQUEST FilterOidRequest;
 FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
@@ -93,7 +92,6 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     f_chars.SendNetBufferListsHandler = FilterSendNetBufferLists;
     f_chars.SendNetBufferListsCompleteHandler = FilterSendNetBufferListsComplete;
-    f_chars.CancelSendNetBufferListsHandler = FilterCancelSendNetBufferLists;
 
     f_chars.OidRequestHandler = FilterOidRequest;
     f_chars.OidRequestCompleteHandler = FilterOidRequestComplete;
@@ -816,16 +814,6 @@ FilterSendNetBufferListsComplete(
 
         free_nbl(current, 0);
     } while (next != NULL);
-}
-
-void
-FilterCancelSendNetBufferLists( // TODO: JW-1096: check if this can be removed
-    NDIS_HANDLE FilterModuleContext,
-    PVOID CancelId
-    )
-{
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    UNREFERENCED_PARAMETER(CancelId);
 }
 
 NDIS_STATUS
