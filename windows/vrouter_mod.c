@@ -694,12 +694,9 @@ FilterSendNetBufferLists(
     NDIS_HANDLE FilterModuleContext,
     PNET_BUFFER_LIST NetBufferLists,
     NDIS_PORT_NUMBER PortNumber,
-    ULONG SendFlags
-    )
+    ULONG SendFlags)
 {
     PSWITCH_OBJECT Switch = (PSWITCH_OBJECT)FilterModuleContext;
-
-    UNREFERENCED_PARAMETER(PortNumber);
 
     LOCK_STATE_EX lockState;
 
@@ -712,6 +709,10 @@ FilterSendNetBufferLists(
     PNET_BUFFER_LIST curNbl = NULL;
     PNET_BUFFER_LIST nextNbl = NULL;
 
+    UNREFERENCED_PARAMETER(PortNumber);
+
+    DbgPrint("StartIngress\r\n");
+
     // True if packets come from the same switch source port.
     sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
     if (sameSource) {
@@ -722,6 +723,12 @@ FilterSendNetBufferLists(
     on_dispatch_level = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
     if (on_dispatch_level) {
         sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL;
+    }
+
+    if (Switch->Running == FALSE) {
+        DbgPrint("StartIngress: Dropping NBLs because Switch is not in Running state\r\n");
+        NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, NetBufferLists, sendCompleteFlags);
+        return;
     }
 
     // Acquire the lock, now interfaces cannot disconnect, etc.
@@ -784,8 +791,6 @@ FilterSendNetBufferLists(
     if (nativeForwardedNbls != NULL) {
         DbgPrint("StartIngress: send native forwarded NBL\r\n");
 
-        ASSERT(Switch->Running == TRUE); // TODO: JW-1096: Refactor: cannot be assert!
-
         NdisFSendNetBufferLists(Switch->NdisFilterHandle,
             nativeForwardedNbls,
             NDIS_DEFAULT_PORT_NUMBER,
@@ -800,13 +805,16 @@ void
 FilterSendNetBufferListsComplete(
     NDIS_HANDLE FilterModuleContext,
     PNET_BUFFER_LIST NetBufferLists,
-    ULONG SendCompleteFlags
-    )
+    ULONG SendCompleteFlags)
 {
-    DbgPrint("SxExtStartCompleteNetBufferListsIngress\r\n");
-
     PNET_BUFFER_LIST next = NetBufferLists;
     PNET_BUFFER_LIST current;
+
+    UNREFERENCED_PARAMETER(FilterModuleContext);
+    UNREFERENCED_PARAMETER(SendCompleteFlags);
+
+    DbgPrint("CompleteIngress\r\n");
+
     do {
         current = next;
         next = current->Next;
