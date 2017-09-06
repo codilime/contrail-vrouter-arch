@@ -16,10 +16,12 @@ Abstract:
 
 #include "precomp.h"
 
+extern const ULONG VrAllocationTag;
+
 
 NDIS_STATUS
 SxLibIssueOidRequest(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ NDIS_REQUEST_TYPE RequestType,
     _In_ NDIS_OID Oid,
     _In_opt_ PVOID InformationBuffer,
@@ -43,19 +45,13 @@ SxLibIssueOidRequest(
 
     NdisInterlockedIncrement(&Switch->PendingOidCount);
 
-    if (Switch->ControlFlowState != SxSwitchAttached)
-    {
-        status = NDIS_STATUS_CLOSING;
-        goto Cleanup;
-    }
-
     //
     // Dynamically allocate filter request so that we can handle asynchronous
     // completion.
     //
     oidRequest = (PSX_OID_REQUEST)ExAllocatePoolWithTag(NonPagedPoolNx,
                                                         sizeof(SX_OID_REQUEST),
-                                                        SxExtAllocationTag);
+                                                        VrAllocationTag);
     if (oidRequest == NULL)
     {
         goto Cleanup;
@@ -135,7 +131,7 @@ Cleanup:
     
     if (oidRequest != NULL)
     {
-        ExFreePoolWithTag(oidRequest, SxExtAllocationTag);
+        ExFreePoolWithTag(oidRequest, VrAllocationTag);
     }
     
     return status;
@@ -144,7 +140,7 @@ Cleanup:
 
 NDIS_STATUS
 SxLibGetNicArrayUnsafe(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _Out_ PNDIS_SWITCH_NIC_ARRAY *NicArray
     )
 {
@@ -157,7 +153,7 @@ SxLibGetNicArrayUnsafe(
     {
         if (nicArray != NULL)
         {
-            ExFreePoolWithTag(nicArray, SxExtAllocationTag);
+            ExFreePoolWithTag(nicArray, VrAllocationTag);
         }
         
         if (BytesNeeded != 0)
@@ -165,7 +161,7 @@ SxLibGetNicArrayUnsafe(
             arrayLength = BytesNeeded;
             nicArray = ExAllocatePoolWithTag(NonPagedPoolNx,
                                              arrayLength,
-                                             SxExtAllocationTag);
+                                             VrAllocationTag);
             
             if (nicArray == NULL)
             {
@@ -195,7 +191,7 @@ Cleanup:
     if (status != NDIS_STATUS_SUCCESS &&
         nicArray != NULL)
     {
-        ExFreePoolWithTag(nicArray, SxExtAllocationTag);
+        ExFreePoolWithTag(nicArray, VrAllocationTag);
     }
     
     return status;

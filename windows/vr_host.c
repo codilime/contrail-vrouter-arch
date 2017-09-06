@@ -7,7 +7,7 @@
 #include "vr_windows.h"
 #include "vrouter.h"
 
-#define IS_OWNED(nbl) (nbl->NdisPoolHandle == SxNBLPool)
+#define IS_OWNED(nbl) (nbl->NdisPoolHandle == VrNBLPool)
 #define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
 
 #define VP_DEFAULT_INITIAL_TTL 64
@@ -15,8 +15,8 @@
 #define CONTEXT_SIZE (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * MEMORY_ALLOCATION_ALIGNMENT)
 
 /* Defined in windows/vrouter_mod.c */
-extern PSX_SWITCH_OBJECT SxSwitchObject;
-extern NDIS_HANDLE SxNBLPool;
+extern PSWITCH_OBJECT VrSwitchObject;
+extern NDIS_HANDLE VrNBLPool;
 extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
 typedef void(*scheduled_work_cb)(void *arg);
@@ -41,14 +41,14 @@ static NDIS_STATUS
 create_forwarding_context(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
-    return SxSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    return VrSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(VrSwitchObject->NdisSwitchContext, nbl);
 }
 
 static void
 free_forwarding_context(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
-    SxSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(SxSwitchObject->NdisSwitchContext, nbl);
+    VrSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(VrSwitchObject->NdisSwitchContext, nbl);
 }
 
 static PNET_BUFFER_LIST
@@ -61,15 +61,15 @@ create_nbl_based_on_buffer(unsigned int size, void *buffer)
     PNET_BUFFER_LIST nbl = NULL;
     NDIS_STATUS status;
 
-    mdl = NdisAllocateMdl(SxSwitchObject->NdisFilterHandle, buffer, size);
+    mdl = NdisAllocateMdl(VrSwitchObject->NdisFilterHandle, buffer, size);
     if (mdl == NULL)
         goto fail;
     mdl->Next = NULL;
 
-    nbl = NdisAllocateNetBufferAndNetBufferList(SxNBLPool, 0, 0, mdl, 0, size);
+    nbl = NdisAllocateNetBufferAndNetBufferList(VrNBLPool, 0, 0, mdl, 0, size);
     if (nbl == NULL)
         goto fail;
-    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+    nbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
 
     status = create_forwarding_context(nbl);
     if (!NT_SUCCESS(status))
@@ -93,7 +93,7 @@ create_nbl(unsigned int size)
     PNET_BUFFER_LIST nbl = NULL;
     void *buffer = NULL;
 
-    buffer = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag);
+    buffer = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag);
     if (buffer == NULL)
         goto fail;
 
@@ -107,7 +107,7 @@ create_nbl(unsigned int size)
 
 fail:
     if (buffer)
-        ExFreePoolWithTag(buffer, SxExtAllocationTag);
+        ExFreePoolWithTag(buffer, VrAllocationTag);
     return NULL;
 }
 
@@ -157,7 +157,7 @@ complete_received_nbl(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
 
     /* Flag SINGLE_SOURCE is used, because of singular NBLS */
-    NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
+    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP);
 }
@@ -208,7 +208,7 @@ delete_unbound_nbl(PNET_BUFFER_LIST nbl, unsigned long flags)
 {
     ASSERT(nbl != NULL);
 
-    NdisFSendNetBufferListsComplete(SxSwitchObject->NdisFilterHandle,
+    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
         nbl,
         flags);
 }
@@ -220,12 +220,12 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
 
     BOOLEAN fwd_ctx = false;
 
-    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, SxNBLPool, NULL, 0);
+    PNET_BUFFER_LIST nbl = NdisAllocateCloneNetBufferList(original_nbl, VrNBLPool, NULL, 0);
 
     if (nbl == NULL)
         goto cleanup;
 
-    nbl->SourceHandle = SxSwitchObject->NdisFilterHandle;
+    nbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
     nbl->ParentNetBufferList = original_nbl;
     original_nbl->ChildRefCount++;
 
@@ -234,7 +234,7 @@ clone_nbl(PNET_BUFFER_LIST original_nbl)
 
     fwd_ctx = true;
 
-    NDIS_STATUS status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(SxSwitchObject->NdisSwitchContext, nbl, original_nbl, 0);
+    NDIS_STATUS status = VrSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(VrSwitchObject->NdisSwitchContext, nbl, original_nbl, 0);
     if (status != NDIS_STATUS_SUCCESS)
         goto cleanup;
 
@@ -268,7 +268,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
     if (buffer != NULL) {
         nbl = create_nbl_based_on_buffer(size, buffer);
     } else {
-        allocation_tag = SxExtAllocationTag;
+        allocation_tag = VrAllocationTag;
         nbl = create_nbl(size);
     }
     if (nbl == NULL)
@@ -287,7 +287,7 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
             goto fail;
     } else {
         /* If no buffer is provided, create_nbl() uses default allocation tag*/
-        pkt->vp_win_data_tag = SxExtAllocationTag;
+        pkt->vp_win_data_tag = VrAllocationTag;
     }
 
     return pkt;
@@ -337,7 +337,7 @@ win_malloc(unsigned int size, unsigned int object)
 {
     UNREFERENCED_PARAMETER(object);
 
-    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag); // TODO: Check with paged pool
+    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag); // TODO: Check with paged pool
 
     //vr_malloc_stats(size, object);
 
@@ -351,7 +351,7 @@ win_zalloc(unsigned int size, unsigned int object)
 
     ASSERT(size > 0);
 
-    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, SxExtAllocationTag); // TODO: Check with paged pool
+    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag); // TODO: Check with paged pool
     if (!mem)
         return NULL;
 
@@ -367,7 +367,7 @@ win_page_alloc(unsigned int size)
 {
     ASSERT(size > 0);
 
-    void *mem = ExAllocatePoolWithTag(PagedPool, size, SxExtAllocationTag);
+    void *mem = ExAllocatePoolWithTag(PagedPool, size, VrAllocationTag);
     if (!mem)
         return NULL;
 
@@ -385,7 +385,7 @@ win_free(void *mem, unsigned int object)
 
     if (mem) {
         vr_free_stats(object);
-        ExFreePoolWithTag(mem, SxExtAllocationTag);
+        ExFreePoolWithTag(mem, VrAllocationTag);
     }
 
     return;
@@ -408,7 +408,7 @@ win_page_free(void *address, unsigned int size)
     ASSERT(address != NULL);
 
     if (address)
-        ExFreePoolWithTag(address, SxExtAllocationTag);
+        ExFreePoolWithTag(address, VrAllocationTag);
 
     return;
 }
@@ -420,7 +420,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, VrAllocationTag);
     struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (!pkt)
         return NULL;
@@ -511,7 +511,7 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
-        free_created_nbl(nb_head, SxExtAllocationTag);
+        free_created_nbl(nb_head, VrAllocationTag);
         return NULL;
     }
 
@@ -538,7 +538,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
     if (new_nbl == NULL)
         goto cleanup;
 
-    NdisAllocateNetBufferListContext(new_nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(new_nbl, CONTEXT_SIZE, 0, VrAllocationTag);
     struct vr_packet* npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(new_nbl);
     *npkt = *pkt;
     pkt = npkt;
@@ -610,7 +610,7 @@ win_pclone(struct vr_packet *pkt)
     if (nbl == NULL)
         return NULL;
 
-    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, SxExtAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, VrAllocationTag);
     struct vr_packet *npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (npkt == NULL)
         goto cleanup_nbl;
@@ -623,8 +623,8 @@ win_pclone(struct vr_packet *pkt)
 
     npkt->vp_cpu = (unsigned char)win_get_cpu();
 
-    NDIS_STATUS copy_status = SxSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
-        SxSwitchObject->NdisSwitchContext,
+    NDIS_STATUS copy_status = VrSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
+        VrSwitchObject->NdisSwitchContext,
         nbl,
         original_nbl,
         0);
@@ -884,7 +884,7 @@ scheduled_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
     if (work_item_handle) {
         NdisFreeIoWorkItem(work_item_handle);
     }
-    ExFreePoolWithTag(cb_data, SxExtAllocationTag);
+    ExFreePoolWithTag(cb_data, VrAllocationTag);
 
     return;
 }
@@ -897,14 +897,14 @@ win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
     struct scheduled_work_cb_data * cb_data;
     NDIS_HANDLE work_item;
 
-    cb_data = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*cb_data), SxExtAllocationTag);
+    cb_data = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*cb_data), VrAllocationTag);
     if (!cb_data)
         return -ENOMEM;
 
     cb_data->user_cb = fn;
     cb_data->data = arg;
 
-    work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
+    work_item = NdisAllocateIoWorkItem(VrSwitchObject->NdisFilterHandle);
     if (!work_item) {
         DbgPrint("%s: NdisAllocateIoWorkItem failed", __func__);
         scheduled_work_routine((PVOID)(cb_data), NULL);
@@ -961,7 +961,7 @@ win_defer(struct vrouter *router, vr_defer_cb user_cb, void *data)
     cb_data->user_cb = user_cb;
     cb_data->router = router;
 
-    work_item = NdisAllocateIoWorkItem(SxSwitchObject->NdisFilterHandle);
+    work_item = NdisAllocateIoWorkItem(VrSwitchObject->NdisFilterHandle);
     if (!work_item) {
         deferred_work_routine((PVOID)(cb_data), NULL);
     } else {
@@ -1242,7 +1242,7 @@ win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
 
     win_if_lock();
 
-    SxLibGetNicArrayUnsafe(SxSwitchObject, &array);
+    SxLibGetNicArrayUnsafe(VrSwitchObject, &array);
 
     for (unsigned i = 0; i < array->NumElements; i++){
         PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
@@ -1285,7 +1285,7 @@ win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
         }
     }
 
-    ExFreePoolWithTag(array, SxExtAllocationTag);
+    ExFreePoolWithTag(array, VrAllocationTag);
 
     win_if_unlock();
 
@@ -1357,13 +1357,13 @@ vrouter_generate_pool()
     params.ContextSize = 0;
     params.DataSize = 0;
     params.fAllocateNetBuffer = TRUE;
-    params.PoolTag = SxExtAllocationTag;
+    params.PoolTag = VrAllocationTag;
     params.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
     params.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
     params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
 
-    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(SxSwitchObject->NdisFilterHandle, &params);
+    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(VrSwitchObject->NdisFilterHandle, &params);
 
     ASSERT(pool != NULL);
 

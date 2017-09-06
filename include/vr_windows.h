@@ -18,9 +18,9 @@ struct vr_interface; // Forward declaration
 
 struct vr_packet;
 
-struct vr_switch_context {
+typedef struct _vr_switch_context
+{
     PNDIS_RW_LOCK_EX        lock;
-    BOOLEAN                 restart;
 
     /* Following flags are ordered in module initialization order */
     BOOLEAN                 ksync_up;
@@ -29,8 +29,29 @@ struct vr_switch_context {
     BOOLEAN                 memory_up;
     BOOLEAN                 message_up;
     BOOLEAN                 vrouter_up;
-};
+} vr_switch_context, *pvr_switch_context;
 
+typedef struct _SWITCH_OBJECT
+{
+    pvr_switch_context ExtensionContext;
+
+    // Ndis related fields.
+    NDIS_HANDLE NdisFilterHandle;
+    NDIS_SWITCH_CONTEXT NdisSwitchContext;
+    NDIS_SWITCH_OPTIONAL_HANDLERS NdisSwitchHandlers;
+
+    // Switch state.
+    volatile BOOLEAN Running;
+
+    // Management fields.
+    volatile LONG PendingOidCount;
+
+    // Control Path Management.
+    PNDIS_SWITCH_NIC_OID_REQUEST OldNicRequest;
+
+} SWITCH_OBJECT, *PSWITCH_OBJECT;
+
+extern const ULONG VrAllocationTag;
 
 /* Extracts interface name from provided friendly name and stores it in provided `name` buffer. */
 NDIS_STATUS vr_get_name_from_friendly_name(NDIS_IF_COUNTED_STRING friendly, char *name, size_t name_buffer_size);

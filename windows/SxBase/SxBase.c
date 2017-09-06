@@ -21,7 +21,7 @@ Abstract:
 
 VOID
 SxpNdisCompleteInternalOidRequest(
-    _In_ PSX_SWITCH_OBJECT Switch,
+    _In_ PSWITCH_OBJECT Switch,
     _In_ PNDIS_OID_REQUEST NdisRequest,
     _In_ NDIS_STATUS Status
     )

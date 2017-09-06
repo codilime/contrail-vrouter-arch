@@ -57,7 +57,7 @@ Return Value:
 --*/
 NDIS_STATUS
 SxLibIssueOidRequest(
-    _In_ PSX_SWITCH_OBJECT SxSwitch,
+    _In_ PSWITCH_OBJECT SxSwitch,
     _In_ NDIS_REQUEST_TYPE RequestType,
     _In_ NDIS_OID Oid,
     _In_opt_ PVOID InformationBuffer,
@@ -95,6 +95,6 @@ Return Value:
 --*/
 NDIS_STATUS
 SxLibGetNicArrayUnsafe(
-    _In_ PSX_SWITCH_OBJECT SxSwitch,
+    _In_ PSWITCH_OBJECT SxSwitch,
     _Out_ PNDIS_SWITCH_NIC_ARRAY *NicArray
     );
