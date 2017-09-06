@@ -11,7 +11,7 @@ static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
 static const PWSTR ServiceName = L"vRouter";
 
 const ULONG VrAllocationTag = 'RVCO';
-ULONG SxExtOidRequestId = 'RVCO';
+const ULONG VrOidRequestId = 'RVCO';
 
 static PDRIVER_OBJECT VrDriverObject;
 static NDIS_HANDLE DriverHandle = NULL;
@@ -826,10 +826,9 @@ FilterSendNetBufferListsComplete(
 
 VOID
 SxpNdisCompleteInternalOidRequest(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ PNDIS_OID_REQUEST NdisRequest,
-    _In_ NDIS_STATUS Status
-    )
+    PSWITCH_OBJECT Switch,
+    PNDIS_OID_REQUEST NdisRequest,
+    NDIS_STATUS Status)
 {
     PSX_OID_REQUEST oidRequest;
     ULONG bytesNeeded;
@@ -854,39 +853,30 @@ SxpNdisCompleteInternalOidRequest(
         break;
     }
 
-    //
     // Get at the request context.
-    //
     oidRequest = CONTAINING_RECORD(NdisRequest, SX_OID_REQUEST, NdisOidRequest);
 
-    //
     // Save away the completion status.
-    //
     oidRequest->Status = Status;
 
-    //
     // Save bytesNeeded
-    //
     oidRequest->BytesNeeded = bytesNeeded;
 
-    //
     // Wake up the thread blocked for this request to complete.
-    //
     NdisSetEvent(&oidRequest->ReqEvent);
 }
 
 NDIS_STATUS
 SxLibIssueOidRequest(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_REQUEST_TYPE RequestType,
-    _In_ NDIS_OID Oid,
-    _In_opt_ PVOID InformationBuffer,
-    _In_ ULONG InformationBufferLength,
-    _In_ ULONG OutputBufferLength,
-    _In_ ULONG MethodId,
-    _In_ UINT Timeout,
-    _Out_ PULONG BytesNeeded
-    )
+    PSWITCH_OBJECT Switch,
+    NDIS_REQUEST_TYPE RequestType,
+    NDIS_OID Oid,
+    PVOID InformationBuffer,
+    ULONG InformationBufferLength,
+    ULONG OutputBufferLength,
+    ULONG MethodId,
+    UINT Timeout,
+    PULONG BytesNeeded)
 {
     NDIS_STATUS status;
     PSX_OID_REQUEST oidRequest;
@@ -901,10 +891,7 @@ SxLibIssueOidRequest(
 
     NdisInterlockedIncrement(&Switch->PendingOidCount);
 
-    //
-    // Dynamically allocate filter request so that we can handle asynchronous
-    // completion.
-    //
+    // Dynamically allocate filter request so that we can handle asynchronous completion.
     oidRequest = (PSX_OID_REQUEST)ExAllocatePoolWithTag(NonPagedPoolNx,
                                                         sizeof(SX_OID_REQUEST),
                                                         VrAllocationTag);
@@ -957,7 +944,7 @@ SxLibIssueOidRequest(
         break;
     }
 
-    ndisOidRequest->RequestId = (PVOID)SxExtOidRequestId;
+    ndisOidRequest->RequestId = (PVOID)VrOidRequestId;
     status = NdisFOidRequest(Switch->NdisFilterHandle, ndisOidRequest);
 
     if (status == NDIS_STATUS_PENDING)
@@ -995,9 +982,8 @@ Cleanup:
 
 NDIS_STATUS
 SxLibGetNicArrayUnsafe(
-    _In_ PSWITCH_OBJECT Switch,
-    _Out_ PNDIS_SWITCH_NIC_ARRAY *NicArray
-    )
+    PSWITCH_OBJECT Switch,
+    PNDIS_SWITCH_NIC_ARRAY *NicArray)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     ULONG BytesNeeded = 0;
@@ -1042,6 +1028,7 @@ SxLibGetNicArrayUnsafe(
     } while(status == NDIS_STATUS_INVALID_LENGTH);
 
     *NicArray = nicArray;
+
 Cleanup:
     if (status != NDIS_STATUS_SUCCESS &&
         nicArray != NULL)
@@ -1054,10 +1041,9 @@ Cleanup:
 
 NDIS_STATUS
 SxpNdisProcessSetOid(
-    _In_ PSWITCH_OBJECT Switch,
-    _Inout_ PNDIS_OID_REQUEST OidRequest,
-    _Out_ PBOOLEAN Complete
-    )
+    PSWITCH_OBJECT Switch,
+    PNDIS_OID_REQUEST OidRequest,
+    PBOOLEAN Complete)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
@@ -1319,11 +1305,10 @@ Cleanup:
 
 NDIS_STATUS
 SxpNdisProcessMethodOid(
-    _In_ PSWITCH_OBJECT Switch,
-    _Inout_ PNDIS_OID_REQUEST OidRequest,
-    _Out_ PBOOLEAN Complete,
-    _Out_ PULONG BytesNeeded
-    )
+    PSWITCH_OBJECT Switch,
+    PNDIS_OID_REQUEST OidRequest,
+    PBOOLEAN Complete,
+    PULONG BytesNeeded)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
@@ -1476,10 +1461,7 @@ Cleanup:
 }
 
 NDIS_STATUS
-FilterOidRequest(
-    NDIS_HANDLE FilterModuleContext,
-    PNDIS_OID_REQUEST OidRequest
-    )
+FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
     NDIS_STATUS status;
@@ -1538,10 +1520,8 @@ FilterOidRequest(
     {
         FilterOidRequestComplete(switchObject, clonedRequest, status);
 
-        //
         // We must still return status as pending because we complete the
         // request using NdisFOidRequestComplete() in SxOidRequestComplete().
-        //
         status = NDIS_STATUS_PENDING;
     }
 
@@ -1550,10 +1530,7 @@ Cleanup:
 }
 
 void
-FilterCancelOidRequest(
-    NDIS_HANDLE FilterModuleContext,
-    PVOID RequestId
-    )
+FilterCancelOidRequest(NDIS_HANDLE FilterModuleContext, PVOID RequestId)
 {
     UNREFERENCED_PARAMETER(FilterModuleContext);
     UNREFERENCED_PARAMETER(RequestId);
@@ -1563,8 +1540,7 @@ void
 FilterOidRequestComplete(
     NDIS_HANDLE FilterModuleContext,
     PNDIS_OID_REQUEST NdisOidRequest,
-    NDIS_STATUS Status
-    )
+    NDIS_STATUS Status)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
     PNDIS_OID_REQUEST originalRequest;
@@ -1577,18 +1553,14 @@ FilterOidRequestComplete(
     oidRequestContext = (PVOID*)(&NdisOidRequest->SourceReserved[0]);
     originalRequest = (*oidRequestContext);
 
-    //
     // This is the internal request
-    //
     if (originalRequest == NULL)
     {
         SxpNdisCompleteInternalOidRequest(switchObject, NdisOidRequest, Status);
         goto Cleanup;
     }
 
-    //
     // Copy the information from the returned request to the original request
-    //
     switch(NdisOidRequest->RequestType)
     {
     case NdisRequestMethod:
