@@ -51,6 +51,21 @@ typedef struct _SWITCH_OBJECT
 
 } SWITCH_OBJECT, *PSWITCH_OBJECT;
 
+typedef struct _SX_OID_REQUEST
+{
+    NDIS_OID_REQUEST NdisOidRequest;
+    NDIS_EVENT ReqEvent;
+    NDIS_STATUS Status;
+    ULONG BytesNeeded;
+
+} SX_OID_REQUEST, *PSX_OID_REQUEST;
+
+NDIS_STATUS
+SxLibGetNicArrayUnsafe(
+    PSWITCH_OBJECT SxSwitch,
+    PNDIS_SWITCH_NIC_ARRAY *NicArray
+);
+
 extern const ULONG VrAllocationTag;
 
 /* Extracts interface name from provided friendly name and stores it in provided `name` buffer. */
