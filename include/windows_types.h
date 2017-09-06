@@ -35,9 +35,11 @@ typedef BOOLEAN bool;
 #include <stdint.h>
 #include <stdbool.h>
 
-#define __LITTLE_ENDIAN 1
-#define __BIG_ENDIAN 2
-#define __BYTE_ORDER __LITTLE_ENDIAN
+#ifndef __BYTE_ORDER
+#define __LITTLE_ENDIAN     1
+#define __BIG_ENDIAN        0
+#define __BYTE_ORDER        __LITTLE_ENDIAN
+#endif
 
 #endif
 
