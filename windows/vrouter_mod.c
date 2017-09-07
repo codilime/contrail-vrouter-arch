@@ -1065,65 +1065,6 @@ Cleanup:
 }
 
 NDIS_STATUS
-SxpNdisProcessMethodOid(
-    PSWITCH_OBJECT Switch,
-    PNDIS_OID_REQUEST OidRequest,
-    PBOOLEAN Complete,
-    PULONG BytesNeeded)
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
-    PNDIS_OBJECT_HEADER header;
-
-    *Complete = FALSE;
-    *BytesNeeded = 0;
-
-    header = OidRequest->DATA.METHOD_INFORMATION.InformationBuffer;
-
-    switch(oid)
-    {
-        case OID_SWITCH_FEATURE_STATUS_QUERY:
-        case OID_SWITCH_PORT_FEATURE_STATUS_QUERY:
-            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
-                header->Revision < NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1 ||
-                header->Size < NDIS_SIZEOF_NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1)
-            {
-                status = NDIS_STATUS_NOT_SUPPORTED;
-                *Complete = TRUE;
-            }
-
-            break;
-
-        case OID_SWITCH_NIC_REQUEST:
-            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
-                header->Revision < NDIS_SWITCH_NIC_OID_REQUEST_REVISION_1 ||
-                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_OID_REQUEST_REVISION_1)
-            {
-                status = NDIS_STATUS_NOT_SUPPORTED;
-                *Complete = TRUE;
-            }
-
-            break;
-
-        case OID_SWITCH_NIC_SAVE:
-            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
-                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
-                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
-            {
-                status = NDIS_STATUS_NOT_SUPPORTED;
-                *Complete = TRUE;
-            }
-
-            break;
-
-        default:
-            break;
-    }
-
-    return status;
-}
-
-NDIS_STATUS
 FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
@@ -1158,14 +1099,10 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
             status = SxpNdisProcessSetOid(switchObject,
                                           clonedRequest,
                                           &completeOid);
+
             break;
 
-        case NdisRequestMethod:
-            status = SxpNdisProcessMethodOid(switchObject,
-                                             clonedRequest,
-                                             &completeOid,
-                                             &bytesNeeded);
-
+        default:
             break;
     }
 
