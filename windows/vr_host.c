@@ -1233,18 +1233,9 @@ win_soft_reset(struct vrouter *router)
 }
 
 static void
-win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
+win_update_vif_port(struct vr_interface *vif, vr_interface_req *vifr, PNDIS_SWITCH_NIC_ARRAY array)
 {
-    PNDIS_SWITCH_NIC_ARRAY array;
-
-    if (vifr->vifr_if_guid == NULL)
-        return; // Bad Sandesh version on utility tool
-
-    win_if_lock();
-
-    SxLibGetNicArrayUnsafe(VrSwitchObject, &array);
-
-    for (unsigned i = 0; i < array->NumElements; i++){
+    for (unsigned int i = 0; i < array->NumElements; i++){
         PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
 
         // "Fake" interface pointing to the default interface, it's not needed.
@@ -1284,10 +1275,28 @@ win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
             }
         }
     }
+}
 
-    ExFreePoolWithTag(array, VrAllocationTag);
+static void
+win_register_nic(struct vr_interface* vif, vr_interface_req* vifr)
+{
+    PNDIS_SWITCH_NIC_ARRAY array;
+    NDIS_STATUS status;
 
+    if (vifr->vifr_if_guid == NULL)
+        return; // Bad Sandesh version on utility tool
+
+    status = VrGetNicArray(VrSwitchObject, &array);
+    if (status != NDIS_STATUS_SUCCESS) {
+        DbgPrint("vRouter:%s(): VrGetNicArray failed to get NIC array\n", __func__);
+        return;
+    }
+
+    win_if_lock();
+    win_update_vif_port(vif, vifr, array);
     win_if_unlock();
+
+    VrFreeNicArray(array);
 
     vif_attach(vif);
 }
