@@ -410,111 +410,6 @@ cleanup:
     return NDIS_STATUS_FAILURE;
 }
 
-NDIS_STATUS
-SxExtCreatePort(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_PORT_PARAMETERS Port
-)
-{
-    UNREFERENCED_PARAMETER(Switch);
-    UNREFERENCED_PARAMETER(ExtensionContext);
-
-    DbgPrint("SxExtCreatePort\r\n");
-    DbgPrint("PortFriendlyName: %S, PortName: %S, PortId: %u, PortState: %u, PortType: %u\r\n", Port->PortFriendlyName.String, Port->PortName.String, Port->PortId, Port->PortState, Port->PortType);
-
-    return 0;
-}
-
-NDIS_STATUS
-SxExtCreateNic(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
-)
-{
-    DbgPrint("SxExtCreateNic\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-
-    while (!Switch->Running)
-    {
-        NdisMSleep(100);
-    }
-
-    DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S\r\n",
-        Nic->NicFriendlyName.String, Nic->NicName.String, Nic->NicIndex, Nic->NicState, Nic->NicType, Nic->PortId, Nic->PermanentMacAddress, Nic->CurrentMacAddress, Nic->VMMacAddress, Nic->VmName.String);
-
-    return 0;
-}
-
-VOID
-SxExtConnectNic(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
-)
-{
-    DbgPrint("SxExtConnectNic\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Nic);
-
-    while (!Switch->Running)
-    {
-        NdisMSleep(100);
-    }
-}
-
-VOID
-SxExtUpdateNic(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
-)
-{
-    DbgPrint("SxExtUpdateNic\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Nic);
-
-    while (!Switch->Running)
-    {
-        NdisMSleep(100);
-    }
-}
-
-VOID
-SxExtDisconnectNic(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
-)
-{
-    DbgPrint("SxExtDisconnectNic\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Nic);
-
-    while (!Switch->Running)
-    {
-        NdisMSleep(100);
-    }
-}
-
-VOID
-SxExtDeleteNic(
-    _In_ PSWITCH_OBJECT Switch,
-    _In_ NDIS_HANDLE ExtensionContext,
-    _In_ PNDIS_SWITCH_NIC_PARAMETERS Nic
-)
-{
-    DbgPrint("SxExtDeleteNic\r\n");
-    UNREFERENCED_PARAMETER(ExtensionContext);
-    UNREFERENCED_PARAMETER(Nic);
-
-    while (!Switch->Running)
-    {
-        NdisMSleep(100);
-    }
-}
-
 static void
 vr_win_split_nbls_by_forwarding_type(
     PNET_BUFFER_LIST nbl,
@@ -867,15 +762,10 @@ SxpNdisCompleteInternalOidRequest(
 }
 
 NDIS_STATUS
-SxLibIssueOidRequest(
+SxLibIssueQuerySwitchNicArrayOidRequest(
     PSWITCH_OBJECT Switch,
-    NDIS_REQUEST_TYPE RequestType,
-    NDIS_OID Oid,
     PVOID InformationBuffer,
     ULONG InformationBufferLength,
-    ULONG OutputBufferLength,
-    ULONG MethodId,
-    UINT Timeout,
     PULONG BytesNeeded)
 {
     NDIS_STATUS status;
@@ -907,42 +797,12 @@ SxLibIssueOidRequest(
     ndisOidRequest->Header.Type = NDIS_OBJECT_TYPE_OID_REQUEST;
     ndisOidRequest->Header.Revision = NDIS_OID_REQUEST_REVISION_1;
     ndisOidRequest->Header.Size = sizeof(NDIS_OID_REQUEST);
-    ndisOidRequest->RequestType = RequestType;
-    ndisOidRequest->Timeout = Timeout;
+    ndisOidRequest->RequestType = NdisRequestQueryInformation;
+    ndisOidRequest->Timeout = 0;
 
-    switch (RequestType)
-    {
-    case NdisRequestQueryInformation:
-         ndisOidRequest->DATA.QUERY_INFORMATION.Oid = Oid;
-         ndisOidRequest->DATA.QUERY_INFORMATION.InformationBuffer =
-             InformationBuffer;
-         ndisOidRequest->DATA.QUERY_INFORMATION.InformationBufferLength =
-             InformationBufferLength;
-        break;
-
-    case NdisRequestSetInformation:
-         ndisOidRequest->DATA.SET_INFORMATION.Oid = Oid;
-         ndisOidRequest->DATA.SET_INFORMATION.InformationBuffer =
-             InformationBuffer;
-         ndisOidRequest->DATA.SET_INFORMATION.InformationBufferLength =
-             InformationBufferLength;
-        break;
-
-    case NdisRequestMethod:
-         ndisOidRequest->DATA.METHOD_INFORMATION.Oid = Oid;
-         ndisOidRequest->DATA.METHOD_INFORMATION.MethodId = MethodId;
-         ndisOidRequest->DATA.METHOD_INFORMATION.InformationBuffer =
-             InformationBuffer;
-         ndisOidRequest->DATA.METHOD_INFORMATION.InputBufferLength =
-             InformationBufferLength;
-         ndisOidRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
-             OutputBufferLength;
-         break;
-
-    default:
-        NT_ASSERT(FALSE);
-        break;
-    }
+    ndisOidRequest->DATA.QUERY_INFORMATION.Oid = OID_SWITCH_NIC_ARRAY;
+    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBuffer = InformationBuffer;
+    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBufferLength = InformationBufferLength;
 
     ndisOidRequest->RequestId = (PVOID)VrOidRequestId;
     status = NdisFOidRequest(Switch->NdisFilterHandle, ndisOidRequest);
@@ -1015,23 +875,17 @@ SxLibGetNicArrayUnsafe(
             nicArray->Header.Size = (USHORT)arrayLength;
         }
 
-        status = SxLibIssueOidRequest(Switch,
-                                      NdisRequestQueryInformation,
-                                      OID_SWITCH_NIC_ARRAY,
-                                      nicArray,
-                                      arrayLength,
-                                      0,
-                                      0,
-                                      0,
-                                      &BytesNeeded);
+        status = SxLibIssueQuerySwitchNicArrayOidRequest(Switch,
+                                                         nicArray,
+                                                         arrayLength,
+                                                         &BytesNeeded);
 
     } while(status == NDIS_STATUS_INVALID_LENGTH);
 
     *NicArray = nicArray;
 
 Cleanup:
-    if (status != NDIS_STATUS_SUCCESS &&
-        nicArray != NULL)
+    if (status != NDIS_STATUS_SUCCESS && nicArray != NULL)
     {
         ExFreePoolWithTag(nicArray, VrAllocationTag);
     }
@@ -1048,7 +902,8 @@ SxpNdisProcessSetOid(
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
     PNDIS_OBJECT_HEADER header;
-    ULONG bytesRestored = 0;
+    PNDIS_SWITCH_PORT_PARAMETERS switchPort = NULL;
+    PNDIS_SWITCH_NIC_PARAMETERS nic = NULL;
 
     *Complete = FALSE;
 
@@ -1065,7 +920,6 @@ SxpNdisProcessSetOid(
 
     if (OidRequest->DATA.SET_INFORMATION.InformationBufferLength == 0)
     {
-        *Complete = FALSE;
         goto Cleanup;
     }
 
@@ -1082,26 +936,10 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
 
-            if (oid == OID_SWITCH_PROPERTY_ADD)
-            {
-                status = NDIS_STATUS_SUCCESS;
-            }
-            else
-            {
-                status = NDIS_STATUS_SUCCESS;
-            }
-
-            if (status == NDIS_STATUS_NOT_SUPPORTED)
-            {
-                status = NDIS_STATUS_SUCCESS;
-            }
-            else
-            {
-                *Complete = TRUE;
-                goto Cleanup;
-            }
+            *Complete = TRUE;
 
             break;
+
         case OID_SWITCH_PROPERTY_DELETE:
             if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
                 header->Revision < NDIS_SWITCH_PROPERTY_DELETE_PARAMETERS_REVISION_1 ||
@@ -1109,10 +947,7 @@ SxpNdisProcessSetOid(
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
-                goto Cleanup;
             }
-
-            *Complete = FALSE;
 
             break;
 
@@ -1127,24 +962,7 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
 
-            if (oid == OID_SWITCH_PORT_PROPERTY_ADD)
-            {
-                status = NDIS_STATUS_SUCCESS;
-            }
-            else
-            {
-                status = NDIS_STATUS_SUCCESS;
-            }
-
-            if (status == NDIS_STATUS_NOT_SUPPORTED)
-            {
-                status = NDIS_STATUS_SUCCESS;
-            }
-            else
-            {
-                *Complete = TRUE;
-                goto Cleanup;
-            }
+            *Complete = TRUE;
 
             break;
 
@@ -1155,10 +973,7 @@ SxpNdisProcessSetOid(
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
-                goto Cleanup;
             }
-
-            *Complete = FALSE;
 
             break;
 
@@ -1177,23 +992,13 @@ SxpNdisProcessSetOid(
 
             if (oid == OID_SWITCH_PORT_CREATE)
             {
-                status = SxExtCreatePort(Switch,
-                                         Switch->ExtensionContext,
-                                         (PNDIS_SWITCH_PORT_PARAMETERS)header);
-
-                if (status != NDIS_STATUS_SUCCESS)
-                {
-                    *Complete = TRUE;
-                }
-            }
-            else if (oid == OID_SWITCH_PORT_UPDATED)
-            {
-            }
-            else if (oid == OID_SWITCH_PORT_TEARDOWN)
-            {
-            }
-            else
-            {
+                switchPort = (PNDIS_SWITCH_PORT_PARAMETERS)header;
+                DbgPrint("CreatePort: PortFriendlyName: %S, PortName: %S, PortId: %u, PortState: %u, PortType: %u\r\n",
+                         switchPort->PortFriendlyName.String,
+                         switchPort->PortName.String,
+                         switchPort->PortId,
+                         switchPort->PortState,
+                         switchPort->PortType);
             }
 
             break;
@@ -1212,39 +1017,19 @@ SxpNdisProcessSetOid(
                 goto Cleanup;
             }
 
+            while (!Switch->Running)
+            {
+                NdisMSleep(100);
+            }
+
             if (oid == OID_SWITCH_NIC_CREATE)
             {
-                status = SxExtCreateNic(Switch,
-                                        Switch->ExtensionContext,
-                                        (PNDIS_SWITCH_NIC_PARAMETERS)header);
-                if (status != NDIS_STATUS_SUCCESS)
-                {
-                    *Complete = TRUE;
-                }
-            }
-            else if (oid == OID_SWITCH_NIC_CONNECT)
-            {
-                SxExtConnectNic(Switch,
-                                Switch->ExtensionContext,
-                                (PNDIS_SWITCH_NIC_PARAMETERS)header);
-            }
-            else if (oid == OID_SWITCH_NIC_UPDATED)
-            {
-                SxExtUpdateNic(Switch,
-                               Switch->ExtensionContext,
-                               (PNDIS_SWITCH_NIC_PARAMETERS)header);
-            }
-            else if (oid == OID_SWITCH_NIC_DISCONNECT)
-            {
-                SxExtDisconnectNic(Switch,
-                                   Switch->ExtensionContext,
-                                   (PNDIS_SWITCH_NIC_PARAMETERS)header);
-            }
-            else
-            {
-                SxExtDeleteNic(Switch,
-                               Switch->ExtensionContext,
-                               (PNDIS_SWITCH_NIC_PARAMETERS)header);
+                nic = (PNDIS_SWITCH_NIC_PARAMETERS)header;
+
+                DbgPrint("NicFriendlyName: %S, NicName: %S, NicIndex: %u, NicState: %u, NicType: %u, PortId: %u, PermamentMacAddress: %s, CurrentMacAddress: %s, VMMacAddress: %s, VmName: %S\r\n",
+                         nic->NicFriendlyName.String, nic->NicName.String, nic->NicIndex, 
+                         nic->NicState, nic->NicType, nic->PortId, nic->PermanentMacAddress, 
+                         nic->CurrentMacAddress, nic->VMMacAddress, nic->VmName.String);
             }
 
             break;
@@ -1255,34 +1040,11 @@ SxpNdisProcessSetOid(
                 header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
-                goto Cleanup;
-            }
-
-            status = NDIS_STATUS_SUCCESS;
-
-            if (status != NDIS_STATUS_SUCCESS)
-            {
-                *Complete = TRUE;
-            }
-            else if (bytesRestored > 0)
-            {
-                *Complete = TRUE;
             }
 
             break;
 
         case OID_SWITCH_NIC_SAVE_COMPLETE:
-            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
-                header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
-                header->Size < NDIS_SIZEOF_NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1)
-            {
-                status = NDIS_STATUS_NOT_SUPPORTED;
-                *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            break;
-
         case OID_SWITCH_NIC_RESTORE_COMPLETE:
             if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
                 header->Revision < NDIS_SWITCH_NIC_SAVE_STATE_REVISION_1 ||
@@ -1290,7 +1052,6 @@ SxpNdisProcessSetOid(
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
-                goto Cleanup;
             }
 
             break;
@@ -1313,12 +1074,6 @@ SxpNdisProcessMethodOid(
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NDIS_OID oid = OidRequest->DATA.SET_INFORMATION.Oid;
     PNDIS_OBJECT_HEADER header;
-    PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequest;
-    PNDIS_SWITCH_NIC_OID_REQUEST newNicOidRequest = NULL;
-    NDIS_SWITCH_PORT_ID destPort, sourcePort;
-    NDIS_SWITCH_NIC_INDEX destNic, sourceNic;
-    ULONG bytesWritten = 0;
-    ULONG bytesNeeded = 0;
 
     *Complete = FALSE;
     *BytesNeeded = 0;
@@ -1328,24 +1083,6 @@ SxpNdisProcessMethodOid(
     switch(oid)
     {
         case OID_SWITCH_FEATURE_STATUS_QUERY:
-            if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
-                header->Revision < NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1 ||
-                header->Size < NDIS_SIZEOF_NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1)
-            {
-                status = NDIS_STATUS_NOT_SUPPORTED;
-                *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            *Complete = FALSE;
-
-            if (*BytesNeeded > 0)
-            {
-                status = NDIS_STATUS_BUFFER_TOO_SHORT;
-            }
-
-            break;
-
         case OID_SWITCH_PORT_FEATURE_STATUS_QUERY:
             if (header->Type != NDIS_OBJECT_TYPE_DEFAULT ||
                 header->Revision < NDIS_SWITCH_FEATURE_STATUS_PARAMETERS_REVISION_1 ||
@@ -1353,14 +1090,6 @@ SxpNdisProcessMethodOid(
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            *Complete = FALSE;
-
-            if (*BytesNeeded > 0)
-            {
-                status = NDIS_STATUS_BUFFER_TOO_SHORT;
             }
 
             break;
@@ -1372,52 +1101,6 @@ SxpNdisProcessMethodOid(
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            nicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)header;
-
-            sourcePort = nicOidRequest->SourcePortId;
-            sourceNic = nicOidRequest->SourceNicIndex;
-            destPort = nicOidRequest->DestinationPortId;
-            destNic = nicOidRequest->DestinationNicIndex;
-
-            status = NDIS_STATUS_SUCCESS;
-
-            if (status != NDIS_STATUS_SUCCESS)
-            {
-                *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            if (sourcePort != nicOidRequest->SourcePortId ||
-                sourceNic != nicOidRequest->SourceNicIndex ||
-                destPort != nicOidRequest->DestinationPortId ||
-                destNic != nicOidRequest->DestinationNicIndex)
-            {
-                ASSERT(Switch->OldNicRequest == NULL);
-                Switch->OldNicRequest = nicOidRequest;
-
-                newNicOidRequest = (PNDIS_SWITCH_NIC_OID_REQUEST)ExAllocatePoolWithTag(
-                                                                    NonPagedPoolNx,
-                                                                    sizeof(NDIS_SWITCH_NIC_OID_REQUEST),
-                                                                    VrAllocationTag);
-
-                if (newNicOidRequest == NULL)
-                {
-                    status = NDIS_STATUS_RESOURCES;
-                    *Complete = TRUE;
-                    goto Cleanup;
-                }
-
-                newNicOidRequest->Header = nicOidRequest->Header;
-                newNicOidRequest->SourcePortId = sourcePort;
-                newNicOidRequest->SourceNicIndex = sourceNic;
-                newNicOidRequest->DestinationPortId = destPort;
-                newNicOidRequest->DestinationNicIndex = destNic;
-                newNicOidRequest->OidRequest = nicOidRequest->OidRequest;
-
-                OidRequest->DATA.METHOD_INFORMATION.InformationBuffer = newNicOidRequest;
             }
 
             break;
@@ -1429,25 +1112,6 @@ SxpNdisProcessMethodOid(
             {
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 *Complete = TRUE;
-                goto Cleanup;
-            }
-
-            status = NDIS_STATUS_SUCCESS;
-
-            if (status == NDIS_STATUS_SUCCESS &&
-                bytesWritten > 0)
-            {
-                *Complete = TRUE;
-            }
-            else if (status == NDIS_STATUS_BUFFER_TOO_SHORT)
-            {
-                *BytesNeeded = ((PNDIS_SWITCH_NIC_SAVE_STATE)header)->SaveDataOffset +
-                                bytesNeeded;
-                *Complete = TRUE;
-            }
-            else if (status != NDIS_STATUS_SUCCESS)
-            {
-                *Complete = TRUE;
             }
 
             break;
@@ -1456,7 +1120,6 @@ SxpNdisProcessMethodOid(
             break;
     }
 
-Cleanup:
     return status;
 }
 
@@ -1465,7 +1128,7 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
     NDIS_STATUS status;
-    PNDIS_OID_REQUEST clonedRequest=NULL;
+    PNDIS_OID_REQUEST clonedRequest = NULL;
     PVOID *cloneRequestContext;
     BOOLEAN completeOid = FALSE;
     ULONG bytesNeeded = 0;
@@ -1602,9 +1265,10 @@ FilterOidRequestComplete(
         else if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
                  Status != NDIS_STATUS_SUCCESS)
         {
-            SxExtDeleteNic(switchObject,
-                           switchObject->ExtensionContext,
-                           (PNDIS_SWITCH_NIC_PARAMETERS)header);
+            while (!switchObject->Running)
+            {
+                NdisMSleep(100);
+            }
         }
 
         break;
