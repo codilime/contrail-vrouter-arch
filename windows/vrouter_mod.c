@@ -762,135 +762,96 @@ SxpNdisCompleteInternalOidRequest(
 }
 
 NDIS_STATUS
-SxLibIssueQuerySwitchNicArrayOidRequest(
-    PSWITCH_OBJECT Switch,
-    PVOID InformationBuffer,
-    ULONG InformationBufferLength,
-    PULONG BytesNeeded)
+VrQuerySwitchNicArray(PSWITCH_OBJECT Switch, PVOID Buffer, ULONG BufferLength, PULONG OutputBytesNeeded)
 {
-    NDIS_STATUS status;
     PSX_OID_REQUEST oidRequest;
     PNDIS_OID_REQUEST ndisOidRequest;
     ULONG bytesNeeded;
-    BOOLEAN asyncCompletion;
+    NDIS_STATUS status;
 
-    status = NDIS_STATUS_SUCCESS;
-    oidRequest = NULL;
-    bytesNeeded = 0;
-    asyncCompletion = FALSE;
-
-    NdisInterlockedIncrement(&Switch->PendingOidCount);
-
-    // Dynamically allocate filter request so that we can handle asynchronous completion.
-    oidRequest = (PSX_OID_REQUEST)ExAllocatePoolWithTag(NonPagedPoolNx,
-                                                        sizeof(SX_OID_REQUEST),
-                                                        VrAllocationTag);
-    if (oidRequest == NULL)
-    {
-        goto Cleanup;
+    oidRequest = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*oidRequest), VrAllocationTag);
+    if (oidRequest == NULL) {
+        return NDIS_STATUS_RESOURCES;
     }
 
-    NdisZeroMemory(oidRequest, sizeof(SX_OID_REQUEST));
-    ndisOidRequest = &oidRequest->NdisOidRequest;
+    RtlZeroMemory(oidRequest, sizeof(*oidRequest));
     NdisInitializeEvent(&oidRequest->ReqEvent);
+
+    ndisOidRequest = &oidRequest->NdisOidRequest;
 
     ndisOidRequest->Header.Type = NDIS_OBJECT_TYPE_OID_REQUEST;
     ndisOidRequest->Header.Revision = NDIS_OID_REQUEST_REVISION_1;
     ndisOidRequest->Header.Size = sizeof(NDIS_OID_REQUEST);
     ndisOidRequest->RequestType = NdisRequestQueryInformation;
     ndisOidRequest->Timeout = 0;
+    ndisOidRequest->RequestId = (PVOID)VrOidRequestId;
 
     ndisOidRequest->DATA.QUERY_INFORMATION.Oid = OID_SWITCH_NIC_ARRAY;
-    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBuffer = InformationBuffer;
-    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBufferLength = InformationBufferLength;
+    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBuffer = Buffer;
+    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBufferLength = BufferLength;
 
-    ndisOidRequest->RequestId = (PVOID)VrOidRequestId;
+    NdisInterlockedIncrement(&Switch->PendingOidCount);
     status = NdisFOidRequest(Switch->NdisFilterHandle, ndisOidRequest);
-
-    if (status == NDIS_STATUS_PENDING)
-    {
-        asyncCompletion = TRUE;
+    if (status == NDIS_STATUS_PENDING) {
         NdisWaitEvent(&oidRequest->ReqEvent, 0);
-    }
-    else
-    {
+    } else {
         SxpNdisCompleteInternalOidRequest(Switch, ndisOidRequest, status);
+        NdisInterlockedDecrement(&Switch->PendingOidCount);
     }
 
     bytesNeeded = oidRequest->BytesNeeded;
     status = oidRequest->Status;
 
-Cleanup:
-
-    if (BytesNeeded != NULL)
-    {
-        *BytesNeeded = bytesNeeded;
+    if (OutputBytesNeeded != NULL) {
+        *OutputBytesNeeded = bytesNeeded;
     }
 
-    if (!asyncCompletion)
-    {
-        NdisInterlockedDecrement(&Switch->PendingOidCount);
+    ExFreePoolWithTag(oidRequest, VrAllocationTag);
+    return status;
+}
+
+NDIS_STATUS
+VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray)
+{
+    NDIS_STATUS status;
+    PNDIS_SWITCH_NIC_ARRAY nicArray = NULL;
+    ULONG nicArrayLength = 0;
+
+    if (OutputNicArray == NULL) {
+        return NDIS_STATUS_INVALID_PARAMETER;
     }
 
-    if (oidRequest != NULL)
-    {
-        ExFreePoolWithTag(oidRequest, VrAllocationTag);
+    status = VrQuerySwitchNicArray(Switch, 0, 0, &nicArrayLength);
+    if (status != NDIS_STATUS_INVALID_LENGTH) {
+        DbgPrint("vRouter:%s(): OID_SWITCH_NIC_ARRAY did not return required buffer size\n", __func__);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    nicArray = ExAllocatePoolWithTag(NonPagedPoolNx, nicArrayLength, VrAllocationTag);
+    if (nicArray == NULL) {
+        return NDIS_STATUS_RESOURCES;
+    }
+
+    nicArray->Header.Revision = NDIS_SWITCH_PORT_ARRAY_REVISION_1;
+    nicArray->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    nicArray->Header.Size = (USHORT)nicArrayLength;
+
+    status = VrQuerySwitchNicArray(Switch, nicArray, nicArrayLength, NULL);
+    if (status == NDIS_STATUS_SUCCESS) {
+        *OutputNicArray = nicArray;
+    } else {
+        ExFreePoolWithTag(nicArray, VrAllocationTag);
     }
 
     return status;
 }
 
-NDIS_STATUS
-SxLibGetNicArrayUnsafe(
-    PSWITCH_OBJECT Switch,
-    PNDIS_SWITCH_NIC_ARRAY *NicArray)
+VOID
+VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray)
 {
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    ULONG BytesNeeded = 0;
-    PNDIS_SWITCH_NIC_ARRAY nicArray = NULL;
-    ULONG arrayLength = 0;
-
-    do
-    {
-        if (nicArray != NULL)
-        {
-            ExFreePoolWithTag(nicArray, VrAllocationTag);
-        }
-
-        if (BytesNeeded != 0)
-        {
-            arrayLength = BytesNeeded;
-            nicArray = ExAllocatePoolWithTag(NonPagedPoolNx,
-                                             arrayLength,
-                                             VrAllocationTag);
-
-            if (nicArray == NULL)
-            {
-                status = NDIS_STATUS_RESOURCES;
-                goto Cleanup;
-            }
-
-            nicArray->Header.Revision = NDIS_SWITCH_PORT_ARRAY_REVISION_1;
-            nicArray->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-            nicArray->Header.Size = (USHORT)arrayLength;
-        }
-
-        status = SxLibIssueQuerySwitchNicArrayOidRequest(Switch,
-                                                         nicArray,
-                                                         arrayLength,
-                                                         &BytesNeeded);
-
-    } while(status == NDIS_STATUS_INVALID_LENGTH);
-
-    *NicArray = nicArray;
-
-Cleanup:
-    if (status != NDIS_STATUS_SUCCESS && nicArray != NULL)
-    {
-        ExFreePoolWithTag(nicArray, VrAllocationTag);
+    if (NicArray != NULL) {
+        ExFreePoolWithTag(NicArray, VrAllocationTag);
     }
-
-    return status;
 }
 
 NDIS_STATUS

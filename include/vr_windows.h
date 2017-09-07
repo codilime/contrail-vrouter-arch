@@ -60,11 +60,8 @@ typedef struct _SX_OID_REQUEST
 
 } SX_OID_REQUEST, *PSX_OID_REQUEST;
 
-NDIS_STATUS
-SxLibGetNicArrayUnsafe(
-    PSWITCH_OBJECT SxSwitch,
-    PNDIS_SWITCH_NIC_ARRAY *NicArray
-);
+NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT SxSwitch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
+VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);
 
 extern const ULONG VrAllocationTag;
 
