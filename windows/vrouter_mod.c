@@ -897,10 +897,8 @@ NDIS_STATUS
 FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
-    NDIS_STATUS status;
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     PNDIS_OID_REQUEST clonedRequest = NULL;
-
-    status = NDIS_STATUS_SUCCESS;
 
     DbgPrint("%s: OidRequest %p.\r\n", __func__, OidRequest);
 
@@ -911,25 +909,21 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
     if (status != NDIS_STATUS_SUCCESS)
     {
         DbgPrint("%s: Cannot Clone OidRequest\r\n", __func__);
-        goto Cleanup;
+        return status;
     }
 
+    *(PVOID*)(&clonedRequest->SourceReserved[0]) = OidRequest;
     NdisInterlockedIncrement(&switchObject->PendingOidCount);
 
-    *(PVOID*)(&clonedRequest->SourceReserved[0]) = OidRequest;
+    KeMemoryBarrier();
 
     status = NdisFOidRequest(switchObject->NdisFilterHandle, clonedRequest);
-
     if (status != NDIS_STATUS_PENDING)
     {
         FilterOidRequestComplete(switchObject, clonedRequest, status);
-
-        // We must still return status as pending because we complete the
-        // request using NdisFOidRequestComplete() in SxOidRequestComplete().
-        status = NDIS_STATUS_PENDING;
+        return NDIS_STATUS_PENDING;
     }
 
-Cleanup:
     return status;
 }
 
