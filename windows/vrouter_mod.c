@@ -720,44 +720,32 @@ FilterSendNetBufferListsComplete(
 }
 
 VOID
-SxpNdisCompleteInternalOidRequest(
-    PSWITCH_OBJECT Switch,
-    PNDIS_OID_REQUEST NdisRequest,
-    NDIS_STATUS Status)
+VrCompleteInternalOidRequest(PNDIS_OID_REQUEST NdisRequest, NDIS_STATUS Status)
 {
     PSX_OID_REQUEST oidRequest;
-    ULONG bytesNeeded;
+    ULONG bytesNeeded = 0;
 
-    UNREFERENCED_PARAMETER(Switch);
+    switch (NdisRequest->RequestType) {
+        case NdisRequestSetInformation:
+            bytesNeeded = NdisRequest->DATA.SET_INFORMATION.BytesNeeded;
+            break;
 
-    bytesNeeded = 0;
-    oidRequest = NULL;
+        case NdisRequestQueryInformation:
+            bytesNeeded = NdisRequest->DATA.QUERY_INFORMATION.BytesNeeded;
+            break;
 
-    switch (NdisRequest->RequestType)
-    {
-    case NdisRequestSetInformation:
-        bytesNeeded = NdisRequest->DATA.SET_INFORMATION.BytesNeeded;
-        break;
+        case NdisRequestMethod:
+            bytesNeeded = NdisRequest->DATA.METHOD_INFORMATION.BytesNeeded;
+            break;
 
-    case NdisRequestQueryInformation:
-        bytesNeeded = NdisRequest->DATA.QUERY_INFORMATION.BytesNeeded;
-        break;
-
-    case NdisRequestMethod:
-        bytesNeeded = NdisRequest->DATA.METHOD_INFORMATION.BytesNeeded;
-        break;
+        default:
+            break;
     }
 
-    // Get at the request context.
     oidRequest = CONTAINING_RECORD(NdisRequest, SX_OID_REQUEST, NdisOidRequest);
-
-    // Save away the completion status.
     oidRequest->Status = Status;
-
-    // Save bytesNeeded
     oidRequest->BytesNeeded = bytesNeeded;
 
-    // Wake up the thread blocked for this request to complete.
     NdisSetEvent(&oidRequest->ReqEvent);
 }
 
@@ -795,7 +783,7 @@ VrQuerySwitchNicArray(PSWITCH_OBJECT Switch, PVOID Buffer, ULONG BufferLength, P
     if (status == NDIS_STATUS_PENDING) {
         NdisWaitEvent(&oidRequest->ReqEvent, 0);
     } else {
-        SxpNdisCompleteInternalOidRequest(Switch, ndisOidRequest, status);
+        VrCompleteInternalOidRequest(ndisOidRequest, status);
         NdisInterlockedDecrement(&Switch->PendingOidCount);
     }
 
@@ -949,7 +937,7 @@ FilterOidRequestComplete(
 
     if (originalRequest == NULL)
     {
-        SxpNdisCompleteInternalOidRequest(switchObject, NdisOidRequest, Status);
+        VrCompleteInternalOidRequest(NdisOidRequest, Status);
     }
     else
     {
