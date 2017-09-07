@@ -1137,8 +1137,6 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
 
     DbgPrint("%s: OidRequest %p.\r\n", __func__, OidRequest);
 
-    NdisInterlockedIncrement(&switchObject->PendingOidCount);
-
     status = NdisAllocateCloneOidRequest(switchObject->NdisFilterHandle,
                                          OidRequest,
                                          VrAllocationTag,
@@ -1148,6 +1146,8 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
         DbgPrint("%s: Cannot Clone OidRequest\r\n", __func__);
         goto Cleanup;
     }
+
+    NdisInterlockedIncrement(&switchObject->PendingOidCount);
 
     cloneRequestContext = (PVOID*)(&clonedRequest->SourceReserved[0]);
     *cloneRequestContext = OidRequest;
