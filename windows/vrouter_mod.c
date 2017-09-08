@@ -891,8 +891,9 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
 void
 FilterCancelOidRequest(NDIS_HANDLE FilterModuleContext, PVOID RequestId)
 {
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    UNREFERENCED_PARAMETER(RequestId);
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
+
+    NdisFCancelOidRequest(switchObject->NdisFilterHandle, RequestId);
 }
 
 void
