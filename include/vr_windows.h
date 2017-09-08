@@ -48,16 +48,15 @@ typedef struct _SWITCH_OBJECT
 
 } SWITCH_OBJECT, *PSWITCH_OBJECT;
 
-typedef struct _SX_OID_REQUEST
+typedef struct _VR_OID_REQUEST_STATUS
 {
-    NDIS_OID_REQUEST NdisOidRequest;
     NDIS_EVENT ReqEvent;
     NDIS_STATUS Status;
     ULONG BytesNeeded;
 
-} SX_OID_REQUEST, *PSX_OID_REQUEST;
+} VR_OID_REQUEST_STATUS, *PVR_OID_REQUEST_STATUS;
 
-NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT SxSwitch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
+NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
 VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);
 
 extern const ULONG VrAllocationTag;

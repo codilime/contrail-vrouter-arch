@@ -720,82 +720,96 @@ FilterSendNetBufferListsComplete(
 }
 
 VOID
+VrStoreOriginalOidRequest(PNDIS_OID_REQUEST OidRequest, PNDIS_OID_REQUEST OriginalOidRequest)
+{
+    *(PVOID*)(&OidRequest->SourceReserved[0 * sizeof(PVOID)]) = OriginalOidRequest;
+}
+
+PNDIS_OID_REQUEST
+VrRetrieveOriginalOidRequest(PNDIS_OID_REQUEST OidRequest)
+{
+    return *(PVOID*)(&OidRequest->SourceReserved[0 * sizeof(PVOID)]);
+}
+
+VOID
+VrStoreOidRequestStatusHandle(PNDIS_OID_REQUEST OidRequest, PVR_OID_REQUEST_STATUS OidRequestStatus)
+{
+    *(PVOID*)(&OidRequest->SourceReserved[1 * sizeof(PVOID)]) = OidRequestStatus;
+}
+
+PVR_OID_REQUEST_STATUS
+VrRetrieveOidRequestStatusHandle(PNDIS_OID_REQUEST OidRequest)
+{
+    return *(PVOID*)(&OidRequest->SourceReserved[1 * sizeof(PVOID)]);
+}
+
+VOID
 VrCompleteInternalOidRequest(PNDIS_OID_REQUEST NdisRequest, NDIS_STATUS Status)
 {
-    PSX_OID_REQUEST oidRequest;
-    ULONG bytesNeeded = 0;
+    PVR_OID_REQUEST_STATUS oidRequestStatus;
 
-    switch (NdisRequest->RequestType) {
-        case NdisRequestSetInformation:
-            bytesNeeded = NdisRequest->DATA.SET_INFORMATION.BytesNeeded;
-            break;
+    ASSERTMSG("Unsupported NDIS OID RequestType", NdisRequest->RequestType == NdisRequestQueryInformation);
 
-        case NdisRequestQueryInformation:
-            bytesNeeded = NdisRequest->DATA.QUERY_INFORMATION.BytesNeeded;
-            break;
+    oidRequestStatus = VrRetrieveOidRequestStatusHandle(NdisRequest);
+    oidRequestStatus->Status = Status;
+    oidRequestStatus->BytesNeeded = NdisRequest->DATA.QUERY_INFORMATION.BytesNeeded;
 
-        case NdisRequestMethod:
-            bytesNeeded = NdisRequest->DATA.METHOD_INFORMATION.BytesNeeded;
-            break;
-
-        default:
-            break;
-    }
-
-    oidRequest = CONTAINING_RECORD(NdisRequest, SX_OID_REQUEST, NdisOidRequest);
-    oidRequest->Status = Status;
-    oidRequest->BytesNeeded = bytesNeeded;
-
-    NdisSetEvent(&oidRequest->ReqEvent);
+    NdisSetEvent(&oidRequestStatus->ReqEvent);
 }
 
 NDIS_STATUS
 VrQuerySwitchNicArray(PSWITCH_OBJECT Switch, PVOID Buffer, ULONG BufferLength, PULONG OutputBytesNeeded)
 {
-    PSX_OID_REQUEST oidRequest;
-    PNDIS_OID_REQUEST ndisOidRequest;
-    ULONG bytesNeeded;
+    PNDIS_OID_REQUEST oidRequest;
+    PVR_OID_REQUEST_STATUS oidRequestStatus;
     NDIS_STATUS status;
 
-    oidRequest = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*oidRequest), VrAllocationTag);
-    if (oidRequest == NULL) {
+    oidRequestStatus = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*oidRequestStatus), VrAllocationTag);
+    if (oidRequestStatus == NULL) {
         return NDIS_STATUS_RESOURCES;
     }
 
+    oidRequest = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*oidRequest), VrAllocationTag);
+    if (oidRequest == NULL) {
+        ExFreePoolWithTag(oidRequestStatus, VrAllocationTag);
+        return NDIS_STATUS_RESOURCES;
+    }
+
+    RtlZeroMemory(oidRequestStatus, sizeof(*oidRequestStatus));
+    NdisInitializeEvent(&oidRequestStatus->ReqEvent);
+
     RtlZeroMemory(oidRequest, sizeof(*oidRequest));
-    NdisInitializeEvent(&oidRequest->ReqEvent);
+    VrStoreOidRequestStatusHandle(oidRequest, oidRequestStatus);
 
-    ndisOidRequest = &oidRequest->NdisOidRequest;
+    oidRequest->Header.Type = NDIS_OBJECT_TYPE_OID_REQUEST;
+    oidRequest->Header.Revision = NDIS_OID_REQUEST_REVISION_1;
+    oidRequest->Header.Size = sizeof(NDIS_OID_REQUEST);
+    oidRequest->RequestType = NdisRequestQueryInformation;
+    oidRequest->Timeout = 0;
+    oidRequest->RequestId = (PVOID)VrOidRequestId;
 
-    ndisOidRequest->Header.Type = NDIS_OBJECT_TYPE_OID_REQUEST;
-    ndisOidRequest->Header.Revision = NDIS_OID_REQUEST_REVISION_1;
-    ndisOidRequest->Header.Size = sizeof(NDIS_OID_REQUEST);
-    ndisOidRequest->RequestType = NdisRequestQueryInformation;
-    ndisOidRequest->Timeout = 0;
-    ndisOidRequest->RequestId = (PVOID)VrOidRequestId;
-
-    ndisOidRequest->DATA.QUERY_INFORMATION.Oid = OID_SWITCH_NIC_ARRAY;
-    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBuffer = Buffer;
-    ndisOidRequest->DATA.QUERY_INFORMATION.InformationBufferLength = BufferLength;
+    oidRequest->DATA.QUERY_INFORMATION.Oid = OID_SWITCH_NIC_ARRAY;
+    oidRequest->DATA.QUERY_INFORMATION.InformationBuffer = Buffer;
+    oidRequest->DATA.QUERY_INFORMATION.InformationBufferLength = BufferLength;
 
     NdisInterlockedIncrement(&Switch->PendingOidCount);
-    status = NdisFOidRequest(Switch->NdisFilterHandle, ndisOidRequest);
+    status = NdisFOidRequest(Switch->NdisFilterHandle, oidRequest);
     if (status == NDIS_STATUS_PENDING) {
-        NdisWaitEvent(&oidRequest->ReqEvent, 0);
+        NdisWaitEvent(&oidRequestStatus->ReqEvent, 0);
     } else {
-        VrCompleteInternalOidRequest(ndisOidRequest, status);
+        VrCompleteInternalOidRequest(oidRequest, status);
         NdisInterlockedDecrement(&Switch->PendingOidCount);
     }
 
-    bytesNeeded = oidRequest->BytesNeeded;
-    status = oidRequest->Status;
-
     if (OutputBytesNeeded != NULL) {
-        *OutputBytesNeeded = bytesNeeded;
+        *OutputBytesNeeded = oidRequestStatus->BytesNeeded;
     }
 
+    VrStoreOidRequestStatusHandle(oidRequest, NULL);
     ExFreePoolWithTag(oidRequest, VrAllocationTag);
-    return status;
+    ExFreePoolWithTag(oidRequestStatus, VrAllocationTag);
+
+    return oidRequestStatus->Status;
 }
 
 NDIS_STATUS
@@ -861,7 +875,7 @@ FilterOidRequest(NDIS_HANDLE FilterModuleContext, PNDIS_OID_REQUEST OidRequest)
         return status;
     }
 
-    *(PVOID*)(&clonedRequest->SourceReserved[0]) = OidRequest;
+    VrStoreOriginalOidRequest(clonedRequest, OidRequest);
     NdisInterlockedIncrement(&switchObject->PendingOidCount);
 
     KeMemoryBarrier();
@@ -927,14 +941,11 @@ FilterOidRequestComplete(
     NDIS_STATUS Status)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
-    PVOID *oidRequestContext;
     PNDIS_OID_REQUEST originalRequest;
 
     DbgPrint("%s: NdisOidRequest %p.\r\n", __func__, NdisOidRequest);
 
-    oidRequestContext = (PVOID*)(&NdisOidRequest->SourceReserved[0]);
-    originalRequest = *oidRequestContext;
-
+    originalRequest = VrRetrieveOriginalOidRequest(NdisOidRequest);
     if (originalRequest == NULL)
     {
         VrCompleteInternalOidRequest(NdisOidRequest, Status);
@@ -942,7 +953,7 @@ FilterOidRequestComplete(
     else
     {
         CopyCompletedOidRequestData(originalRequest, NdisOidRequest);
-        *oidRequestContext = NULL;
+        VrStoreOriginalOidRequest(NdisOidRequest, NULL);
 
         NdisFreeCloneOidRequest(switchObject->NdisFilterHandle, NdisOidRequest);
         NdisFOidRequestComplete(switchObject->NdisFilterHandle, originalRequest, Status);
