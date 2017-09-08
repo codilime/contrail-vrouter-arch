@@ -897,97 +897,68 @@ FilterCancelOidRequest(NDIS_HANDLE FilterModuleContext, PVOID RequestId)
 }
 
 void
+CopyCompletedOidRequestData(PNDIS_OID_REQUEST OriginalOidRequest, PNDIS_OID_REQUEST CompletedOidRequest)
+{
+    switch (CompletedOidRequest->RequestType)
+    {
+        case NdisRequestQueryInformation:
+        case NdisRequestQueryStatistics:
+            OriginalOidRequest->DATA.QUERY_INFORMATION.BytesWritten =
+                CompletedOidRequest->DATA.QUERY_INFORMATION.BytesWritten;
+            OriginalOidRequest->DATA.QUERY_INFORMATION.BytesNeeded =
+                CompletedOidRequest->DATA.QUERY_INFORMATION.BytesNeeded;
+
+            break;
+
+        case NdisRequestSetInformation:
+            OriginalOidRequest->DATA.SET_INFORMATION.BytesRead =
+                CompletedOidRequest->DATA.SET_INFORMATION.BytesRead;
+            OriginalOidRequest->DATA.SET_INFORMATION.BytesNeeded =
+                CompletedOidRequest->DATA.SET_INFORMATION.BytesNeeded;
+
+            break;
+
+        case NdisRequestMethod:
+            OriginalOidRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
+                CompletedOidRequest->DATA.METHOD_INFORMATION.OutputBufferLength;
+            OriginalOidRequest->DATA.METHOD_INFORMATION.BytesRead =
+                CompletedOidRequest->DATA.METHOD_INFORMATION.BytesRead;
+            OriginalOidRequest->DATA.METHOD_INFORMATION.BytesNeeded =
+                CompletedOidRequest->DATA.METHOD_INFORMATION.BytesNeeded;
+            OriginalOidRequest->DATA.METHOD_INFORMATION.BytesWritten =
+                CompletedOidRequest->DATA.METHOD_INFORMATION.BytesWritten;
+
+            break;
+    }
+}
+
+void
 FilterOidRequestComplete(
     NDIS_HANDLE FilterModuleContext,
     PNDIS_OID_REQUEST NdisOidRequest,
     NDIS_STATUS Status)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
-    PNDIS_OID_REQUEST originalRequest;
     PVOID *oidRequestContext;
-    PNDIS_SWITCH_NIC_OID_REQUEST nicOidRequestBuf;
-    PNDIS_OBJECT_HEADER header;
+    PNDIS_OID_REQUEST originalRequest;
 
     DbgPrint("%s: NdisOidRequest %p.\r\n", __func__, NdisOidRequest);
 
     oidRequestContext = (PVOID*)(&NdisOidRequest->SourceReserved[0]);
-    originalRequest = (*oidRequestContext);
+    originalRequest = *oidRequestContext;
 
-    // This is the internal request
     if (originalRequest == NULL)
     {
         SxpNdisCompleteInternalOidRequest(switchObject, NdisOidRequest, Status);
-        goto Cleanup;
     }
-
-    // Copy the information from the returned request to the original request
-    switch(NdisOidRequest->RequestType)
+    else
     {
-    case NdisRequestMethod:
-        originalRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
-            NdisOidRequest->DATA.METHOD_INFORMATION.OutputBufferLength;
-        originalRequest->DATA.METHOD_INFORMATION.BytesRead =
-            NdisOidRequest->DATA.METHOD_INFORMATION.BytesRead;
-        originalRequest->DATA.METHOD_INFORMATION.BytesNeeded =
-            NdisOidRequest->DATA.METHOD_INFORMATION.BytesNeeded;
-        originalRequest->DATA.METHOD_INFORMATION.BytesWritten =
-            NdisOidRequest->DATA.METHOD_INFORMATION.BytesWritten;
+        CopyCompletedOidRequestData(originalRequest, NdisOidRequest);
+        *oidRequestContext = NULL;
 
-        if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_NIC_REQUEST &&
-                switchObject->OldNicRequest != NULL)
-        {
-            nicOidRequestBuf = NdisOidRequest->DATA.METHOD_INFORMATION.InformationBuffer;
-            Status = NDIS_STATUS_SUCCESS;
-
-            originalRequest->DATA.METHOD_INFORMATION.InformationBuffer =
-                                                    switchObject->OldNicRequest;
-            switchObject->OldNicRequest = NULL;
-            ExFreePoolWithTag(nicOidRequestBuf, VrAllocationTag);
-        }
-
-        break;
-
-    case NdisRequestSetInformation:
-        header = originalRequest->DATA.SET_INFORMATION.InformationBuffer;
-
-        originalRequest->DATA.SET_INFORMATION.BytesRead =
-            NdisOidRequest->DATA.SET_INFORMATION.BytesRead;
-        originalRequest->DATA.SET_INFORMATION.BytesNeeded =
-            NdisOidRequest->DATA.SET_INFORMATION.BytesNeeded;
-
-        if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
-            Status != NDIS_STATUS_SUCCESS)
-        {
-        }
-        else if (NdisOidRequest->DATA.METHOD_INFORMATION.Oid == OID_SWITCH_PORT_CREATE &&
-                 Status != NDIS_STATUS_SUCCESS)
-        {
-            while (!switchObject->Running)
-            {
-                NdisMSleep(100);
-            }
-        }
-
-        break;
-
-    case NdisRequestQueryInformation:
-    case NdisRequestQueryStatistics:
-    default:
-        originalRequest->DATA.QUERY_INFORMATION.BytesWritten =
-            NdisOidRequest->DATA.QUERY_INFORMATION.BytesWritten;
-        originalRequest->DATA.QUERY_INFORMATION.BytesNeeded =
-            NdisOidRequest->DATA.QUERY_INFORMATION.BytesNeeded;
-        break;
+        NdisFreeCloneOidRequest(switchObject->NdisFilterHandle, NdisOidRequest);
+        NdisFOidRequestComplete(switchObject->NdisFilterHandle, originalRequest, Status);
     }
 
-    (*oidRequestContext) = NULL;
-
-    NdisFreeCloneOidRequest(switchObject->NdisFilterHandle, NdisOidRequest);
-
-    NdisFOidRequestComplete(switchObject->NdisFilterHandle,
-                            originalRequest,
-                            Status);
-
-Cleanup:
     NdisInterlockedDecrement(&switchObject->PendingOidCount);
 }

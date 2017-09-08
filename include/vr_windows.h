@@ -46,9 +46,6 @@ typedef struct _SWITCH_OBJECT
     // Management fields.
     volatile LONG PendingOidCount;
 
-    // Control Path Management.
-    PNDIS_SWITCH_NIC_OID_REQUEST OldNicRequest;
-
 } SWITCH_OBJECT, *PSWITCH_OBJECT;
 
 typedef struct _SX_OID_REQUEST
