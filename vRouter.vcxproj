@@ -348,10 +348,6 @@
     <ClInclude Include="include\windows_builtins.h" />
     <ClInclude Include="windows\include\windows_builtins.h" />
     <ClInclude Include="windows\precomp.h" />
-    <ClInclude Include="windows\SxBase\precomp.h" />
-    <ClInclude Include="windows\SxBase\SxApi.h" />
-    <ClInclude Include="windows\SxBase\SxBase.h" />
-    <ClInclude Include="windows\SxBase\SxLibrary.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
@@ -460,9 +456,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\precompsrc2.c" />
-    <ClCompile Include="windows\SxBase\precompsrc.c" />
-    <ClCompile Include="windows\SxBase\SxBase.c" />
-    <ClCompile Include="windows\SxBase\SxLibrary.c" />
     <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_devices.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>

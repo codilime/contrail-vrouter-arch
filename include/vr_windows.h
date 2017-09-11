@@ -46,10 +46,18 @@ typedef struct _SWITCH_OBJECT
     // Management fields.
     volatile LONG PendingOidCount;
 
-    // Control Path Management.
-    PNDIS_SWITCH_NIC_OID_REQUEST OldNicRequest;
-
 } SWITCH_OBJECT, *PSWITCH_OBJECT;
+
+typedef struct _VR_OID_REQUEST_STATUS
+{
+    NDIS_EVENT ReqEvent;
+    NDIS_STATUS Status;
+    ULONG BytesNeeded;
+
+} VR_OID_REQUEST_STATUS, *PVR_OID_REQUEST_STATUS;
+
+NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
+VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);
 
 extern const ULONG VrAllocationTag;
 
