@@ -36,6 +36,10 @@
 #include <netinet/ether.h>
 #endif
 
+#ifdef _WIN32
+#include <winioctl.h>
+#endif
+
 #include "vr_types.h"
 #include "vr_qos.h"
 #include "vr_flow.h"
