@@ -456,10 +456,10 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\precompsrc2.c" />
-    <ClCompile Include="windows\vrouter_mod.c" />
     <ClCompile Include="windows\vr_devices.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="windows\vr_driver.c" />
     <ClCompile Include="windows\vr_ksync.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -467,6 +467,8 @@
     <ClCompile Include="windows\vr_mem.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="windows\vr_nbl.c" />
+    <ClCompile Include="windows\vr_oid.c" />
     <ClCompile Include="windows\vr_pkt0.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>

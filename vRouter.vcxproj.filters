@@ -135,9 +135,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="windows\vrouter_mod.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="windows\precompsrc2.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -274,6 +271,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vr_win_transport.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_driver.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_oid.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_nbl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
