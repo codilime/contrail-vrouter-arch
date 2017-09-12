@@ -31,6 +31,9 @@ typedef struct _vr_switch_context
     BOOLEAN                 vrouter_up;
 } vr_switch_context, *pvr_switch_context;
 
+extern const ULONG VrAllocationTag;
+extern const ULONG VrOidRequestId;
+
 typedef struct _SWITCH_OBJECT
 {
     pvr_switch_context ExtensionContext;
@@ -59,11 +62,6 @@ typedef struct _VR_OID_REQUEST_STATUS
 NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
 VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);
 
-extern const ULONG VrAllocationTag;
-
-/* Extracts interface name from provided friendly name and stores it in provided `name` buffer. */
-NDIS_STATUS vr_get_name_from_friendly_name(NDIS_IF_COUNTED_STRING friendly, char *name, size_t name_buffer_size);
-
 void get_random_bytes(void *buf, int nbytes);
 
 struct host_os * vrouter_get_host(void);
@@ -81,6 +79,10 @@ extern void win_free_packet(struct vr_packet *pkt);
 
 extern void win_if_lock(void);
 extern void win_if_unlock(void);
+
+/* vRouter transport module init functions */
+extern int vr_transport_init(void);
+extern void vr_transport_exit(void);
 
 #ifdef __cplusplus
 }
