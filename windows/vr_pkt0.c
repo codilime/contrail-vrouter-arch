@@ -17,6 +17,10 @@ static void free_pkt0_packet(struct pkt0_packet * packet);
 
 static IO_WORKITEM_ROUTINE_EX Pkt0DeferredWrite;
 
+/* Used to notify vRouter that Agent might be dead */
+extern volatile bool agent_alive;
+extern void vhost_xconnect();
+
 struct pkt0_context {
     KSPIN_LOCK lock;
     LIST_ENTRY pkt_queue;
@@ -82,6 +86,10 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         Pkt0FinalizeIrp(irp);
     }
     KeReleaseSpinLock(&ctx->write_lock, old_irql);
+
+    /* Notify vRouter that agent might be dead */
+    agent_alive = false;
+    vhost_xconnect();
 
     Irp->IoStatus.Status = STATUS_SUCCESS;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
