@@ -1,5 +1,6 @@
 #include "precomp.h"
 
+#include "vrouter.h"
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
@@ -316,8 +317,33 @@ vr_host_interface_exit(void)
 }
 
 void
+vhost_xconnect(void)
+{
+    struct vrouter *vrouter = vrouter_get(0);
+    struct vr_interface *host_if;
+
+    if (vrouter->vr_host_if != NULL) {
+        host_if = vrouter->vr_host_if;
+        vif_set_xconnect(host_if);
+
+        if (host_if->vif_bridge != NULL)
+            vif_set_xconnect(host_if->vif_bridge);
+    }
+}
+
+void
 vhost_remove_xconnect(void) 
 {
+    struct vrouter *vrouter = vrouter_get(0);
+    struct vr_interface *host_if;
+
+    if (vrouter->vr_host_if != NULL) {
+        host_if = vrouter->vr_host_if;
+        vif_remove_xconnect(host_if);
+
+        if (host_if->vif_bridge != NULL)
+            vif_remove_xconnect(host_if->vif_bridge);
+    }
 }
 
 struct vr_host_interface_ops *
