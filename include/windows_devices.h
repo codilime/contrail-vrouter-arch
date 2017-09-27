@@ -35,6 +35,9 @@ VOID KsyncDestroyDevice(PDRIVER_OBJECT DriverObject);
 NTSTATUS Pkt0CreateDevice(PDRIVER_OBJECT DriverObject);
 VOID Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject);
 
+NTSTATUS FlowCreateDevice(PDRIVER_OBJECT DriverObject);
+VOID FlowDestroyDevice(PDRIVER_OBJECT DriverObject);
+
 NTSTATUS VRouterInitializeDevices(PDRIVER_OBJECT DriverObject);
 VOID VRouterUninitializeDevices(PDRIVER_OBJECT DriverObject);
 
@@ -63,5 +66,15 @@ struct pkt0_packet {
 };
 
 int pkt0_if_tx(struct vr_interface *vif, struct vr_packet *pkt);
+
+/*
+ * Flow device related definitions
+ */
+struct _FLOW_DEVICE_CONTEXT {
+    PVOID UserVirtualAddress;
+};
+
+typedef struct _FLOW_DEVICE_CONTEXT   FLOW_DEVICE_CONTEXT;
+typedef struct _FLOW_DEVICE_CONTEXT *PFLOW_DEVICE_CONTEXT;
 
 #endif /* __WINDOWS_DEVICES_H__ */

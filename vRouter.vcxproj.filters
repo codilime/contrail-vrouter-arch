@@ -282,6 +282,9 @@
     <ClCompile Include="windows\vr_nbl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="windows\vr_flow_device.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="windows\vRouter.inf">

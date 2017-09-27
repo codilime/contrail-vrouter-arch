@@ -160,6 +160,9 @@ UninitializeVRouter(pvr_switch_context ctx)
     if (ctx->device_up)
         VRouterUninitializeDevices(VrDriverObject);
 
+    if (ctx->flow_up)
+        FlowDestroyDevice(VrDriverObject);
+
     if (ctx->pkt0_up)
         Pkt0DestroyDevice(VrDriverObject);
 
@@ -190,6 +193,7 @@ InitializeVRouter(pvr_switch_context ctx)
 {
     ASSERT(!ctx->ksync_up);
     ASSERT(!ctx->pkt0_up);
+    ASSERT(!ctx->flow_up);
     ASSERT(!ctx->device_up);
     ASSERT(!ctx->memory_up);
     ASSERT(!ctx->message_up);
@@ -203,6 +207,11 @@ InitializeVRouter(pvr_switch_context ctx)
     ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(VrDriverObject));
 
     if (!ctx->pkt0_up)
+        goto cleanup;
+
+    ctx->flow_up = NT_SUCCESS(FlowCreateDevice(VrDriverObject));
+
+    if (!ctx->flow_up)
         goto cleanup;
 
     ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(VrDriverObject));

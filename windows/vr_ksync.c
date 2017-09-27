@@ -292,55 +292,9 @@ KsyncDispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS
 KsyncDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
-
-    NTSTATUS ntStatus = STATUS_SUCCESS;
-    PIO_STACK_LOCATION irpSp;
-    struct mem_wrapper returnedValue;
-    PVOID buffer = NULL;
-    struct ksync_device_context *ctx = NULL;
-
-    irpSp = IoGetCurrentIrpStackLocation(Irp);
-
-    switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
-    {
-        case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
-
-            ctx = irpSp->FileObject->FsContext;
-
-            ctx->user_virtual_address = MmMapLockedPagesSpecifyCache(
-                mdl_mem,
-                UserMode,
-                MmNonCached,
-                NULL,
-                FALSE,
-                NormalPagePriority);
-            buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
-
-            if (!buffer) {
-                Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Irp->IoStatus.Information = 0;
-                IoCompleteRequest(Irp, IO_NO_INCREMENT);
-                return STATUS_INSUFFICIENT_RESOURCES;
-            }
-
-            returnedValue.pBuffer = ctx->user_virtual_address;
-            RtlCopyMemory(buffer, &returnedValue, sizeof(struct mem_wrapper));
-            Irp->IoStatus.Information = sizeof(struct mem_wrapper);
-            ntStatus = STATUS_SUCCESS;
-
-            break;
-
-        default:
-
-            ntStatus = STATUS_INVALID_DEVICE_REQUEST;
-            break;
-    }
-
-    Irp->IoStatus.Status = ntStatus;
-
+    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 NTSTATUS

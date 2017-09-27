@@ -8,6 +8,7 @@
 #define ETHER_ADDR_STR_LEN (ETHER_ADDR_LEN * 3)
 
 const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
+const LPCTSTR FLOW_PATH  = TEXT("\\\\.\\vrouterFlow");
 
 // TODO: JW-120 - Refactoring of vr_win_utils.c
 struct ether_addr {

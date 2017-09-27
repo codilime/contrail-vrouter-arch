@@ -1675,22 +1675,22 @@ flow_table_map(vr_flow_req *req)
         exit(errno);
     }
 #else
-        struct mem_wrapper sharedMem;
+        PVOID pBuffer;
         DWORD bRetur;
 
-        HANDLE hPipe = CreateFile(KSYNC_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        HANDLE hPipe = CreateFile(FLOW_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if (!hPipe) {
             printf("Error CreateFile\n");
             exit(-1);
         }
 
-        BOOL transactionResult = DeviceIoControl(hPipe, IOCTL_SIOCTL_METHOD_OUT_DIRECT, NULL, 0, &sharedMem, sizeof(struct mem_wrapper), &bRetur, NULL);
+        BOOL transactionResult = DeviceIoControl(hPipe, IOCTL_SIOCTL_METHOD_OUT_DIRECT, NULL, 0, &pBuffer, sizeof(pBuffer), &bRetur, NULL);
         if (!transactionResult) {
             printf("Error DeviceIoControl: [%d]\n", transactionResult);
             exit(transactionResult);
         }
 
-        ft->ft_entries = sharedMem.pBuffer;
+        ft->ft_entries = pBuffer;
     }
 #endif
 

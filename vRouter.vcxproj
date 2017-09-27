@@ -460,6 +460,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="windows\vr_driver.c" />
+    <ClCompile Include="windows\vr_flow_device.c" />
     <ClCompile Include="windows\vr_ksync.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
