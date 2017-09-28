@@ -2,6 +2,7 @@
 
 #include "windows_devices.h"
 #include "windows_ksync.h"
+#include "windows_mem.h"
 
 static const WCHAR FlowDeviceName[]    = L"\\Device\\vrouterFlow";
 static const WCHAR FlowDeviceSymLink[] = L"\\DosDevices\\vrouterFlow";
@@ -10,9 +11,6 @@ static PDEVICE_OBJECT FlowDeviceObject   = NULL;
 static BOOLEAN        FlowSymlinkCreated = FALSE;
 
 static ULONG FlowAllocationTag = 'LFRV';
-
-/* TODO(sodar): Refactor mdl_mem allocation */
-extern PMDL mdl_mem;
 
 static PFLOW_DEVICE_CONTEXT
 FlowAllocateContext()
@@ -64,18 +62,16 @@ FlowCompleteIrp(PIRP Irp, NTSTATUS Status, ULONG_PTR Information)
 static NTSTATUS
 FlowDispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    PFLOW_DEVICE_CONTEXT ctx = NULL;
-
-    /* TODO(sodar): refactor mdl_mem allocation */
-    if (mdl_mem == NULL)
-        goto Failure;
-
-    ctx = FlowAllocateContext();
+    PFLOW_DEVICE_CONTEXT ctx = FlowAllocateContext();
     if (ctx == NULL)
         goto Failure;
     FlowAttachContextToFileContext(ctx, Irp);
 
-    PVOID userVirtualAddress = MmMapLockedPagesSpecifyCache(mdl_mem,
+    PMDL flowMemoryMdl = GetFlowMemoryMdl();
+    if (flowMemoryMdl == NULL)
+        goto Failure;
+
+    PVOID userVirtualAddress = MmMapLockedPagesSpecifyCache(flowMemoryMdl,
                                                             UserMode,
                                                             MmNonCached,
                                                             NULL,
@@ -83,7 +79,9 @@ FlowDispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
                                                             NormalPagePriority);
     if (userVirtualAddress == NULL)
         goto Failure;
+
     ctx->UserVirtualAddress = userVirtualAddress;
+    ctx->FlowMemoryMdl = flowMemoryMdl;
 
     return FlowCompleteIrp(Irp, STATUS_SUCCESS, (ULONG_PTR)(FILE_OPENED));
 
@@ -103,9 +101,9 @@ FlowDispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     ASSERT(ctx != NULL);
     ASSERT(ctx->UserVirtualAddress != NULL);
+    ASSERT(ctx->FlowMemoryMdl != NULL);
 
-    /* TODO(sodar): refactor mdl_mem allocation */
-    MmUnmapLockedPages(ctx->UserVirtualAddress, mdl_mem);
+    MmUnmapLockedPages(ctx->UserVirtualAddress, ctx->FlowMemoryMdl);
     FlowAttachContextToFileContext(NULL, Irp);
     FlowFreeContext(ctx);
 

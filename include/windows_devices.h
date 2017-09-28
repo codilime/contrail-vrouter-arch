@@ -72,6 +72,7 @@ int pkt0_if_tx(struct vr_interface *vif, struct vr_packet *pkt);
  */
 struct _FLOW_DEVICE_CONTEXT {
     PVOID UserVirtualAddress;
+    PMDL FlowMemoryMdl;
 };
 
 typedef struct _FLOW_DEVICE_CONTEXT   FLOW_DEVICE_CONTEXT;

@@ -25,7 +25,7 @@ ksync_alloc_context()
         return NULL;
 
     ctx->responses = NULL;
-    ctx->user_virtual_address = NULL;
+
     return ctx;
 }
 
@@ -134,9 +134,6 @@ KsyncDispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     struct ksync_device_context *ctx = ksync_get_context_from_file_context(Irp);
     ASSERTMSG("KSync device context was not set", ctx != NULL);
 
-    if (ctx->user_virtual_address != NULL) {
-        MmUnmapLockedPages(ctx->user_virtual_address, mdl_mem);
-    }
     ExFreePoolWithTag(ctx, KsyncAllocationTag);
 
     return KsyncHandleRet(Irp, STATUS_SUCCESS);

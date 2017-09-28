@@ -2,62 +2,83 @@
 #include "vr_flow.h"
 #include "windows_mem.h"
 
-#define SHARED_MEMORY_POOL_TAG 'MEMS'
+static ULONG FlowMemoryAllocationTag = 'MEMS';
 
+/* `FlowMemoryInit` need to populate these pointers in vRouter with pointers to
+   allocated the flow table
+*/
 extern void *vr_flow_table;
 extern void *vr_oflow_table;
 
-PMDL mdl_mem   = NULL;
-PVOID user_mem = NULL;
+static PVOID  FlowTable = NULL;
+static size_t FlowTableSize = 0;
 
-NDIS_STATUS
-memory_init(void)
+static PMDL  FlowMemoryMdl = NULL;
+
+PMDL
+GetFlowMemoryMdl(VOID)
 {
-    NDIS_STATUS ret = NDIS_STATUS_SUCCESS;
-    size_t flow_table_size;
-
-    compute_size_oflow_table(&vr_oflow_entries, vr_flow_entries);
-
-    flow_table_size = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
-
-    user_mem = ExAllocatePoolWithTag(NonPagedPoolNx, flow_table_size, SHARED_MEMORY_POOL_TAG);
-    if (user_mem == NULL) {
-        ret = STATUS_INSUFFICIENT_RESOURCES;
-        goto mem_clean_up;
-    }
-
-    mdl_mem = IoAllocateMdl(user_mem, flow_table_size, FALSE, FALSE, NULL);
-    if (mdl_mem == NULL) {
-        ret = STATUS_INSUFFICIENT_RESOURCES;
-        goto mem_clean_up;
-    }
-
-    MmBuildMdlForNonPagedPool(mdl_mem);
-
-    RtlZeroMemory(user_mem, flow_table_size);
-
-    vr_flow_table = user_mem;
-    vr_oflow_table = (char *)user_mem + VR_FLOW_TABLE_SIZE;
-
-    return ret;
-
-mem_clean_up:
-    memory_exit();
-    return ret;
+    return FlowMemoryMdl;
 }
 
-void
-memory_exit(void)
+NTSTATUS
+FlowMemoryInit(VOID)
 {
-    if (mdl_mem != NULL) {
-        IoFreeMdl(mdl_mem);
+    ASSERT(FlowTable == NULL);
+    ASSERT(FlowMemoryMdl == NULL);
+
+    NDIS_STATUS status;
+
+    /* `vr_oflow_entries` and `vr_flow_entries` are defined in dp-core/vr_flow.c */
+    vr_compute_size_oflow_table(&vr_oflow_entries, vr_flow_entries);
+
+    FlowTableSize = VR_FLOW_TABLE_SIZE + VR_OFLOW_TABLE_SIZE;
+    FlowTable = ExAllocatePoolWithTag(NonPagedPoolNx, FlowTableSize, FlowMemoryAllocationTag);
+    if (FlowTable == NULL) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Cleanup;
     }
-    mdl_mem = NULL;
+    FlowMemoryClean();
 
-    if (user_mem != NULL)
-        ExFreePoolWithTag(user_mem, SHARED_MEMORY_POOL_TAG);
-    user_mem = NULL;
+    FlowMemoryMdl = IoAllocateMdl(FlowTable, FlowTableSize, FALSE, FALSE, NULL);
+    if (FlowMemoryMdl == NULL) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Cleanup;
+    }
+    MmBuildMdlForNonPagedPool(FlowMemoryMdl);
 
-    vr_flow_table = NULL;
+    vr_flow_table = FlowTable;
+    vr_oflow_table = (uint8_t *)FlowTable + VR_FLOW_TABLE_SIZE;
+
+    return STATUS_SUCCESS;
+
+Cleanup:
+    FlowMemoryExit();
+    return status;
+}
+
+VOID
+FlowMemoryExit(VOID)
+{
     vr_oflow_table = NULL;
+    vr_flow_table = NULL;
+
+    if (FlowMemoryMdl != NULL) {
+        IoFreeMdl(FlowMemoryMdl);
+        FlowMemoryMdl = NULL;
+    }
+
+    if (FlowTable != NULL) {
+        ExFreePool(FlowTable);
+        FlowTable = NULL;
+    }
+}
+
+VOID
+FlowMemoryClean(VOID)
+{
+    ASSERT(FlowTable != NULL);
+    ASSERT(FlowTableSize > 0);
+
+    RtlZeroMemory(FlowTable, FlowTableSize);
 }
