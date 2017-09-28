@@ -118,31 +118,36 @@ FlowDispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 static NTSTATUS
-FlowHandleMethodOutDirect(PDEVICE_OBJECT DeviceObject,
-                          PIRP Irp,
-                          PFLOW_DEVICE_CONTEXT ctx,
-                          PIO_STACK_LOCATION IoStack)
+FlowHandleGetAddress(PDEVICE_OBJECT DeviceObject,
+                     PIRP Irp,
+                     PFLOW_DEVICE_CONTEXT ctx)
 {
+    NTSTATUS status;
+
     PMDL bufferMdl = Irp->MdlAddress;
     ULONG expectedLength = sizeof(ctx->UserVirtualAddress);
     ULONG bufferLength = MmGetMdlByteCount(bufferMdl);
     if (bufferLength != expectedLength) {
-        return STATUS_INVALID_PARAMETER;
+        status = STATUS_INVALID_PARAMETER;
+        goto Failure;
     }
 
     PVOID buffer = MmGetSystemAddressForMdlSafe(bufferMdl, NormalPagePriority);
     if (buffer == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Failure;
     }
     RtlCopyMemory(buffer, &ctx->UserVirtualAddress, expectedLength);
 
-    return STATUS_SUCCESS;
+    return FlowCompleteIrp(Irp, STATUS_SUCCESS, expectedLength);
+
+Failure:
+    return FlowCompleteIrp(Irp, status, (ULONG_PTR)(0));
 }
 
 static NTSTATUS
 FlowDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    NTSTATUS status;
     PIO_STACK_LOCATION ioStack;
     PFLOW_DEVICE_CONTEXT ctx;
     PVOID buffer;
@@ -153,14 +158,10 @@ FlowDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     ioStack = IoGetCurrentIrpStackLocation(Irp);
     switch (ioStack->Parameters.DeviceIoControl.IoControlCode) {
         case IOCTL_FLOW_GET_ADDRESS:
-            status = FlowHandleMethodOutDirect(DeviceObject, Irp, ctx, ioStack);
-            break;
+            return FlowHandleGetAddress(DeviceObject, Irp, ctx);
         default:
-            status = STATUS_INVALID_DEVICE_REQUEST;
-            break;
+            return FlowCompleteIrp(Irp, STATUS_INVALID_DEVICE_REQUEST, (ULONG_PTR)(0));
     }
-
-    return FlowCompleteIrp(Irp, status, (ULONG_PTR)(0));
 }
 
 static NTSTATUS
