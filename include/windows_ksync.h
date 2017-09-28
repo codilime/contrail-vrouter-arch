@@ -33,9 +33,4 @@ struct ksync_device_context {
     struct ksync_response *responses;
 };
 
-/* TODO(sodar): Refactor */
-#define SIOCTL_TYPE 40000
-#define IOCTL_SIOCTL_METHOD_OUT_DIRECT \
-CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_OUT_DIRECT , FILE_ANY_ACCESS )
-
 #endif /* __WINDOWS_KSYNC_H__ */

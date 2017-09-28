@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include "windows_devices.h"
+#include "windows_flow_ioctl.h"
 #include "windows_ksync.h"
 #include "windows_mem.h"
 
@@ -151,7 +152,7 @@ FlowDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     ioStack = IoGetCurrentIrpStackLocation(Irp);
     switch (ioStack->Parameters.DeviceIoControl.IoControlCode) {
-        case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
+        case IOCTL_FLOW_GET_ADDRESS:
             status = FlowHandleMethodOutDirect(DeviceObject, Irp, ctx, ioStack);
             break;
         default:
