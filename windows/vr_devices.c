@@ -154,15 +154,3 @@ VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
         *DeviceObject = NULL;
     }
 }
-
-VOID
-VRouterAttachPrivateData(_Inout_ PDEVICE_OBJECT DeviceObject, _In_ PVOID Data)
-{
-    DEVICE_CTX(DeviceObject)->private_data = Data;
-}
-
-PVOID
-VRouterGetPrivateData(_In_ PDEVICE_OBJECT DeviceObject)
-{
-    return DEVICE_CTX(DeviceObject)->private_data;
-}

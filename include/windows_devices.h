@@ -32,6 +32,7 @@ typedef struct _VR_DEVICE_CONTEXT *PVR_DEVICE_CONTEXT;
 NTSTATUS KsyncCreateDevice(PDRIVER_OBJECT DriverObject);
 VOID KsyncDestroyDevice(PDRIVER_OBJECT DriverObject);
 
+VOID Pkt0Init();
 NTSTATUS Pkt0CreateDevice(PDRIVER_OBJECT DriverObject);
 VOID Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject);
 
@@ -48,10 +49,6 @@ VOID VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
                                     _In_ PCWSTR DeviceSymlink,
                                     _Inout_ PDEVICE_OBJECT *DeviceObject,
                                     _Inout_ PBOOLEAN SymlinkCreated);
-
-VOID VRouterAttachPrivateData(_Inout_ PDEVICE_OBJECT DeviceObject,
-                              _In_ PVOID Data);
-PVOID VRouterGetPrivateData(_In_ PDEVICE_OBJECT DeviceObject);
 
 /*
  * Pkt0 related definitions
