@@ -36,12 +36,13 @@ Pkt0Init()
     KeInitializeSpinLock(&Pkt0ContextLock);
 }
 
-static VOID
-Pkt0FinalizeIrp(PIRP Irp)
+static NTSTATUS
+Pkt0CompleteIrp(PIRP Irp, NTSTATUS Status, ULONG_PTR Information)
 {
-    Irp->IoStatus.Status = STATUS_PIPE_CLOSING;
-    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = Status;
+    Irp->IoStatus.Information = Information;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
 }
 
 static VOID
@@ -53,7 +54,7 @@ Pkt0FinalizeIrpQueue(PLIST_ENTRY IrpQueue)
     while (!IsListEmpty(IrpQueue)) {
         entry = RemoveHeadList(IrpQueue);
         irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
-        Pkt0FinalizeIrp(irp);
+        Pkt0CompleteIrp(irp, STATUS_PIPE_CLOSING, 0);
     }
 }
 
@@ -65,9 +66,7 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*ctx), pkt0_allocation_tag);
     if (ctx == NULL) {
-        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        return Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
 
     InitializeListHead(&ctx->pkt_read_queue);
@@ -78,10 +77,7 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     Pkt0Context = ctx;
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = FILE_OPENED;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, FILE_OPENED);
 }
 
 static NTSTATUS
@@ -102,9 +98,7 @@ Pkt0DispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     Pkt0Context = NULL;
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
 static NTSTATUS
@@ -121,9 +115,7 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     agent_alive = false;
     vhost_xconnect();
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return Irp->IoStatus.Status;
+    return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
 static VOID
@@ -174,9 +166,7 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
         goto fail;
     pkt->vp_if = agent_if;
 
-    irp->IoStatus.Status = STATUS_SUCCESS;
-    irp->IoStatus.Information = count;
-    IoCompleteRequest(irp, IO_NO_INCREMENT);
+    Pkt0CompleteIrp(irp, STATUS_SUCCESS, count);
 
     agent_if->vif_rx(agent_if, pkt, VLAN_ID_INVALID);
 
@@ -188,8 +178,7 @@ fail:
         ExFreePoolWithTag(pkt_data, pkt0_allocation_tag);
     }
     if (irp) {
-        irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        IoCompleteRequest(irp, IO_NO_INCREMENT);
+        Pkt0CompleteIrp(irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
     IoFreeWorkItem(WorkItem);
     return;
@@ -203,9 +192,7 @@ Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     work_item = IoAllocateWorkItem(DeviceObject);
     if (work_item == NULL) {
-        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        return Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
 
     IoMarkIrpPending(Irp);
@@ -231,16 +218,11 @@ Pkt0TransferPacketToUser(PIRP Irp, struct pkt0_packet *packet)
     if (buffer != NULL) {
         ASSERTMSG("Read buffer too short", io_stack->Parameters.Read.Length >= packet->length);
         RtlCopyMemory(buffer, packet->buffer, packet->length);
-        Irp->IoStatus.Information = packet->length;
-        ret = STATUS_SUCCESS;
+        ret = Pkt0CompleteIrp(Irp, STATUS_SUCCESS, packet->length);
     } else {
-        Irp->IoStatus.Information = 0;
-        ret = STATUS_INSUFFICIENT_RESOURCES;
+        ret = Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
     free_pkt0_packet(packet);
-
-    Irp->IoStatus.Status = ret;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return ret;
 }
@@ -272,10 +254,7 @@ static NTSTATUS
 Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DeviceObject);
-
-    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return Pkt0CompleteIrp(Irp, STATUS_INVALID_DEVICE_REQUEST, 0);
 }
 
 NTSTATUS
