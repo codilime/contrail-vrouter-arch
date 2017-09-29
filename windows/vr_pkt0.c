@@ -273,11 +273,9 @@ Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DeviceObject);
 
-    /* TODO(sodar): Implement */
-
-    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 NTSTATUS
