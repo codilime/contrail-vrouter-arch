@@ -31,7 +31,7 @@ extern volatile bool agent_alive;
 extern void vhost_xconnect();
 
 VOID
-Pkt0Init()
+Pkt0Init(VOID)
 {
     KeInitializeSpinLock(&Pkt0ContextLock);
 }
@@ -366,8 +366,7 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
             irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
             Pkt0TransferPacketToUser(irp, pkt);
         }
-    }
-    else {
+    } else {
         free_pkt0_packet(pkt);
     }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);

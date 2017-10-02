@@ -32,7 +32,7 @@ typedef struct _VR_DEVICE_CONTEXT *PVR_DEVICE_CONTEXT;
 NTSTATUS KsyncCreateDevice(PDRIVER_OBJECT DriverObject);
 VOID KsyncDestroyDevice(PDRIVER_OBJECT DriverObject);
 
-VOID Pkt0Init();
+VOID Pkt0Init(VOID);
 NTSTATUS Pkt0CreateDevice(PDRIVER_OBJECT DriverObject);
 VOID Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject);
 
