@@ -277,6 +277,7 @@ Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
                                        Pkt0DeviceName,
                                        Pkt0DeviceSymLink,
                                        &Callbacks,
+                                       TRUE,
                                        &Pkt0DeviceObject,
                                        &Pkt0SymlinkCreated);
 }

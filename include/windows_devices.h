@@ -43,6 +43,7 @@ NTSTATUS VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
                                      _In_ PCWSTR DeviceName,
                                      _In_ PCWSTR DeviceSymlink,
                                      _In_ PVR_DEVICE_DISPATCH_CALLBACKS Callbacks,
+                                     _In_ BOOLEAN Exclusive,
                                      _Out_ PDEVICE_OBJECT *DeviceObject,
                                      _Out_ PBOOLEAN SymlinkCreated);
 VOID VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
