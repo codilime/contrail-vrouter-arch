@@ -8,6 +8,7 @@ struct pkt0_context {
     LIST_ENTRY pkt_read_queue;
     LIST_ENTRY irp_read_queue;
     LIST_ENTRY irp_write_queue;
+    BOOLEAN closing;
 };
 
 static const ULONG pkt0_allocation_tag = '0TKP';
@@ -69,6 +70,7 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         return Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
 
+    ctx->closing = FALSE;
     InitializeListHead(&ctx->pkt_read_queue);
     InitializeListHead(&ctx->irp_read_queue);
     InitializeListHead(&ctx->irp_write_queue);
@@ -109,6 +111,7 @@ Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
     Pkt0FinalizeIrpQueue(&Pkt0Context->irp_read_queue);
     Pkt0FinalizeIrpQueue(&Pkt0Context->irp_write_queue);
+    Pkt0Context->closing = TRUE;
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
     /* Notify vRouter that agent might be dead */
@@ -189,21 +192,30 @@ Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_WORKITEM work_item;
     KIRQL old_irql;
+    NTSTATUS status;
 
     work_item = IoAllocateWorkItem(DeviceObject);
     if (work_item == NULL) {
         return Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
 
-    IoMarkIrpPending(Irp);
-
     KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
-    InsertTailList(&Pkt0Context->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
+    if (Pkt0Context->closing) {
+        status = Pkt0CompleteIrp(Irp, STATUS_PIPE_CLOSING, 0);
+    } else {
+        InsertTailList(&Pkt0Context->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
+        IoMarkIrpPending(Irp);
+        status = STATUS_PENDING;
+    }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
-    IoQueueWorkItemEx(work_item, Pkt0DeferredWrite, DelayedWorkQueue, NULL);
+    if (status == STATUS_PENDING) {
+        IoQueueWorkItemEx(work_item, Pkt0DeferredWrite, DelayedWorkQueue, NULL);
+    } else {
+        IoFreeWorkItem(work_item);
+    }
 
-    return STATUS_PENDING;
+    return status;
 }
 
 static NTSTATUS
@@ -236,7 +248,9 @@ Pkt0DispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     NTSTATUS status;
 
     KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
-    if (IsListEmpty(&Pkt0Context->pkt_read_queue)) {
+    if (Pkt0Context->closing) {
+        status = Pkt0CompleteIrp(Irp, STATUS_PIPE_CLOSING, 0);
+    } else if (IsListEmpty(&Pkt0Context->pkt_read_queue)) {
         InsertTailList(&Pkt0Context->irp_read_queue, &Irp->Tail.Overlay.ListEntry);
         IoMarkIrpPending(Irp);
         status = STATUS_PENDING;
@@ -297,6 +311,7 @@ Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject)
     if (Pkt0Context != NULL) {
         Pkt0FinalizeIrpQueue(&Pkt0Context->irp_read_queue);
         Pkt0FinalizeIrpQueue(&Pkt0Context->irp_write_queue);
+        Pkt0Context->closing = TRUE;
     }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 }
