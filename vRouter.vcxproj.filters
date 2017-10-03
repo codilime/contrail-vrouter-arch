@@ -133,6 +133,9 @@
     <ClInclude Include="include\netlink.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\windows_flow_ioctl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="windows\precompsrc2.c">
@@ -280,6 +283,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="windows\vr_nbl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="windows\vr_flow_device.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
