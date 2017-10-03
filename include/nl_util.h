@@ -255,6 +255,7 @@ extern int win_nl_sendmsg(struct nl_client *);
 extern int win_nl_client_recvmsg(struct nl_client *);
 
 extern const LPCTSTR KSYNC_PATH;
+extern const LPCTSTR FLOW_PATH;
 #endif
 
 #ifdef __cplusplus

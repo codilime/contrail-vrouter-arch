@@ -66,6 +66,13 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     VrDriverObject = DriverObject;
     VrDriverObject->DriverUnload = DriverUnload;
 
+    /* Memory for the flow table is allocated here, because it must be valid
+       when IRP_MJ_CLOSE is sent on the flow device */
+    status = FlowMemoryInit();
+    if (status != STATUS_SUCCESS) {
+        return status;
+    }
+
     NdisZeroMemory(&f_chars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
     f_chars.Header.Type = NDIS_OBJECT_TYPE_FILTER_DRIVER_CHARACTERISTICS;
     f_chars.Header.Size = NDIS_SIZEOF_FILTER_DRIVER_CHARACTERISTICS_REVISION_2;
@@ -115,6 +122,8 @@ VOID
 DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     NdisFDeregisterFilterDriver(VrDriverHandle);
+
+    FlowMemoryExit();
 }
 
 /* TODO(WINDOWS): vRouter cleanup */
@@ -154,11 +163,11 @@ UninitializeVRouter(pvr_switch_context ctx)
     if (ctx->message_up)
         vr_message_exit();
 
-    if (ctx->memory_up)
-        memory_exit();
-
     if (ctx->device_up)
         VRouterUninitializeDevices(VrDriverObject);
+
+    if (ctx->flow_up)
+        FlowDestroyDevice(VrDriverObject);
 
     if (ctx->pkt0_up)
         Pkt0DestroyDevice(VrDriverObject);
@@ -190,10 +199,13 @@ InitializeVRouter(pvr_switch_context ctx)
 {
     ASSERT(!ctx->ksync_up);
     ASSERT(!ctx->pkt0_up);
+    ASSERT(!ctx->flow_up);
     ASSERT(!ctx->device_up);
-    ASSERT(!ctx->memory_up);
     ASSERT(!ctx->message_up);
     ASSERT(!ctx->vrouter_up);
+
+    /* Before any initialization happens, clean the flow table */
+    FlowMemoryClean();
 
     ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(VrDriverObject));
 
@@ -205,14 +217,14 @@ InitializeVRouter(pvr_switch_context ctx)
     if (!ctx->pkt0_up)
         goto cleanup;
 
+    ctx->flow_up = NT_SUCCESS(FlowCreateDevice(VrDriverObject));
+
+    if (!ctx->flow_up)
+        goto cleanup;
+
     ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(VrDriverObject));
 
     if (!ctx->device_up)
-        goto cleanup;
-
-    ctx->memory_up = NT_SUCCESS(memory_init());
-
-    if (!ctx->memory_up)
         goto cleanup;
 
     ctx->message_up = !vr_message_init();

@@ -25,8 +25,8 @@ typedef struct _vr_switch_context
     /* Following flags are ordered in module initialization order */
     BOOLEAN                 ksync_up;
     BOOLEAN                 pkt0_up;
+    BOOLEAN                 flow_up;
     BOOLEAN                 device_up;
-    BOOLEAN                 memory_up;
     BOOLEAN                 message_up;
     BOOLEAN                 vrouter_up;
 } vr_switch_context, *pvr_switch_context;

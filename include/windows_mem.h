@@ -1,5 +1,5 @@
 /*
- * windows_ksync.h -- definitions used in shared memmory handling on Windows
+ * windows_mem.h -- definitions used in shared memmory handling on Windows
  *
  * Copyright (c) 2017 Juniper Networks, Inc. All rights reserved.
  */
@@ -8,12 +8,11 @@
 
 #include "vr_windows.h"
 
-extern PMDL mdl_mem;
+PMDL GetFlowMemoryMdl(VOID);
 
-NDIS_STATUS
-memory_init(void);
+NTSTATUS FlowMemoryInit(VOID);
+VOID FlowMemoryExit(VOID);
 
-void
-memory_exit(void);
+VOID FlowMemoryClean(VOID);
 
 #endif /* __WINDOWS_MEM_H__ */
