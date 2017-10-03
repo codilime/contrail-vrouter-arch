@@ -242,7 +242,7 @@ Pkt0TransferPacketToUser(PIRP Irp, struct pkt0_packet *packet)
 static NTSTATUS
 Pkt0DispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    struct pkt0_packet *pkt;
+    struct pkt0_packet *pkt = NULL;
     KIRQL old_irql;
     PLIST_ENTRY entry;
     NTSTATUS status;
@@ -257,9 +257,12 @@ Pkt0DispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     } else {
         entry = RemoveHeadList(&Pkt0Context->pkt_read_queue);
         pkt = CONTAINING_RECORD(entry, struct pkt0_packet, list_entry);
-        status = Pkt0TransferPacketToUser(Irp, pkt);
     }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    if (pkt != NULL) {
+        status = Pkt0TransferPacketToUser(Irp, pkt);
+    }
 
     return status;
 }
@@ -366,7 +369,7 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
 {
     KIRQL old_irql;
     PLIST_ENTRY entry;
-    PIRP irp;
+    PIRP irp = NULL;
     struct pkt0_packet *pkt;
 
     pkt = alloc_pkt0_packet(vrp);
@@ -380,12 +383,15 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
         } else {
             entry = RemoveHeadList(&Pkt0Context->irp_read_queue);
             irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
-            Pkt0TransferPacketToUser(irp, pkt);
         }
     } else {
         free_pkt0_packet(pkt);
     }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    if (irp != NULL) {
+        Pkt0TransferPacketToUser(irp, pkt);
+    }
 
     /* vr_packet is no longer needed, drop it without updating statistics */
     win_free_packet(vrp);
