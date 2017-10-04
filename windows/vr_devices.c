@@ -76,6 +76,7 @@ VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
                             _In_ PCWSTR DeviceName,
                             _In_ PCWSTR DeviceSymlink,
                             _In_ PVR_DEVICE_DISPATCH_CALLBACKS Callbacks,
+                            _In_ BOOLEAN Exclusive,
                             _Out_ PDEVICE_OBJECT *DeviceObject,
                             _Out_ PBOOLEAN SymlinkCreated)
 {
@@ -104,7 +105,7 @@ VRouterSetUpNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
 
     Status = IoCreateDevice(DriverObject, sizeof(VR_DEVICE_CONTEXT), &_DeviceName,
                             FILE_DEVICE_NAMED_PIPE, FILE_DEVICE_SECURE_OPEN,
-                            FALSE, &_DeviceObject);
+                            Exclusive, &_DeviceObject);
     if (NT_SUCCESS(Status)) {
         *DeviceObject = _DeviceObject;
 
@@ -153,16 +154,4 @@ VRouterTearDownNamedPipeServer(_In_ PDRIVER_OBJECT DriverObject,
         IoDeleteDevice(*DeviceObject);
         *DeviceObject = NULL;
     }
-}
-
-VOID
-VRouterAttachPrivateData(_Inout_ PDEVICE_OBJECT DeviceObject, _In_ PVOID Data)
-{
-    DEVICE_CTX(DeviceObject)->private_data = Data;
-}
-
-PVOID
-VRouterGetPrivateData(_In_ PDEVICE_OBJECT DeviceObject)
-{
-    return DEVICE_CTX(DeviceObject)->private_data;
 }

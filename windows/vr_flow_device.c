@@ -192,6 +192,7 @@ FlowCreateDevice(PDRIVER_OBJECT DriverObject)
                                        FlowDeviceName,
                                        FlowDeviceSymLink,
                                        &callbacks,
+                                       FALSE,
                                        &FlowDeviceObject,
                                        &FlowSymlinkCreated);
 }

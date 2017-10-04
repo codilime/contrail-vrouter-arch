@@ -4,6 +4,13 @@
 #include "vrouter.h"
 #include "vr_packet.h"
 
+struct pkt0_context {
+    LIST_ENTRY pkt_read_queue;
+    LIST_ENTRY irp_read_queue;
+    LIST_ENTRY irp_write_queue;
+    BOOLEAN closing;
+};
+
 static const ULONG pkt0_allocation_tag = '0TKP';
 
 static const WCHAR Pkt0DeviceName[] = L"\\Device\\vrouterPkt0";
@@ -11,6 +18,9 @@ static const WCHAR Pkt0DeviceSymLink[] = L"\\DosDevices\\vrouterPkt0";
 
 static PDEVICE_OBJECT Pkt0DeviceObject = NULL;
 static BOOLEAN Pkt0SymlinkCreated = FALSE;
+
+static KSPIN_LOCK Pkt0ContextLock;
+static struct pkt0_context *Pkt0Context = NULL;
 
 static struct pkt0_packet *alloc_pkt0_packet(struct vr_packet *vrp);
 static void free_pkt0_packet(struct pkt0_packet * packet);
@@ -21,79 +31,94 @@ static IO_WORKITEM_ROUTINE_EX Pkt0DeferredWrite;
 extern volatile bool agent_alive;
 extern void vhost_xconnect();
 
-struct pkt0_context {
-    KSPIN_LOCK lock;
-    LIST_ENTRY pkt_queue;
-    LIST_ENTRY irp_queue;
-
-    KSPIN_LOCK write_lock;
-    LIST_ENTRY irp_write_queue;
-};
-
-static void
-Pkt0FinalizeIrp(PIRP irp)
+VOID
+Pkt0Init(VOID)
 {
-    irp->IoStatus.Status = STATUS_SUCCESS;
-    irp->IoStatus.Information = 0;
-    IoCompleteRequest(irp, IO_NO_INCREMENT);
+    KeInitializeSpinLock(&Pkt0ContextLock);
+}
+
+static NTSTATUS
+Pkt0CompleteIrp(PIRP Irp, NTSTATUS Status, ULONG_PTR Information)
+{
+    Irp->IoStatus.Status = Status;
+    Irp->IoStatus.Information = Information;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
+}
+
+static VOID
+Pkt0FinalizeIrpQueue(PLIST_ENTRY IrpQueue)
+{
+    PLIST_ENTRY entry;
+    PIRP irp;
+
+    while (!IsListEmpty(IrpQueue)) {
+        entry = RemoveHeadList(IrpQueue);
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        Pkt0CompleteIrp(irp, STATUS_PIPE_CLOSING, 0);
+    }
 }
 
 static NTSTATUS
 Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    struct pkt0_context *ctx;
+    KIRQL old_irql;
 
-    /* TODO(sodar): Implement */
+    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*ctx), pkt0_allocation_tag);
+    if (ctx == NULL) {
+        return Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+    }
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = FILE_OPENED;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    ctx->closing = FALSE;
+    InitializeListHead(&ctx->pkt_read_queue);
+    InitializeListHead(&ctx->irp_read_queue);
+    InitializeListHead(&ctx->irp_write_queue);
+
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    Pkt0Context = ctx;
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, FILE_OPENED);
 }
 
 static NTSTATUS
 Pkt0DispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    KIRQL old_irql;
+    PLIST_ENTRY entry;
+    struct pkt0_packet *packet;
 
-    /* TODO(sodar): Implement */
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    while (!IsListEmpty(&Pkt0Context->pkt_read_queue)) {
+        entry = RemoveHeadList(&Pkt0Context->pkt_read_queue);
+        packet = CONTAINING_RECORD(entry, struct pkt0_packet, list_entry);
+        free_pkt0_packet(packet);
+    }
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    ExFreePoolWithTag(Pkt0Context, pkt0_allocation_tag);
+    Pkt0Context = NULL;
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
 static NTSTATUS
 Pkt0DispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
-    PLIST_ENTRY entry;
-    PIRP irp;
     KIRQL old_irql;
 
-    KeAcquireSpinLock(&ctx->lock, &old_irql);
-    while (!IsListEmpty(&ctx->irp_queue)) {
-        entry = RemoveHeadList(&ctx->irp_queue);
-        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
-        Pkt0FinalizeIrp(irp);
-    }
-    KeReleaseSpinLock(&ctx->lock, old_irql);
-
-    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
-    if (!IsListEmpty(&ctx->irp_write_queue)) {
-        entry = RemoveHeadList(&ctx->irp_write_queue);
-        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
-        Pkt0FinalizeIrp(irp);
-    }
-    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    Pkt0FinalizeIrpQueue(&Pkt0Context->irp_read_queue);
+    Pkt0FinalizeIrpQueue(&Pkt0Context->irp_write_queue);
+    Pkt0Context->closing = TRUE;
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
     /* Notify vRouter that agent might be dead */
     agent_alive = false;
     vhost_xconnect();
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return Irp->IoStatus.Status;
+    return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
 static VOID
@@ -102,7 +127,6 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
                   _In_ PIO_WORKITEM WorkItem)
 {
     PDEVICE_OBJECT device_object = IoObject;
-    struct pkt0_context *ctx = VRouterGetPrivateData(device_object);
     PLIST_ENTRY entry = NULL;
     PIRP irp = NULL;
     PIO_STACK_LOCATION io_stack;
@@ -115,12 +139,12 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
     struct vr_interface *agent_if;
     struct vr_packet *pkt = NULL;
 
-    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
-    if (!IsListEmpty(&ctx->irp_write_queue)) {
-        entry = RemoveHeadList(&ctx->irp_write_queue);
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    if (Pkt0Context != NULL && !IsListEmpty(&Pkt0Context->irp_write_queue)) {
+        entry = RemoveHeadList(&Pkt0Context->irp_write_queue);
         irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
     }
-    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
     if (irp == NULL)
         goto fail;
 
@@ -145,9 +169,7 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
         goto fail;
     pkt->vp_if = agent_if;
 
-    irp->IoStatus.Status = STATUS_SUCCESS;
-    irp->IoStatus.Information = count;
-    IoCompleteRequest(irp, IO_NO_INCREMENT);
+    Pkt0CompleteIrp(irp, STATUS_SUCCESS, count);
 
     agent_if->vif_rx(agent_if, pkt, VLAN_ID_INVALID);
 
@@ -159,8 +181,7 @@ fail:
         ExFreePoolWithTag(pkt_data, pkt0_allocation_tag);
     }
     if (irp) {
-        irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        IoCompleteRequest(irp, IO_NO_INCREMENT);
+        Pkt0CompleteIrp(irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
     IoFreeWorkItem(WorkItem);
     return;
@@ -169,26 +190,32 @@ fail:
 static NTSTATUS
 Pkt0DispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
     PIO_WORKITEM work_item;
     KIRQL old_irql;
+    NTSTATUS status;
 
     work_item = IoAllocateWorkItem(DeviceObject);
     if (work_item == NULL) {
-        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        return Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
 
-    IoMarkIrpPending(Irp);
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    if (Pkt0Context->closing) {
+        status = Pkt0CompleteIrp(Irp, STATUS_PIPE_CLOSING, 0);
+    } else {
+        InsertTailList(&Pkt0Context->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
+        IoMarkIrpPending(Irp);
+        status = STATUS_PENDING;
+    }
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
-    KeAcquireSpinLock(&ctx->write_lock, &old_irql);
-    InsertTailList(&ctx->irp_write_queue, &Irp->Tail.Overlay.ListEntry);
-    KeReleaseSpinLock(&ctx->write_lock, old_irql);
+    if (status == STATUS_PENDING) {
+        IoQueueWorkItemEx(work_item, Pkt0DeferredWrite, DelayedWorkQueue, NULL);
+    } else {
+        IoFreeWorkItem(work_item);
+    }
 
-    IoQueueWorkItemEx(work_item, Pkt0DeferredWrite, DelayedWorkQueue, NULL);
-
-    return STATUS_PENDING;
+    return status;
 }
 
 static NTSTATUS
@@ -203,16 +230,11 @@ Pkt0TransferPacketToUser(PIRP Irp, struct pkt0_packet *packet)
     if (buffer != NULL) {
         ASSERTMSG("Read buffer too short", io_stack->Parameters.Read.Length >= packet->length);
         RtlCopyMemory(buffer, packet->buffer, packet->length);
-        Irp->IoStatus.Information = packet->length;
-        ret = STATUS_SUCCESS;
+        ret = Pkt0CompleteIrp(Irp, STATUS_SUCCESS, packet->length);
     } else {
-        Irp->IoStatus.Information = 0;
-        ret = STATUS_INSUFFICIENT_RESOURCES;
+        ret = Pkt0CompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
     free_pkt0_packet(packet);
-
-    Irp->IoStatus.Status = ret;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return ret;
 }
@@ -220,24 +242,27 @@ Pkt0TransferPacketToUser(PIRP Irp, struct pkt0_packet *packet)
 static NTSTATUS
 Pkt0DispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    struct pkt0_context *ctx = VRouterGetPrivateData(DeviceObject);
-
-    struct pkt0_packet *pkt;
+    struct pkt0_packet *pkt = NULL;
     KIRQL old_irql;
     PLIST_ENTRY entry;
     NTSTATUS status;
 
-    KeAcquireSpinLock(&ctx->lock, &old_irql);
-    if (IsListEmpty(&ctx->pkt_queue)) {
-        InsertTailList(&ctx->irp_queue, &Irp->Tail.Overlay.ListEntry);
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    if (Pkt0Context->closing) {
+        status = Pkt0CompleteIrp(Irp, STATUS_PIPE_CLOSING, 0);
+    } else if (IsListEmpty(&Pkt0Context->pkt_read_queue)) {
+        InsertTailList(&Pkt0Context->irp_read_queue, &Irp->Tail.Overlay.ListEntry);
         IoMarkIrpPending(Irp);
         status = STATUS_PENDING;
     } else {
-        entry = RemoveHeadList(&ctx->pkt_queue);
+        entry = RemoveHeadList(&Pkt0Context->pkt_read_queue);
         pkt = CONTAINING_RECORD(entry, struct pkt0_packet, list_entry);
+    }
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    if (pkt != NULL) {
         status = Pkt0TransferPacketToUser(Irp, pkt);
     }
-    KeReleaseSpinLock(&ctx->lock, old_irql);
 
     return status;
 }
@@ -246,18 +271,12 @@ static NTSTATUS
 Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     UNREFERENCED_PARAMETER(DeviceObject);
-
-    /* TODO(sodar): Implement */
-
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return Pkt0CompleteIrp(Irp, STATUS_INVALID_DEVICE_REQUEST, 0);
 }
 
 NTSTATUS
 Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
 {
-    struct pkt0_context *ctx;
     VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
         .create         = Pkt0DispatchCreate,
         .close          = Pkt0DispatchClose,
@@ -266,67 +285,38 @@ Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
         .read           = Pkt0DispatchRead,
         .device_control = Pkt0DispatchDeviceControl,
     };
-    NTSTATUS Status;
 
-    /* Allocate and init pkt0 context data */
-    ctx = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*ctx), pkt0_allocation_tag);
-    if (ctx == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    KeInitializeSpinLock(&ctx->lock);
-    InitializeListHead(&ctx->pkt_queue);
-    InitializeListHead(&ctx->irp_queue);
-
-    KeInitializeSpinLock(&ctx->write_lock);
-    InitializeListHead(&ctx->irp_write_queue);
+    if (Pkt0Context != NULL)
+        return STATUS_RESOURCE_IN_USE;
 
     /* Create and initialize named pipe server for Pkt0 */
-    Status = VRouterSetUpNamedPipeServer(DriverObject,
-                                         Pkt0DeviceName,
-                                         Pkt0DeviceSymLink,
-                                         &Callbacks,
-                                         &Pkt0DeviceObject,
-                                         &Pkt0SymlinkCreated);
-    if (!NT_SUCCESS(Status))
-        goto failure;
-
-    /* Attach pkt0 context to the device */
-    VRouterAttachPrivateData(Pkt0DeviceObject, ctx);
-
-    return Status;
-
-failure:
-    ExFreePoolWithTag(ctx, pkt0_allocation_tag);
-    return Status;
+    return VRouterSetUpNamedPipeServer(DriverObject,
+                                       Pkt0DeviceName,
+                                       Pkt0DeviceSymLink,
+                                       &Callbacks,
+                                       TRUE,
+                                       &Pkt0DeviceObject,
+                                       &Pkt0SymlinkCreated);
 }
 
 VOID
 Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject)
 {
-    PLIST_ENTRY entry;
-    struct pkt0_context *ctx;
-    struct pkt0_packet *packet;
     KIRQL old_irql;
 
-    ctx = (struct pkt0_context *)VRouterGetPrivateData(Pkt0DeviceObject);
-
-    /* Tear down pipe first so user space will not invoke any dispatch routine */
+    /* Tear down pipe */
     VRouterTearDownNamedPipeServer(DriverObject,
                                    Pkt0DeviceSymLink,
                                    &Pkt0DeviceObject,
                                    &Pkt0SymlinkCreated);
 
-    /* Free resources allocated by dp-core - trapped pkt0 packet */
-    KeAcquireSpinLock(&ctx->lock, &old_irql);
-    while (!IsListEmpty(&ctx->pkt_queue)) {
-        entry = RemoveHeadList(&ctx->pkt_queue);
-        packet = CONTAINING_RECORD(entry, struct pkt0_packet, list_entry);
-        free_pkt0_packet(packet);
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    if (Pkt0Context != NULL) {
+        Pkt0FinalizeIrpQueue(&Pkt0Context->irp_read_queue);
+        Pkt0FinalizeIrpQueue(&Pkt0Context->irp_write_queue);
+        Pkt0Context->closing = TRUE;
     }
-    KeReleaseSpinLock(&ctx->lock, old_irql);
-
-    ExFreePoolWithTag(ctx, pkt0_allocation_tag);
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 }
 
 /*
@@ -377,26 +367,31 @@ free_pkt0_packet(struct pkt0_packet *packet)
 int
 pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
 {
-    struct pkt0_context *ctx = VRouterGetPrivateData(Pkt0DeviceObject);
-
     KIRQL old_irql;
     PLIST_ENTRY entry;
-    PIRP irp;
+    PIRP irp = NULL;
     struct pkt0_packet *pkt;
 
     pkt = alloc_pkt0_packet(vrp);
     if (pkt == NULL)
         return 0;
 
-    KeAcquireSpinLock(&ctx->lock, &old_irql);
-    if (IsListEmpty(&ctx->irp_queue)) {
-        InsertTailList(&ctx->pkt_queue, &pkt->list_entry);
+    KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
+    if (Pkt0Context != NULL) {
+        if (IsListEmpty(&Pkt0Context->irp_read_queue)) {
+            InsertTailList(&Pkt0Context->pkt_read_queue, &pkt->list_entry);
+        } else {
+            entry = RemoveHeadList(&Pkt0Context->irp_read_queue);
+            irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        }
     } else {
-        entry = RemoveHeadList(&ctx->irp_queue);
-        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        free_pkt0_packet(pkt);
+    }
+    KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    if (irp != NULL) {
         Pkt0TransferPacketToUser(irp, pkt);
     }
-    KeReleaseSpinLock(&ctx->lock, old_irql);
 
     /* vr_packet is no longer needed, drop it without updating statistics */
     win_free_packet(vrp);

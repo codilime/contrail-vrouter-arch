@@ -66,6 +66,8 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     VrDriverObject = DriverObject;
     VrDriverObject->DriverUnload = DriverUnload;
 
+    Pkt0Init();
+
     /* Memory for the flow table is allocated here, because it must be valid
        when IRP_MJ_CLOSE is sent on the flow device */
     status = FlowMemoryInit();

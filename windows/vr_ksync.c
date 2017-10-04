@@ -168,7 +168,7 @@ KsyncHandleWrite(struct ksync_device_context *ctx, uint8_t *buffer, size_t buffe
     while ((response = vr_message_dequeue_response())) {
         if (!multi_flag && !vr_response_queue_empty())
             multi_flag = NLM_F_MULTI;
-        
+
         char *data = response->vr_message_buf - NETLINK_HEADER_LEN;
         size_t data_len = NLMSG_ALIGN(response->vr_message_len + NETLINK_HEADER_LEN);
 
@@ -321,6 +321,7 @@ KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
                                        KsyncDeviceName,
                                        KsyncDeviceSymLink,
                                        &Callbacks,
+                                       FALSE,
                                        &KsyncDeviceObject,
                                        &KsyncSymlinkCreated);
 }
