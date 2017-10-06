@@ -309,18 +309,17 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS
 KsyncCreateDevice(NDIS_HANDLE DriverHandle)
 {
-    PDRIVER_DISPATCH dispatch_table[IRP_MJ_MAXIMUM_FUNCTION + 1];
-    NdisZeroMemory(dispatch_table, (IRP_MJ_MAXIMUM_FUNCTION + 1) * sizeof(PDRIVER_DISPATCH));
-
-    dispatch_table[IRP_MJ_CREATE]         = KsyncDispatchCreate;
-    dispatch_table[IRP_MJ_CLEANUP]        = KsyncDispatchCleanup;
-    dispatch_table[IRP_MJ_CLOSE]          = KsyncDispatchClose;
-    dispatch_table[IRP_MJ_WRITE]          = KsyncDispatchWrite;
-    dispatch_table[IRP_MJ_READ]           = KsyncDispatchRead;
-    dispatch_table[IRP_MJ_DEVICE_CONTROL] = KsyncDispatchDeviceControl;
+    VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
+        .create         = KsyncDispatchCreate,
+        .cleanup        = KsyncDispatchCleanup,
+        .close          = KsyncDispatchClose,
+        .write          = KsyncDispatchWrite,
+        .read           = KsyncDispatchRead,
+        .device_control = KsyncDispatchDeviceControl,
+    };
 
     return VRouterSetUpNamedDevice(DriverHandle, KsyncDeviceName, KsyncDeviceSymLink,
-                                   dispatch_table, &KsyncDeviceObject, &KsyncDeviceHandle);
+                                   &callbacks, &KsyncDeviceObject, &KsyncDeviceHandle);
 }
 
 VOID

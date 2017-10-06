@@ -21,14 +21,6 @@ struct _VR_DEVICE_DISPATCH_CALLBACKS {
 typedef struct _VR_DEVICE_DISPATCH_CALLBACKS VR_DEVICE_DISPATCH_CALLBACKS;
 typedef struct _VR_DEVICE_DISPATCH_CALLBACKS *PVR_DEVICE_DISPATCH_CALLBACKS;
 
-struct _VR_DEVICE_CONTEXT {
-    VR_DEVICE_DISPATCH_CALLBACKS callbacks;
-    void *private_data;
-};
-
-typedef struct _VR_DEVICE_CONTEXT VR_DEVICE_CONTEXT;
-typedef struct _VR_DEVICE_CONTEXT *PVR_DEVICE_CONTEXT;
-
 NTSTATUS KsyncCreateDevice(NDIS_HANDLE DriverHandle);
 VOID KsyncDestroyDevice(VOID);
 
@@ -42,7 +34,7 @@ VOID FlowDestroyDevice(VOID);
 NTSTATUS VRouterSetUpNamedDevice(NDIS_HANDLE DriverHandle,
                                  PCWSTR DeviceName,
                                  PCWSTR DeviceSymlink,
-                                 PDRIVER_DISPATCH *DispatchTable,
+                                 PVR_DEVICE_DISPATCH_CALLBACKS Callbacks,
                                  PDEVICE_OBJECT *DeviceObject,
                                  NDIS_HANDLE *DeviceHandle);
 VOID VRouterTearDownNamedDevice(NDIS_HANDLE *DeviceHandle);

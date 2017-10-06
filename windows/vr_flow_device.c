@@ -180,18 +180,17 @@ FlowDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS
 FlowCreateDevice(NDIS_HANDLE DriverHandle)
 {
-    PDRIVER_DISPATCH dispatch_table[IRP_MJ_MAXIMUM_FUNCTION + 1];
-    NdisZeroMemory(dispatch_table, (IRP_MJ_MAXIMUM_FUNCTION + 1) * sizeof(PDRIVER_DISPATCH));
-
-    dispatch_table[IRP_MJ_CREATE]         = FlowDispatchCreate;
-    dispatch_table[IRP_MJ_CLEANUP]        = FlowDispatchCleanup;
-    dispatch_table[IRP_MJ_CLOSE]          = FlowDispatchClose;
-    dispatch_table[IRP_MJ_WRITE]          = FlowDispatchWrite;
-    dispatch_table[IRP_MJ_READ]           = FlowDispatchRead;
-    dispatch_table[IRP_MJ_DEVICE_CONTROL] = FlowDispatchDeviceControl;
+    VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
+        .create         = FlowDispatchCreate,
+        .cleanup        = FlowDispatchCleanup,
+        .close          = FlowDispatchClose,
+        .write          = FlowDispatchWrite,
+        .read           = FlowDispatchRead,
+        .device_control = FlowDispatchDeviceControl,
+    };
 
     return VRouterSetUpNamedDevice(DriverHandle, FlowDeviceName, FlowDeviceSymLink,
-                                   dispatch_table, &FlowDeviceObject, &FlowDeviceHandle);
+                                   &callbacks, &FlowDeviceObject, &FlowDeviceHandle);
 }
 
 VOID

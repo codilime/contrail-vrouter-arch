@@ -8,7 +8,7 @@ NTSTATUS
 VRouterSetUpNamedDevice(NDIS_HANDLE DriverHandle,
                         PCWSTR DeviceName,
                         PCWSTR DeviceSymlink,
-                        PDRIVER_DISPATCH *DispatchTable,
+                        PVR_DEVICE_DISPATCH_CALLBACKS Callbacks,
                         PDEVICE_OBJECT *DeviceObject,
                         NDIS_HANDLE *DeviceHandle)
 {
@@ -26,6 +26,16 @@ VRouterSetUpNamedDevice(NDIS_HANDLE DriverHandle,
         return status;
     }
 
+    PDRIVER_DISPATCH dispatch_table[IRP_MJ_MAXIMUM_FUNCTION + 1];
+    NdisZeroMemory(dispatch_table, (IRP_MJ_MAXIMUM_FUNCTION + 1) * sizeof(PDRIVER_DISPATCH));
+
+    dispatch_table[IRP_MJ_CREATE]         = Callbacks->create;
+    dispatch_table[IRP_MJ_CLEANUP]        = Callbacks->cleanup;
+    dispatch_table[IRP_MJ_CLOSE]          = Callbacks->close;
+    dispatch_table[IRP_MJ_WRITE]          = Callbacks->write;
+    dispatch_table[IRP_MJ_READ]           = Callbacks->read;
+    dispatch_table[IRP_MJ_DEVICE_CONTROL] = Callbacks->device_control;
+
     NDIS_DEVICE_OBJECT_ATTRIBUTES attributes;
     NdisZeroMemory(&attributes, sizeof(NDIS_DEVICE_OBJECT_ATTRIBUTES));
 
@@ -35,7 +45,7 @@ VRouterSetUpNamedDevice(NDIS_HANDLE DriverHandle,
 
     attributes.DeviceName = &device_name;
     attributes.SymbolicName = &device_symlink;
-    attributes.MajorFunctions = &DispatchTable[0];
+    attributes.MajorFunctions = &dispatch_table[0];
     attributes.ExtensionSize = 0;
     attributes.DefaultSDDLString = &SDDL_DEVOBJ_SYS_ALL_ADM_RWX_WORLD_RWX_RES_RWX;
     attributes.DeviceClassGuid = NULL;

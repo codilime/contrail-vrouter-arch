@@ -289,21 +289,21 @@ Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS
 Pkt0CreateDevice(NDIS_HANDLE DriverHandle)
 {
-    if (Pkt0Context != NULL)
+    if (Pkt0Context != NULL) {
         return STATUS_RESOURCE_IN_USE;
+    }
 
-    PDRIVER_DISPATCH dispatch_table[IRP_MJ_MAXIMUM_FUNCTION + 1];
-    NdisZeroMemory(dispatch_table, (IRP_MJ_MAXIMUM_FUNCTION + 1) * sizeof(PDRIVER_DISPATCH));
-
-    dispatch_table[IRP_MJ_CREATE]         = Pkt0DispatchCreate;
-    dispatch_table[IRP_MJ_CLEANUP]        = Pkt0DispatchCleanup;
-    dispatch_table[IRP_MJ_CLOSE]          = Pkt0DispatchClose;
-    dispatch_table[IRP_MJ_WRITE]          = Pkt0DispatchWrite;
-    dispatch_table[IRP_MJ_READ]           = Pkt0DispatchRead;
-    dispatch_table[IRP_MJ_DEVICE_CONTROL] = Pkt0DispatchDeviceControl;
+    VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
+        .create         = Pkt0DispatchCreate,
+        .cleanup        = Pkt0DispatchCleanup,
+        .close          = Pkt0DispatchClose,
+        .write          = Pkt0DispatchWrite,
+        .read           = Pkt0DispatchRead,
+        .device_control = Pkt0DispatchDeviceControl,
+    };
 
     return VRouterSetUpNamedDevice(DriverHandle, Pkt0DeviceName, Pkt0DeviceSymLink,
-                                   dispatch_table, &Pkt0DeviceObject, &Pkt0DeviceHandle);
+                                   &callbacks, &Pkt0DeviceObject, &Pkt0DeviceHandle);
 }
 
 VOID
