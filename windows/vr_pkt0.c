@@ -76,9 +76,20 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     InitializeListHead(&ctx->irp_read_queue);
     InitializeListHead(&ctx->irp_write_queue);
 
+    NTSTATUS status = STATUS_SUCCESS;
+
     KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
-    Pkt0Context = ctx;
+    if (Pkt0Context != NULL) {
+        status = STATUS_RESOURCE_IN_USE;
+    } else {
+        Pkt0Context = ctx;
+    }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    if (!NT_SUCCESS(status)) {
+        ExFreePoolWithTag(ctx, pkt0_allocation_tag);
+        return Pkt0CompleteIrp(Irp, status, 0);
+    }
 
     return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, FILE_OPENED);
 }
