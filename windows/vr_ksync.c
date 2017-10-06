@@ -9,11 +9,12 @@
 
 static ULONG KsyncAllocationTag = 'NYSK';
 
-const WCHAR KsyncDeviceName[] = L"\\Device\\vrouterKsync";
+const WCHAR KsyncDeviceName[]    = L"\\Device\\vrouterKsync";
 const WCHAR KsyncDeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
-static PDEVICE_OBJECT KsyncDeviceObject = NULL;
-static BOOLEAN KsyncSymlinkCreated = FALSE;
+static PDEVICE_OBJECT KsyncDeviceObject   = NULL;
+static NDIS_HANDLE    KsyncDeviceHandle   = NULL;
+static BOOLEAN        KsyncSymlinkCreated = FALSE;
 
 static struct ksync_device_context *
 ksync_alloc_context()
@@ -306,31 +307,24 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 
 NTSTATUS
-KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
+KsyncCreateDevice(NDIS_HANDLE DriverHandle)
 {
-    VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
-        .create         = KsyncDispatchCreate,
-        .close          = KsyncDispatchClose,
-        .cleanup        = KsyncDispatchCleanup,
-        .write          = KsyncDispatchWrite,
-        .read           = KsyncDispatchRead,
-        .device_control = KsyncDispatchDeviceControl,
-    };
+    PDRIVER_DISPATCH dispatch_table[IRP_MJ_MAXIMUM_FUNCTION + 1];
+    NdisZeroMemory(dispatch_table, (IRP_MJ_MAXIMUM_FUNCTION + 1) * sizeof(PDRIVER_DISPATCH));
 
-    return VRouterSetUpNamedPipeServer(DriverObject,
-                                       KsyncDeviceName,
-                                       KsyncDeviceSymLink,
-                                       &Callbacks,
-                                       FALSE,
-                                       &KsyncDeviceObject,
-                                       &KsyncSymlinkCreated);
+    dispatch_table[IRP_MJ_CREATE]         = KsyncDispatchCreate;
+    dispatch_table[IRP_MJ_CLEANUP]        = KsyncDispatchCleanup;
+    dispatch_table[IRP_MJ_CLOSE]          = KsyncDispatchClose;
+    dispatch_table[IRP_MJ_WRITE]          = KsyncDispatchWrite;
+    dispatch_table[IRP_MJ_READ]           = KsyncDispatchRead;
+    dispatch_table[IRP_MJ_DEVICE_CONTROL] = KsyncDispatchDeviceControl;
+
+    return VRouterSetUpNamedDevice(DriverHandle, KsyncDeviceName, KsyncDeviceSymLink,
+                                   dispatch_table, &KsyncDeviceObject, &KsyncDeviceHandle);
 }
 
 VOID
-KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
+KsyncDestroyDevice(VOID)
 {
-    VRouterTearDownNamedPipeServer(DriverObject,
-                                   KsyncDeviceSymLink,
-                                   &KsyncDeviceObject,
-                                   &KsyncSymlinkCreated);
+    VRouterTearDownNamedDevice(&KsyncDeviceHandle);
 }

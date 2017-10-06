@@ -9,6 +9,7 @@ static const WCHAR FlowDeviceName[]    = L"\\Device\\vrouterFlow";
 static const WCHAR FlowDeviceSymLink[] = L"\\DosDevices\\vrouterFlow";
 
 static PDEVICE_OBJECT FlowDeviceObject   = NULL;
+static NDIS_HANDLE    FlowDeviceHandle   = NULL;
 static BOOLEAN        FlowSymlinkCreated = FALSE;
 
 static ULONG FlowAllocationTag = 'LFRV';
@@ -177,31 +178,24 @@ FlowDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 NTSTATUS
-FlowCreateDevice(PDRIVER_OBJECT DriverObject)
+FlowCreateDevice(NDIS_HANDLE DriverHandle)
 {
-    VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
-        .create         = FlowDispatchCreate,
-        .close          = FlowDispatchClose,
-        .cleanup        = FlowDispatchCleanup,
-        .device_control = FlowDispatchDeviceControl,
-        .read           = FlowDispatchRead,
-        .write          = FlowDispatchWrite,
-    };
+    PDRIVER_DISPATCH dispatch_table[IRP_MJ_MAXIMUM_FUNCTION + 1];
+    NdisZeroMemory(dispatch_table, (IRP_MJ_MAXIMUM_FUNCTION + 1) * sizeof(PDRIVER_DISPATCH));
 
-    return VRouterSetUpNamedPipeServer(DriverObject,
-                                       FlowDeviceName,
-                                       FlowDeviceSymLink,
-                                       &callbacks,
-                                       FALSE,
-                                       &FlowDeviceObject,
-                                       &FlowSymlinkCreated);
+    dispatch_table[IRP_MJ_CREATE]         = FlowDispatchCreate;
+    dispatch_table[IRP_MJ_CLEANUP]        = FlowDispatchCleanup;
+    dispatch_table[IRP_MJ_CLOSE]          = FlowDispatchClose;
+    dispatch_table[IRP_MJ_WRITE]          = FlowDispatchWrite;
+    dispatch_table[IRP_MJ_READ]           = FlowDispatchRead;
+    dispatch_table[IRP_MJ_DEVICE_CONTROL] = FlowDispatchDeviceControl;
+
+    return VRouterSetUpNamedDevice(DriverHandle, FlowDeviceName, FlowDeviceSymLink,
+                                   dispatch_table, &FlowDeviceObject, &FlowDeviceHandle);
 }
 
 VOID
-FlowDestroyDevice(PDRIVER_OBJECT DriverObject)
+FlowDestroyDevice(VOID)
 {
-    VRouterTearDownNamedPipeServer(DriverObject,
-                                   FlowDeviceSymLink,
-                                   &FlowDeviceObject,
-                                   &FlowSymlinkCreated);
+    VRouterTearDownNamedDevice(&FlowDeviceHandle);
 }
