@@ -1599,9 +1599,8 @@ nh_vxlan_tunnel(struct vr_packet *pkt, struct vr_nexthop *nh,
     }
 
     if (nh_vxlan_tunnel_helper(nh->nh_router, &pkt, fmd, nh->nh_udp_tun_sip,
-                nh->nh_udp_tun_dip) == false) {
+                nh->nh_udp_tun_dip) == false)
         goto send_fail;
-    }
 
     pkt_set_network_header(pkt, pkt->vp_data);
 
