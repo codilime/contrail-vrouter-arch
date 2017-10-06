@@ -89,11 +89,13 @@ vif_drop_pkt(struct vr_interface *vif, struct vr_packet *pkt, bool input)
  * passing us valid rewrite ptr and len and will not check for those
  */
 static unsigned char *
-vif_cmn_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
+vif_cmn_rewrite(struct vr_interface *vif, struct vr_packet **ppkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
         unsigned short len)
 {
     unsigned char *head;
+
+    struct vr_packet *pkt = *ppkt;
 
     if (!len)
         return pkt_data(pkt);
@@ -102,6 +104,7 @@ vif_cmn_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
         pkt = vr_pexpand_head(pkt, len - pkt_head_space(pkt));
         if (!pkt)
             return NULL;
+        *ppkt = pkt;
     }
 
     head = pkt_push(pkt, len);
@@ -264,7 +267,7 @@ vif_mirror(struct vr_interface *vif, struct vr_packet *pkt,
 
 /* agent driver */
 static unsigned char *
-agent_set_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
+agent_set_rewrite(struct vr_interface *vif, struct vr_packet **ppkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
         unsigned short len)
 {
@@ -272,6 +275,7 @@ agent_set_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
     unsigned int hdr_len;
     struct agent_hdr *hdr;
 
+    struct vr_packet *pkt = *ppkt;
     vr_preset(pkt);
 
     hdr_len = sizeof(struct agent_hdr) + len;
@@ -279,6 +283,7 @@ agent_set_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
         pkt = vr_pexpand_head(pkt, hdr_len - pkt_head_space(pkt));
         if (!pkt)
             return NULL;
+        *ppkt = pkt;
     }
 
     head = pkt_push(pkt, hdr_len);
@@ -1029,10 +1034,12 @@ tun_rx(struct vr_interface *vif, struct vr_packet *pkt,
 }
 
 static unsigned char *
-eth_set_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
+eth_set_rewrite(struct vr_interface *vif, struct vr_packet **ppkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
         unsigned short len)
 {
+    struct vr_packet *pkt = *ppkt;
+
     if (!len)
         return pkt_data(pkt);
 
@@ -1042,7 +1049,7 @@ eth_set_rewrite(struct vr_interface *vif, struct vr_packet *pkt,
         return pkt_data(pkt);
     }
 
-    return vif_cmn_rewrite(vif, pkt, fmd, rewrite, len);
+    return vif_cmn_rewrite(vif, ppkt, fmd, rewrite, len);
 }
 
 static mac_response_t
