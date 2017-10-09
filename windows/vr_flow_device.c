@@ -10,7 +10,6 @@ static const WCHAR FlowDeviceSymLink[] = L"\\DosDevices\\vrouterFlow";
 
 static PDEVICE_OBJECT FlowDeviceObject   = NULL;
 static NDIS_HANDLE    FlowDeviceHandle   = NULL;
-static BOOLEAN        FlowSymlinkCreated = FALSE;
 
 static ULONG FlowAllocationTag = 'LFRV';
 

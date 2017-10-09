@@ -14,7 +14,6 @@ const WCHAR KsyncDeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
 static PDEVICE_OBJECT KsyncDeviceObject   = NULL;
 static NDIS_HANDLE    KsyncDeviceHandle   = NULL;
-static BOOLEAN        KsyncSymlinkCreated = FALSE;
 
 static struct ksync_device_context *
 ksync_alloc_context()

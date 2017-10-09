@@ -18,7 +18,6 @@ static const WCHAR Pkt0DeviceSymLink[] = L"\\DosDevices\\vrouterPkt0";
 
 static PDEVICE_OBJECT Pkt0DeviceObject   = NULL;
 static NDIS_HANDLE    Pkt0DeviceHandle   = NULL;
-static BOOLEAN        Pkt0SymlinkCreated = FALSE;
 
 static KSPIN_LOCK Pkt0ContextLock;
 static struct pkt0_context *Pkt0Context = NULL;
