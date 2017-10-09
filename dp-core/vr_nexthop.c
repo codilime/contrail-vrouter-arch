@@ -498,21 +498,19 @@ nh_udp_tunnel6_helper(struct vr_packet *pkt,
 }
 
 static bool
-nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet *pkt,
+nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet **pkt,
         struct vr_forwarding_md *fmd, unsigned int sip, unsigned int dip)
 {
     unsigned short udp_src_port = VR_VXLAN_UDP_SRC_PORT;
 
     struct vr_vxlan *vxlanh;
-    struct vr_packet *tmp_pkt;
     struct vr_forwarding_class_qos *qos;
 
-    if (pkt_head_space(pkt) < VR_VXLAN_HDR_LEN) {
-        tmp_pkt = vr_pexpand_head(pkt, VR_VXLAN_HDR_LEN - pkt_head_space(pkt));
-        if (!tmp_pkt) {
+    if (pkt_head_space(*pkt) < VR_VXLAN_HDR_LEN) {
+        *pkt = vr_pexpand_head(*pkt, VR_VXLAN_HDR_LEN - pkt_head_space(*pkt));
+        if (!*pkt) {
             return false;
         }
-        pkt = tmp_pkt;
     }
 
     if (fmd->fmd_udp_src_port)
@@ -522,7 +520,7 @@ nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet *pkt,
      * The UDP source port is a hash of the inner headers
      */
     if ((!fmd->fmd_udp_src_port) && vr_get_udp_src_port) {
-        udp_src_port = vr_get_udp_src_port(pkt, fmd, fmd->fmd_dvrf);
+        udp_src_port = vr_get_udp_src_port(*pkt, fmd, fmd->fmd_dvrf);
         if (udp_src_port == 0) {
          return false;
         }
@@ -531,12 +529,12 @@ nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet *pkt,
     vr_forwarding_md_update_label_type(fmd, VR_LABEL_TYPE_VXLAN_ID);
 
     /* Add the vxlan header */
-    vxlanh = (struct vr_vxlan *)pkt_push(pkt, sizeof(struct vr_vxlan));
+    vxlanh = (struct vr_vxlan *)pkt_push(*pkt, sizeof(struct vr_vxlan));
     vxlanh->vxlan_vnid = htonl(fmd->fmd_label << VR_VXLAN_VNID_SHIFT);
     vxlanh->vxlan_flags = htonl(VR_VXLAN_IBIT);
 
-    qos = vr_qos_get_forwarding_class(router, pkt, fmd);
-    return nh_udp_tunnel_helper(pkt, htons(udp_src_port),
+    qos = vr_qos_get_forwarding_class(router, *pkt, fmd);
+    return nh_udp_tunnel_helper(*pkt, htons(udp_src_port),
             htons(VR_VXLAN_UDP_DST_PORT), sip, dip, qos);
 }
 
@@ -1258,19 +1256,19 @@ drop:
 }
 
 bool
-vr_l2_mcast_control_data_add(struct vr_packet *pkt)
+vr_l2_mcast_control_data_add(struct vr_packet **pkt)
 {
 
     unsigned int *data;
 
-    if (pkt_head_space(pkt) < VR_L2_MCAST_CTRL_DATA_LEN) {
-        pkt = vr_pexpand_head(pkt, VR_L2_MCAST_CTRL_DATA_LEN -
-                                                pkt_head_space(pkt));
-        if (!pkt)
+    if (pkt_head_space(*pkt) < VR_L2_MCAST_CTRL_DATA_LEN) {
+        *pkt = vr_pexpand_head(*pkt, VR_L2_MCAST_CTRL_DATA_LEN -
+                                                pkt_head_space(*pkt));
+        if (!*pkt)
             return false;
     }
 
-    data = (unsigned int *)pkt_push(pkt, VR_L2_MCAST_CTRL_DATA_LEN);
+    data = (unsigned int *)pkt_push(*pkt, VR_L2_MCAST_CTRL_DATA_LEN);
     if (!data)
         return false;
 
@@ -1369,13 +1367,13 @@ nh_composite_fabric(struct vr_packet *pkt, struct vr_nexthop *nh,
              */
             vr_forwarding_md_set_label(fmd, label, VR_LABEL_TYPE_UNKNOWN);
             fmd->fmd_dvrf = dir_nh->nh_dev->vif_vrf;
-            if (nh_vxlan_tunnel_helper(nh->nh_router, new_pkt,
+            if (nh_vxlan_tunnel_helper(nh->nh_router, &new_pkt,
                         fmd, sip, sip) == false) {
                 vr_pfree(new_pkt, VP_DROP_PUSH);
                 break;
             }
 
-            if (vr_l2_mcast_control_data_add(new_pkt) == false) {
+            if (vr_l2_mcast_control_data_add(&new_pkt) == false) {
                 vr_pfree(new_pkt, VP_DROP_PUSH);
                 break;
             }
@@ -1594,7 +1592,7 @@ nh_vxlan_tunnel(struct vr_packet *pkt, struct vr_nexthop *nh,
         }
     }
 
-    if (nh_vxlan_tunnel_helper(nh->nh_router, pkt, fmd, nh->nh_udp_tun_sip,
+    if (nh_vxlan_tunnel_helper(nh->nh_router, &pkt, fmd, nh->nh_udp_tun_sip,
                 nh->nh_udp_tun_dip) == false)
         goto send_fail;
 
@@ -1625,7 +1623,7 @@ nh_vxlan_tunnel(struct vr_packet *pkt, struct vr_nexthop *nh,
 
     /* slap l2 header */
     vif = nh->nh_dev;
-    if (!vif->vif_set_rewrite(vif, pkt, fmd,
+    if (!vif->vif_set_rewrite(vif, &pkt, fmd,
                 nh->nh_data, nh->nh_udp_tun_encap_len)) {
         goto send_fail;
     }
@@ -1769,7 +1767,7 @@ nh_mpls_udp_tunnel(struct vr_packet *pkt, struct vr_nexthop *nh,
 
     /* slap l2 header */
     vif = nh->nh_dev;
-    tun_encap = vif->vif_set_rewrite(vif, pkt, fmd,
+    tun_encap = vif->vif_set_rewrite(vif, &pkt, fmd,
             nh->nh_data, tun_encap_len);
     if (!tun_encap) {
         goto send_fail;
@@ -1946,7 +1944,7 @@ nh_gre_tunnel(struct vr_packet *pkt, struct vr_nexthop *nh,
 
     /* slap l2 header */
     vif = nh->nh_dev;
-    tun_encap = vif->vif_set_rewrite(vif, pkt, fmd,
+    tun_encap = vif->vif_set_rewrite(vif, &pkt, fmd,
             nh->nh_data, nh->nh_gre_tun_encap_len);
     if (!tun_encap) {
         drop_reason = VP_DROP_PUSH;
@@ -2158,7 +2156,7 @@ nh_encap_l3(struct vr_packet *pkt, struct vr_nexthop *nh,
             return 0;
     }
 
-    if (!vif->vif_set_rewrite(vif, pkt, fmd, nh->nh_data, nh->nh_encap_len)) {
+    if (!vif->vif_set_rewrite(vif, &pkt, fmd, nh->nh_data, nh->nh_encap_len)) {
         vr_pfree(pkt, VP_DROP_REWRITE_FAIL);
         return 0;
     }

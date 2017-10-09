@@ -549,10 +549,10 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(new_nbl);
     if (nb == NULL)
-        return NULL;
+        goto cleanup;
 
     if (NdisRetreatNetBufferDataStart(nb, hspace, 0, NULL) != NDIS_STATUS_SUCCESS)
-        return NULL;
+        goto cleanup;
 
     pkt->vp_head =
         (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute) + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
