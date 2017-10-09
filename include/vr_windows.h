@@ -26,7 +26,6 @@ typedef struct _vr_switch_context
     BOOLEAN                 ksync_up;
     BOOLEAN                 pkt0_up;
     BOOLEAN                 flow_up;
-    BOOLEAN                 device_up;
     BOOLEAN                 message_up;
     BOOLEAN                 vrouter_up;
 } vr_switch_context, *pvr_switch_context;

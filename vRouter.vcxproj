@@ -217,7 +217,7 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>ndis.lib;ntstrsafe.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ndis.lib;ntstrsafe.lib;Wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <DriverSign />
   </ItemDefinitionGroup>

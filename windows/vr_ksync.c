@@ -9,11 +9,11 @@
 
 static ULONG KsyncAllocationTag = 'NYSK';
 
-const WCHAR KsyncDeviceName[] = L"\\Device\\vrouterKsync";
+const WCHAR KsyncDeviceName[]    = L"\\Device\\vrouterKsync";
 const WCHAR KsyncDeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 
-static PDEVICE_OBJECT KsyncDeviceObject = NULL;
-static BOOLEAN KsyncSymlinkCreated = FALSE;
+static PDEVICE_OBJECT KsyncDeviceObject   = NULL;
+static NDIS_HANDLE    KsyncDeviceHandle   = NULL;
 
 static struct ksync_device_context *
 ksync_alloc_context()
@@ -306,31 +306,23 @@ KsyncDispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 
 NTSTATUS
-KsyncCreateDevice(PDRIVER_OBJECT DriverObject)
+KsyncCreateDevice(NDIS_HANDLE DriverHandle)
 {
-    VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
+    VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
         .create         = KsyncDispatchCreate,
-        .close          = KsyncDispatchClose,
         .cleanup        = KsyncDispatchCleanup,
+        .close          = KsyncDispatchClose,
         .write          = KsyncDispatchWrite,
         .read           = KsyncDispatchRead,
         .device_control = KsyncDispatchDeviceControl,
     };
 
-    return VRouterSetUpNamedPipeServer(DriverObject,
-                                       KsyncDeviceName,
-                                       KsyncDeviceSymLink,
-                                       &Callbacks,
-                                       FALSE,
-                                       &KsyncDeviceObject,
-                                       &KsyncSymlinkCreated);
+    return VRouterSetUpNamedDevice(DriverHandle, KsyncDeviceName, KsyncDeviceSymLink,
+                                   &callbacks, &KsyncDeviceObject, &KsyncDeviceHandle);
 }
 
 VOID
-KsyncDestroyDevice(PDRIVER_OBJECT DriverObject)
+KsyncDestroyDevice(VOID)
 {
-    VRouterTearDownNamedPipeServer(DriverObject,
-                                   KsyncDeviceSymLink,
-                                   &KsyncDeviceObject,
-                                   &KsyncSymlinkCreated);
+    VRouterTearDownNamedDevice(&KsyncDeviceHandle);
 }

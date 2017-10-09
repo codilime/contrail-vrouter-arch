@@ -9,7 +9,7 @@ static const WCHAR FlowDeviceName[]    = L"\\Device\\vrouterFlow";
 static const WCHAR FlowDeviceSymLink[] = L"\\DosDevices\\vrouterFlow";
 
 static PDEVICE_OBJECT FlowDeviceObject   = NULL;
-static BOOLEAN        FlowSymlinkCreated = FALSE;
+static NDIS_HANDLE    FlowDeviceHandle   = NULL;
 
 static ULONG FlowAllocationTag = 'LFRV';
 
@@ -177,31 +177,23 @@ FlowDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 NTSTATUS
-FlowCreateDevice(PDRIVER_OBJECT DriverObject)
+FlowCreateDevice(NDIS_HANDLE DriverHandle)
 {
     VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
         .create         = FlowDispatchCreate,
-        .close          = FlowDispatchClose,
         .cleanup        = FlowDispatchCleanup,
-        .device_control = FlowDispatchDeviceControl,
-        .read           = FlowDispatchRead,
+        .close          = FlowDispatchClose,
         .write          = FlowDispatchWrite,
+        .read           = FlowDispatchRead,
+        .device_control = FlowDispatchDeviceControl,
     };
 
-    return VRouterSetUpNamedPipeServer(DriverObject,
-                                       FlowDeviceName,
-                                       FlowDeviceSymLink,
-                                       &callbacks,
-                                       FALSE,
-                                       &FlowDeviceObject,
-                                       &FlowSymlinkCreated);
+    return VRouterSetUpNamedDevice(DriverHandle, FlowDeviceName, FlowDeviceSymLink,
+                                   &callbacks, &FlowDeviceObject, &FlowDeviceHandle);
 }
 
 VOID
-FlowDestroyDevice(PDRIVER_OBJECT DriverObject)
+FlowDestroyDevice(VOID)
 {
-    VRouterTearDownNamedPipeServer(DriverObject,
-                                   FlowDeviceSymLink,
-                                   &FlowDeviceObject,
-                                   &FlowSymlinkCreated);
+    VRouterTearDownNamedDevice(&FlowDeviceHandle);
 }

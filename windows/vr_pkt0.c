@@ -13,11 +13,11 @@ struct pkt0_context {
 
 static const ULONG pkt0_allocation_tag = '0TKP';
 
-static const WCHAR Pkt0DeviceName[] = L"\\Device\\vrouterPkt0";
+static const WCHAR Pkt0DeviceName[]    = L"\\Device\\vrouterPkt0";
 static const WCHAR Pkt0DeviceSymLink[] = L"\\DosDevices\\vrouterPkt0";
 
-static PDEVICE_OBJECT Pkt0DeviceObject = NULL;
-static BOOLEAN Pkt0SymlinkCreated = FALSE;
+static PDEVICE_OBJECT Pkt0DeviceObject   = NULL;
+static NDIS_HANDLE    Pkt0DeviceHandle   = NULL;
 
 static KSPIN_LOCK Pkt0ContextLock;
 static struct pkt0_context *Pkt0Context = NULL;
@@ -75,9 +75,20 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     InitializeListHead(&ctx->irp_read_queue);
     InitializeListHead(&ctx->irp_write_queue);
 
+    NTSTATUS status = STATUS_SUCCESS;
+
     KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
-    Pkt0Context = ctx;
+    if (Pkt0Context != NULL) {
+        status = STATUS_RESOURCE_IN_USE;
+    } else {
+        Pkt0Context = ctx;
+    }
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
+
+    if (!NT_SUCCESS(status)) {
+        ExFreePoolWithTag(ctx, pkt0_allocation_tag);
+        return Pkt0CompleteIrp(Irp, status, 0);
+    }
 
     return Pkt0CompleteIrp(Irp, STATUS_SUCCESS, FILE_OPENED);
 }
@@ -275,40 +286,31 @@ Pkt0DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 NTSTATUS
-Pkt0CreateDevice(PDRIVER_OBJECT DriverObject)
+Pkt0CreateDevice(NDIS_HANDLE DriverHandle)
 {
-    VR_DEVICE_DISPATCH_CALLBACKS Callbacks = {
+    if (Pkt0Context != NULL) {
+        return STATUS_RESOURCE_IN_USE;
+    }
+
+    VR_DEVICE_DISPATCH_CALLBACKS callbacks = {
         .create         = Pkt0DispatchCreate,
-        .close          = Pkt0DispatchClose,
         .cleanup        = Pkt0DispatchCleanup,
+        .close          = Pkt0DispatchClose,
         .write          = Pkt0DispatchWrite,
         .read           = Pkt0DispatchRead,
         .device_control = Pkt0DispatchDeviceControl,
     };
 
-    if (Pkt0Context != NULL)
-        return STATUS_RESOURCE_IN_USE;
-
-    /* Create and initialize named pipe server for Pkt0 */
-    return VRouterSetUpNamedPipeServer(DriverObject,
-                                       Pkt0DeviceName,
-                                       Pkt0DeviceSymLink,
-                                       &Callbacks,
-                                       TRUE,
-                                       &Pkt0DeviceObject,
-                                       &Pkt0SymlinkCreated);
+    return VRouterSetUpNamedDevice(DriverHandle, Pkt0DeviceName, Pkt0DeviceSymLink,
+                                   &callbacks, &Pkt0DeviceObject, &Pkt0DeviceHandle);
 }
 
 VOID
-Pkt0DestroyDevice(PDRIVER_OBJECT DriverObject)
+Pkt0DestroyDevice(VOID)
 {
     KIRQL old_irql;
 
-    /* Tear down pipe */
-    VRouterTearDownNamedPipeServer(DriverObject,
-                                   Pkt0DeviceSymLink,
-                                   &Pkt0DeviceObject,
-                                   &Pkt0SymlinkCreated);
+    VRouterTearDownNamedDevice(&Pkt0DeviceHandle);
 
     KeAcquireSpinLock(&Pkt0ContextLock, &old_irql);
     if (Pkt0Context != NULL) {

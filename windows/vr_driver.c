@@ -165,17 +165,14 @@ UninitializeVRouter(pvr_switch_context ctx)
     if (ctx->message_up)
         vr_message_exit();
 
-    if (ctx->device_up)
-        VRouterUninitializeDevices(VrDriverObject);
-
     if (ctx->flow_up)
-        FlowDestroyDevice(VrDriverObject);
+        FlowDestroyDevice();
 
     if (ctx->pkt0_up)
-        Pkt0DestroyDevice(VrDriverObject);
+        Pkt0DestroyDevice();
 
     if (ctx->ksync_up)
-        KsyncDestroyDevice(VrDriverObject);
+        KsyncDestroyDevice();
 }
 
 static VOID
@@ -202,31 +199,25 @@ InitializeVRouter(pvr_switch_context ctx)
     ASSERT(!ctx->ksync_up);
     ASSERT(!ctx->pkt0_up);
     ASSERT(!ctx->flow_up);
-    ASSERT(!ctx->device_up);
     ASSERT(!ctx->message_up);
     ASSERT(!ctx->vrouter_up);
 
     /* Before any initialization happens, clean the flow table */
     FlowMemoryClean();
 
-    ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(VrDriverObject));
+    ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(VrDriverHandle));
 
     if (!ctx->ksync_up)
         goto cleanup;
 
-    ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(VrDriverObject));
+    ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(VrDriverHandle));
 
     if (!ctx->pkt0_up)
         goto cleanup;
 
-    ctx->flow_up = NT_SUCCESS(FlowCreateDevice(VrDriverObject));
+    ctx->flow_up = NT_SUCCESS(FlowCreateDevice(VrDriverHandle));
 
     if (!ctx->flow_up)
-        goto cleanup;
-
-    ctx->device_up = NT_SUCCESS(VRouterInitializeDevices(VrDriverObject));
-
-    if (!ctx->device_up)
         goto cleanup;
 
     ctx->message_up = !vr_message_init();
