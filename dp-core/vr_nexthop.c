@@ -498,23 +498,19 @@ nh_udp_tunnel6_helper(struct vr_packet *pkt,
 }
 
 static bool
-nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet **ppkt,
+nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet **pkt,
         struct vr_forwarding_md *fmd, unsigned int sip, unsigned int dip)
 {
     unsigned short udp_src_port = VR_VXLAN_UDP_SRC_PORT;
 
     struct vr_vxlan *vxlanh;
-    struct vr_packet *tmp_pkt;
     struct vr_forwarding_class_qos *qos;
-    struct vr_packet *pkt = *ppkt;
 
-    if (pkt_head_space(pkt) < VR_VXLAN_HDR_LEN) {
-        tmp_pkt = vr_pexpand_head(pkt, VR_VXLAN_HDR_LEN - pkt_head_space(pkt));
-        if (!tmp_pkt) {
+    if (pkt_head_space(*pkt) < VR_VXLAN_HDR_LEN) {
+        *pkt = vr_pexpand_head(*pkt, VR_VXLAN_HDR_LEN - pkt_head_space(*pkt));
+        if (!*pkt) {
             return false;
         }
-        pkt = tmp_pkt;
-        *ppkt = pkt;
     }
 
     if (fmd->fmd_udp_src_port)
@@ -524,7 +520,7 @@ nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet **ppkt,
      * The UDP source port is a hash of the inner headers
      */
     if ((!fmd->fmd_udp_src_port) && vr_get_udp_src_port) {
-        udp_src_port = vr_get_udp_src_port(pkt, fmd, fmd->fmd_dvrf);
+        udp_src_port = vr_get_udp_src_port(*pkt, fmd, fmd->fmd_dvrf);
         if (udp_src_port == 0) {
          return false;
         }
@@ -533,12 +529,12 @@ nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet **ppkt,
     vr_forwarding_md_update_label_type(fmd, VR_LABEL_TYPE_VXLAN_ID);
 
     /* Add the vxlan header */
-    vxlanh = (struct vr_vxlan *)pkt_push(pkt, sizeof(struct vr_vxlan));
+    vxlanh = (struct vr_vxlan *)pkt_push(*pkt, sizeof(struct vr_vxlan));
     vxlanh->vxlan_vnid = htonl(fmd->fmd_label << VR_VXLAN_VNID_SHIFT);
     vxlanh->vxlan_flags = htonl(VR_VXLAN_IBIT);
 
-    qos = vr_qos_get_forwarding_class(router, pkt, fmd);
-    return nh_udp_tunnel_helper(pkt, htons(udp_src_port),
+    qos = vr_qos_get_forwarding_class(router, *pkt, fmd);
+    return nh_udp_tunnel_helper(*pkt, htons(udp_src_port),
             htons(VR_VXLAN_UDP_DST_PORT), sip, dip, qos);
 }
 
@@ -1260,21 +1256,19 @@ drop:
 }
 
 bool
-vr_l2_mcast_control_data_add(struct vr_packet **ppkt)
+vr_l2_mcast_control_data_add(struct vr_packet **pkt)
 {
 
     unsigned int *data;
-    struct vr_packet *pkt = *ppkt;
 
-    if (pkt_head_space(pkt) < VR_L2_MCAST_CTRL_DATA_LEN) {
-        pkt = vr_pexpand_head(pkt, VR_L2_MCAST_CTRL_DATA_LEN -
-                                                pkt_head_space(pkt));
-        if (!pkt)
+    if (pkt_head_space(*pkt) < VR_L2_MCAST_CTRL_DATA_LEN) {
+        *pkt = vr_pexpand_head(*pkt, VR_L2_MCAST_CTRL_DATA_LEN -
+                                                pkt_head_space(*pkt));
+        if (!*pkt)
             return false;
-        *ppkt = pkt;
     }
 
-    data = (unsigned int *)pkt_push(pkt, VR_L2_MCAST_CTRL_DATA_LEN);
+    data = (unsigned int *)pkt_push(*pkt, VR_L2_MCAST_CTRL_DATA_LEN);
     if (!data)
         return false;
 
