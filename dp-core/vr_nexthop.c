@@ -505,12 +505,14 @@ nh_vxlan_tunnel_helper(struct vrouter *router, struct vr_packet **pkt,
 
     struct vr_vxlan *vxlanh;
     struct vr_forwarding_class_qos *qos;
+    struct vr_packet *tmp_pkt;
 
     if (pkt_head_space(*pkt) < VR_VXLAN_HDR_LEN) {
-        *pkt = vr_pexpand_head(*pkt, VR_VXLAN_HDR_LEN - pkt_head_space(*pkt));
-        if (!*pkt) {
+        tmp_pkt = vr_pexpand_head(*pkt, VR_VXLAN_HDR_LEN - pkt_head_space(*pkt));
+        if (!tmp_pkt) {
             return false;
         }
+        *pkt = tmp_pkt;
     }
 
     if (fmd->fmd_udp_src_port)
@@ -1260,12 +1262,14 @@ vr_l2_mcast_control_data_add(struct vr_packet **pkt)
 {
 
     unsigned int *data;
+    struct vr_packet *tmp_pkt;
 
     if (pkt_head_space(*pkt) < VR_L2_MCAST_CTRL_DATA_LEN) {
-        *pkt = vr_pexpand_head(*pkt, VR_L2_MCAST_CTRL_DATA_LEN -
+        tmp_pkt = vr_pexpand_head(*pkt, VR_L2_MCAST_CTRL_DATA_LEN -
                                                 pkt_head_space(*pkt));
-        if (!*pkt)
+        if (!tmp_pkt)
             return false;
+        *pkt = tmp_pkt;
     }
 
     data = (unsigned int *)pkt_push(*pkt, VR_L2_MCAST_CTRL_DATA_LEN);
