@@ -23,13 +23,13 @@
                         <Component Id="FlowFiles" Guid="7DFC49B8-962E-4E10-86BC-FE4627383B31" Win64="yes">
                             <File Id="FlowExe" Source="../flow.exe"/>
                         </Component>
-                        <Component Id="VrfstatsFiles" Guid="28A4316D-7216-4818-B2EF-8A3A9C9CF717" Win64="yes">
+                        <Component Id="VrfstatsFiles" Guid="F56D8256-02E0-44D2-BBB8-0318615C3FDB" Win64="yes">
                             <File Id="VrfstatsExe" Source="../vrfstats.exe"/>
                         </Component>
                         <Component Id="DropstatsFiles" Guid="CB895D26-EC64-498E-8FA4-E578A3C6EA49" Win64="yes">
                             <File Id="DropstatsExe" Source="../dropstats.exe"/>
                         </Component>
-                        <Component Id="VxlanFiles" Guid="28A4316D-7216-4818-B2EF-8A3A9C9CF717" Win64="yes">
+                        <Component Id="VxlanFiles" Guid="E726A1C1-070A-4E3C-B45D-A5A48D4D65C8" Win64="yes">
                             <File Id="VxlanExe" Source="../vxlan.exe"/>
                         </Component>
                         <Component Id="VtestFiles" Guid="13BFC527-4B1B-44F4-80E7-975FA16EA99A" Win64="yes">
