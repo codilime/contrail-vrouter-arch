@@ -299,8 +299,6 @@ KsyncDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
                 }
             }
             break;
-        } else {
-            return KSyncCompleteIrp(Irp, STATUS_UNSUCCESSFUL, 0);
         }
     }
 
