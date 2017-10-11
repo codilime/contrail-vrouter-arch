@@ -63,21 +63,21 @@ mpls = env.Program(target = 'mpls', source = mpls_sources)
 flow_sources = ['flow.c']
 flow = env.Program(target = 'flow', source = flow_sources)
 
+vrfstats_sources = ['vrfstats.c']
+vrfstats = env.Program(target = 'vrfstats', source = vrfstats_sources)
+
 dropstats_sources = ['dropstats.c']
 dropstats = env.Program(target = 'dropstats', source = dropstats_sources)
 
+vxlan_sources = ['vxlan.c']
+vxlan = env.Program(target = 'vxlan', source = vxlan_sources)
+
 # to make sure that all are built when you do 'scons' @ the top level
-binaries  = [vif, rt, nh, mpls, flow, dropstats]
+binaries  = [vif, rt, nh, mpls, flow, vrfstats, dropstats, vxlan]
 
 if not sys.platform.startswith('win'):
     mirror_sources = ['mirror.c']
     mirror = env.Program(target = 'mirror', source = mirror_sources)
-
-    vrfstats_sources = ['vrfstats.c']
-    vrfstats = env.Program(target = 'vrfstats', source = vrfstats_sources)
-
-    vxlan_sources = ['vxlan.c']
-    vxlan = env.Program(target = 'vxlan', source = vxlan_sources)
 
     vrouter_sources = ['vrouter.c']
     vrouter = env.Program(target = 'vrouter', source = vrouter_sources)
@@ -88,7 +88,7 @@ if not sys.platform.startswith('win'):
     qosmap_sources = ['qosmap.c']
     qosmap = env.Program(target = 'qosmap', source = qosmap_sources)
 
-    binaries.append([mirror, vrfstats, vxlan, vrouter, vrmemstats, qosmap])
+    binaries.append([mirror, vrouter, vrmemstats, qosmap])
 
 scripts  = ['vifdump']
 env.Default(binaries)
