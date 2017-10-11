@@ -19,8 +19,8 @@ static PKSYNC_DEVICE_CONTEXT
 KSyncAllocContext()
 {
     PKSYNC_DEVICE_CONTEXT ctx = ExAllocatePoolWithTag(NonPagedPoolNx,
-                                                             sizeof(*ctx),
-                                                             KsyncAllocationTag);
+                                                      sizeof(*ctx),
+                                                      KsyncAllocationTag);
     if (ctx == NULL)
         return NULL;
 
@@ -105,6 +105,13 @@ KsyncPopResponse(PKSYNC_DEVICE_CONTEXT ctx)
     }
 }
 
+static VOID
+KsyncContextResetWriteBuffer(PKSYNC_DEVICE_CONTEXT ctx)
+{
+    ctx->WrittenBytes = 0;
+    RtlZeroMemory(ctx->WriteBuffer, ctx->WriteBufferSize);
+}
+
 static inline NTSTATUS
 KSyncCompleteIrp(PIRP Irp, NTSTATUS Status, ULONG Information)
 {
@@ -131,6 +138,12 @@ KsyncDispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PKSYNC_DEVICE_CONTEXT ctx = KSyncGetContextFromFileContext(Irp);
     ASSERTMSG("KSync device context was not set", ctx != NULL);
+
+    PKSYNC_RESPONSE response = KsyncPopResponse(ctx);
+    while (response != NULL) {
+        KsyncResponseDelete(response);
+        response = KsyncPopResponse(ctx);
+    }
 
     ExFreePoolWithTag(ctx, KsyncAllocationTag);
     return KSyncCompleteIrp(Irp, STATUS_SUCCESS, 0);
@@ -229,6 +242,21 @@ KsyncHandleWrite(PKSYNC_DEVICE_CONTEXT ctx, uint8_t *buffer, size_t buffer_size)
     return STATUS_SUCCESS;
 }
 
+static VOID
+KsyncCopyUserBufferToContext(PKSYNC_DEVICE_CONTEXT ctx,
+                             ULONG bytesNeeded,
+                             PCHAR *userBuffer,
+                             ULONG *userBufferSize,
+                             ULONG *writtenBytes)
+{
+    size_t bytesToWrite = *userBufferSize < bytesNeeded ? *userBufferSize : bytesNeeded;
+    RtlCopyMemory(&ctx->WriteBuffer[ctx->WrittenBytes], *userBuffer, bytesToWrite);
+    ctx->WrittenBytes += bytesToWrite;
+    *writtenBytes += bytesToWrite;
+    *userBufferSize -= bytesToWrite;
+    *userBuffer += bytesToWrite;
+}
+
 NTSTATUS
 KsyncDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
@@ -250,48 +278,21 @@ KsyncDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     ULONG writtenBytes = 0;
     while (userBufferSize > 0) {
         if (ctx->WrittenBytes < sizeof(struct nlmsghdr)) {
-            size_t bytesLeft = sizeof(struct nlmsghdr) - ctx->WrittenBytes;
-            if (userBufferSize < bytesLeft) {
-                RtlCopyMemory(&ctx->WriteBuffer[ctx->WrittenBytes], userBuffer, userBufferSize);
-                ctx->WrittenBytes += userBufferSize;
-                writtenBytes += userBufferSize;
-                userBufferSize = 0;
-            } else {
-                RtlCopyMemory(&ctx->WriteBuffer[ctx->WrittenBytes], userBuffer, bytesLeft);
-                ctx->WrittenBytes += bytesLeft;
-                userBuffer += bytesLeft;
-                userBufferSize -= bytesLeft;
-                writtenBytes += bytesLeft;
-            }
+            size_t bytesNeeded = sizeof(struct nlmsghdr) - ctx->WrittenBytes;
+            KsyncCopyUserBufferToContext(ctx, bytesNeeded, &userBuffer, &userBufferSize, &writtenBytes);
         } else if (ctx->WrittenBytes >= sizeof(struct nlmsghdr)) {
             struct nlmsghdr *nlh = (struct nlmsghdr *)ctx->WriteBuffer;
-            ASSERT(nlh->nlmsg_len > ctx->WrittenBytes);
-
-            size_t bytesLeft = nlh->nlmsg_len - ctx->WrittenBytes;
-            if (bytesLeft > ctx->WriteBufferSize - ctx->WrittenBytes) {
-                /* TODO(sodar): How to handle this case properly? */
+            if (nlh->nlmsg_len > ctx->WriteBufferSize) {
+                KsyncContextResetWriteBuffer(ctx);
                 return KSyncCompleteIrp(Irp, STATUS_UNSUCCESSFUL, 0);
             }
-            if (userBufferSize < bytesLeft) {
-                RtlCopyMemory(&ctx->WriteBuffer[ctx->WrittenBytes], userBuffer, userBufferSize);
-                ctx->WrittenBytes += userBufferSize;
-                writtenBytes += userBufferSize;
-                userBufferSize = 0;
-            } else {
-                RtlCopyMemory(&ctx->WriteBuffer[ctx->WrittenBytes], userBuffer, bytesLeft);
-                ctx->WrittenBytes += bytesLeft;
-                userBuffer += bytesLeft;
-                userBufferSize -= bytesLeft;
-                writtenBytes += bytesLeft;
 
-                /* ctx->WriteBuffer should contain the full */
-                ASSERT(ctx->WrittenBytes == nlh->nlmsg_len);
+            size_t bytesNeeded = nlh->nlmsg_len - ctx->WrittenBytes;
+            KsyncCopyUserBufferToContext(ctx, bytesNeeded, &userBuffer, &userBufferSize, &writtenBytes);
+
+            if (ctx->WrittenBytes == nlh->nlmsg_len) {
                 NTSTATUS status = KsyncHandleWrite(ctx, ctx->WriteBuffer, ctx->WrittenBytes);
-
-                /* Reset context to default state */
-                ctx->WrittenBytes = 0;
-                RtlZeroMemory(ctx->WriteBuffer, ctx->WriteBufferSize);
-
+                KsyncContextResetWriteBuffer(ctx);
                 if (NT_ERROR(status)) {
                     DbgPrint("%s: KsyncHandleWrite returned an error: %x\n", __func__, status);
                     return KSyncCompleteIrp(Irp, STATUS_UNSUCCESSFUL, writtenBytes);
