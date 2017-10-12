@@ -62,7 +62,7 @@ int
 nl_sendmsg(struct nl_client *cl)
 {
     DWORD written = 0;
-    BOOL ret = WriteFile(cl->cl_win_pipe, cl->cl_buf, NL_MSG_DEFAULT_SIZE, &written, NULL);
+    BOOL ret = WriteFile(cl->cl_win_pipe, cl->cl_buf, cl->cl_buf_offset, &written, NULL);
     if (!ret) {
         print_and_get_error_code();
         return -1;

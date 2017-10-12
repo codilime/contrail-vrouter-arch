@@ -15,14 +15,18 @@ const WCHAR KsyncDeviceSymLink[] = L"\\DosDevices\\vrouterKsync";
 static PDEVICE_OBJECT KsyncDeviceObject   = NULL;
 static NDIS_HANDLE    KsyncDeviceHandle   = NULL;
 
-static struct ksync_device_context *
-ksync_alloc_context()
+static PKSYNC_DEVICE_CONTEXT
+KSyncAllocContext()
 {
-    struct ksync_device_context *ctx = ExAllocatePoolWithTag(NonPagedPoolNx,
-                                                             sizeof(*ctx),
-                                                             KsyncAllocationTag);
+    PKSYNC_DEVICE_CONTEXT ctx = ExAllocatePoolWithTag(NonPagedPoolNx,
+                                                      sizeof(*ctx),
+                                                      KsyncAllocationTag);
     if (ctx == NULL)
         return NULL;
+
+    ctx->WrittenBytes = 0;
+    ctx->WriteBufferSize = sizeof(ctx->WriteBuffer);
+    RtlZeroMemory(ctx->WriteBuffer, ctx->WriteBufferSize);
 
     ctx->responses = NULL;
 
@@ -30,48 +34,47 @@ ksync_alloc_context()
 }
 
 static void
-ksync_attach_context_to_file_context(struct ksync_device_context *ctx, PIRP irp)
+KsyncAttachContextToFileContext(PKSYNC_DEVICE_CONTEXT ctx, PIRP irp)
 {
     PIO_STACK_LOCATION io_stack = IoGetCurrentIrpStackLocation(irp);
     PFILE_OBJECT file_obj = io_stack->FileObject;
     file_obj->FsContext = ctx;
 }
 
-static struct ksync_device_context *
-ksync_get_context_from_file_context(PIRP irp)
+static PKSYNC_DEVICE_CONTEXT
+KSyncGetContextFromFileContext(PIRP irp)
 {
     PIO_STACK_LOCATION io_stack = IoGetCurrentIrpStackLocation(irp);
     PFILE_OBJECT file_obj = io_stack->FileObject;
     return file_obj->FsContext;
 }
 
-static struct ksync_response *
+static PKSYNC_RESPONSE
 KsyncResponseCreate()
 {
-    struct ksync_response *resp;
+    PKSYNC_RESPONSE resp;
 
-    resp = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(struct ksync_response), KsyncAllocationTag);
+    resp = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*resp), KsyncAllocationTag);
     if (resp != NULL) {
-        // Zeroing whole struct sets type = 0 (DONE) and gives len = 0, which is a valid response.
-        RtlZeroMemory(resp, sizeof(struct ksync_response));
+        RtlZeroMemory(resp, sizeof(*resp));
     }
 
     return resp;
 }
 
-static void
-KsyncResponseDelete(struct ksync_response *resp)
+static VOID
+KsyncResponseDelete(PKSYNC_RESPONSE resp)
 {
     ASSERT(resp != NULL);
 
     ExFreePoolWithTag(resp, KsyncAllocationTag);
 }
 
-static void
-KsyncAppendResponse(struct ksync_device_context *ctx, struct ksync_response *resp)
+static VOID
+KsyncAppendResponse(PKSYNC_DEVICE_CONTEXT ctx, PKSYNC_RESPONSE resp)
 {
-    struct ksync_response *elem;
-    struct ksync_response **iter = &(ctx->responses);
+    PKSYNC_RESPONSE  elem;
+    PKSYNC_RESPONSE *iter = &(ctx->responses);
 
     while (*iter != NULL) {
         elem = *iter;
@@ -81,10 +84,17 @@ KsyncAppendResponse(struct ksync_device_context *ctx, struct ksync_response *res
     *iter = resp;
 }
 
-static struct ksync_response *
-KsyncPopResponse(struct ksync_device_context *ctx)
+static VOID
+KsyncPrependResponse(PKSYNC_DEVICE_CONTEXT ctx, PKSYNC_RESPONSE resp)
 {
-    struct ksync_response *resp = ctx->responses;
+    resp->next = ctx->responses;
+    ctx->responses = resp;
+}
+
+static PKSYNC_RESPONSE
+KsyncPopResponse(PKSYNC_DEVICE_CONTEXT ctx)
+{
+    PKSYNC_RESPONSE resp = ctx->responses;
 
     if (resp != NULL) {
         ctx->responses = resp->next;
@@ -95,52 +105,58 @@ KsyncPopResponse(struct ksync_device_context *ctx)
     }
 }
 
-static inline NTSTATUS
-KsyncHandleRet(PIRP Irp, NTSTATUS ret_code)
+static VOID
+KsyncContextResetWriteBuffer(PKSYNC_DEVICE_CONTEXT ctx)
 {
-    Irp->IoStatus.Status = ret_code;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return ret_code;
+    ctx->WrittenBytes = 0;
+    RtlZeroMemory(ctx->WriteBuffer, ctx->WriteBufferSize);
 }
 
 static inline NTSTATUS
-KsyncHandleRetWithInfo(PIRP Irp, NTSTATUS ret_code, ULONG parameter)
+KSyncCompleteIrp(PIRP Irp, NTSTATUS Status, ULONG Information)
 {
-    Irp->IoStatus.Status = ret_code;
-    Irp->IoStatus.Information = parameter;
+    Irp->IoStatus.Status = Status;
+    Irp->IoStatus.Information = Information;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return ret_code;
+    return Status;
 }
 
 NTSTATUS
 KsyncDispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
-
-    struct ksync_device_context *ctx = ksync_alloc_context();
+    PKSYNC_DEVICE_CONTEXT ctx = KSyncAllocContext();
     if (ctx == NULL) {
-        return KsyncHandleRet(Irp, STATUS_INSUFFICIENT_RESOURCES);
+        return KSyncCompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
     }
-    ksync_attach_context_to_file_context(ctx, Irp);
+    KsyncAttachContextToFileContext(ctx, Irp);
 
-    return KsyncHandleRetWithInfo(Irp, STATUS_SUCCESS, FILE_OPENED);
+    return KSyncCompleteIrp(Irp, STATUS_SUCCESS, FILE_OPENED);
 }
 
 NTSTATUS
 KsyncDispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
-
-    struct ksync_device_context *ctx = ksync_get_context_from_file_context(Irp);
+    PKSYNC_DEVICE_CONTEXT ctx = KSyncGetContextFromFileContext(Irp);
     ASSERTMSG("KSync device context was not set", ctx != NULL);
 
-    ExFreePoolWithTag(ctx, KsyncAllocationTag);
+    PKSYNC_RESPONSE response = KsyncPopResponse(ctx);
+    while (response != NULL) {
+        KsyncResponseDelete(response);
+        response = KsyncPopResponse(ctx);
+    }
 
-    return KsyncHandleRet(Irp, STATUS_SUCCESS);
+    ExFreePoolWithTag(ctx, KsyncAllocationTag);
+    return KSyncCompleteIrp(Irp, STATUS_SUCCESS, 0);
+}
+
+NTSTATUS
+KsyncDispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+    return KSyncCompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
 static NTSTATUS
-KsyncHandleWrite(struct ksync_device_context *ctx, uint8_t *buffer, size_t buffer_size)
+KsyncHandleWrite(PKSYNC_DEVICE_CONTEXT ctx, uint8_t *buffer, size_t buffer_size)
 {
     struct vr_message request;
     struct vr_message *response;
@@ -190,7 +206,7 @@ KsyncHandleWrite(struct ksync_device_context *ctx, uint8_t *buffer, size_t buffe
         nla_resp->nla_len = response->vr_message_len;
         nla_resp->nla_type = NL_ATTR_VR_MESSAGE_PROTOCOL;
 
-        struct ksync_response *ks_resp = KsyncResponseCreate();
+        PKSYNC_RESPONSE ks_resp = KsyncResponseCreate();
         if (ks_resp != NULL) {
             ks_resp->message_len = data_len;
             RtlCopyMemory(ks_resp->buffer, data, ks_resp->message_len);
@@ -205,7 +221,7 @@ KsyncHandleWrite(struct ksync_device_context *ctx, uint8_t *buffer, size_t buffe
     }
 
     if (multi_flag) {
-        struct ksync_response *ks_resp = KsyncResponseCreate();
+        PKSYNC_RESPONSE ks_resp = KsyncResponseCreate();
         if (ks_resp == NULL) {
             DbgPrint("%s: ksync_response allocation failed\n", __func__);
             return STATUS_INSUFFICIENT_RESOURCES;
@@ -226,84 +242,108 @@ KsyncHandleWrite(struct ksync_device_context *ctx, uint8_t *buffer, size_t buffe
     return STATUS_SUCCESS;
 }
 
+static VOID
+KsyncCopyUserBufferToContext(PKSYNC_DEVICE_CONTEXT ctx,
+                             ULONG bytesNeeded,
+                             PCHAR *userBuffer,
+                             ULONG *userBufferSize,
+                             ULONG *writtenBytes)
+{
+    size_t bytesToWrite = *userBufferSize < bytesNeeded ? *userBufferSize : bytesNeeded;
+    RtlCopyMemory(&ctx->WriteBuffer[ctx->WrittenBytes], *userBuffer, bytesToWrite);
+    ctx->WrittenBytes += bytesToWrite;
+    *writtenBytes += bytesToWrite;
+    *userBufferSize -= bytesToWrite;
+    *userBuffer += bytesToWrite;
+}
+
 NTSTATUS
 KsyncDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    PIO_STACK_LOCATION io_stack = IoGetCurrentIrpStackLocation(Irp);
-    ASSERTMSG("could not get I/O parameters", io_stack != NULL);
+    PKSYNC_DEVICE_CONTEXT ctx = KSyncGetContextFromFileContext(Irp);
+    ASSERT(ctx != NULL);
 
-    struct ksync_device_context *ctx = ksync_get_context_from_file_context(Irp);
-    ASSERTMSG("ksync_device_context was not set", ctx != NULL);
+    PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation(Irp);
+    ULONG userBufferSize = irpStack->Parameters.Write.Length;
+    PMDL userBufferMdl = Irp->MdlAddress;
+    if (userBufferSize == 0 || userBufferMdl == NULL) {
+        return KSyncCompleteIrp(Irp, STATUS_INVALID_PARAMETER, 0);
+    }
 
-    if (Irp->MdlAddress == NULL)
-        return KsyncHandleRetWithInfo(Irp, STATUS_INVALID_PARAMETER, 0);
+    PCHAR userBuffer = MmGetSystemAddressForMdlSafe(userBufferMdl, LowPagePriority | MdlMappingNoExecute);
+    if (userBuffer == NULL) {
+        return KSyncCompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+    }
 
-    PCHAR data_buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress,
-                                                     LowPagePriority | MdlMappingNoExecute);
-    if (data_buffer == NULL)
-        return KsyncHandleRetWithInfo(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+    ULONG writtenBytes = 0;
+    while (userBufferSize > 0) {
+        if (ctx->WrittenBytes < sizeof(struct nlmsghdr)) {
+            size_t bytesNeeded = sizeof(struct nlmsghdr) - ctx->WrittenBytes;
+            KsyncCopyUserBufferToContext(ctx, bytesNeeded, &userBuffer, &userBufferSize, &writtenBytes);
+        } else {
+            struct nlmsghdr *nlh = (struct nlmsghdr *)ctx->WriteBuffer;
+            if (nlh->nlmsg_len > ctx->WriteBufferSize) {
+                KsyncContextResetWriteBuffer(ctx);
+                return KSyncCompleteIrp(Irp, STATUS_UNSUCCESSFUL, 0);
+            }
 
-    ULONG data_buffer_size = io_stack->Parameters.Write.Length;
-    NTSTATUS status = KsyncHandleWrite(ctx, data_buffer, data_buffer_size);
-    if (status == STATUS_SUCCESS)
-        return KsyncHandleRetWithInfo(Irp, STATUS_SUCCESS, data_buffer_size);
-    else
-        return KsyncHandleRetWithInfo(Irp, status, 0);
+            size_t bytesNeeded = nlh->nlmsg_len - ctx->WrittenBytes;
+            KsyncCopyUserBufferToContext(ctx, bytesNeeded, &userBuffer, &userBufferSize, &writtenBytes);
+
+            if (ctx->WrittenBytes == nlh->nlmsg_len) {
+                NTSTATUS status = KsyncHandleWrite(ctx, ctx->WriteBuffer, ctx->WrittenBytes);
+                KsyncContextResetWriteBuffer(ctx);
+                if (NT_ERROR(status)) {
+                    DbgPrint("%s: KsyncHandleWrite returned an error: %x\n", __func__, status);
+                    return KSyncCompleteIrp(Irp, STATUS_UNSUCCESSFUL, writtenBytes);
+                }
+            }
+            break;
+        }
+    }
+
+    return KSyncCompleteIrp(Irp, STATUS_SUCCESS, writtenBytes);
 }
 
 NTSTATUS
 KsyncDispatchRead(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    PKSYNC_DEVICE_CONTEXT ctx = KSyncGetContextFromFileContext(Irp);
+    ASSERT(ctx != NULL);
 
-    struct ksync_device_context *ctx = ksync_get_context_from_file_context(Irp);
-    ASSERTMSG("ksync_device_context was not set", ctx != NULL);
+    PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation(Irp);
+    ULONG userBufferSize = irpStack->Parameters.Read.Length;
+    PMDL userBufferMdl = Irp->MdlAddress;
+    if (userBufferSize == 0 || userBufferMdl == NULL) {
+        return KSyncCompleteIrp(Irp, STATUS_INVALID_PARAMETER, 0);
+    }
 
-    if (Irp->MdlAddress == NULL)
-        return KsyncHandleRetWithInfo(Irp, STATUS_INVALID_PARAMETER, 0);
+    PCHAR userBuffer = MmGetSystemAddressForMdlSafe(userBufferMdl, LowPagePriority | MdlMappingNoExecute);
+    if (userBuffer == NULL) {
+        return KSyncCompleteIrp(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+    }
 
-    uint8_t *output_buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress,
-                                                          LowPagePriority | MdlMappingNoExecute);
-    if (output_buffer != NULL) {
-        struct ksync_response *resp = KsyncPopResponse(ctx);
-        if (resp != NULL) {
-            PIO_STACK_LOCATION io_stack = IoGetCurrentIrpStackLocation(Irp);
-            ASSERTMSG("could not get I/O parameters", io_stack != NULL);
+    PKSYNC_RESPONSE resp = KsyncPopResponse(ctx);
+    if (resp == NULL) {
+        return KSyncCompleteIrp(Irp, STATUS_SUCCESS, 0);
+    }
 
-            size_t output_buffer_length = io_stack->Parameters.Read.Length;
-            size_t resp_length = resp->message_len;
-            ASSERTMSG("vRouter's response too big", resp_length <= output_buffer_length);
-
-            RtlCopyMemory(output_buffer, resp->buffer, resp_length);
-            KsyncResponseDelete(resp);
-            return KsyncHandleRetWithInfo(Irp, STATUS_SUCCESS, resp_length);
-        } else {
-            // No messages in queue => cannot read anything
-            return KsyncHandleRetWithInfo(Irp, STATUS_SUCCESS, 0);
-        }
+    if (resp->message_len <= userBufferSize) {
+        ULONG dataSize = resp->message_len;
+        RtlCopyMemory(userBuffer, resp->buffer, dataSize);
+        KsyncResponseDelete(resp);
+        return KSyncCompleteIrp(Irp, STATUS_SUCCESS, dataSize);
     } else {
-        return KsyncHandleRetWithInfo(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+        KsyncPrependResponse(ctx, resp);
+        return KSyncCompleteIrp(Irp, STATUS_BUFFER_TOO_SMALL, 0);
     }
 }
 
 NTSTATUS
 KsyncDispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return KSyncCompleteIrp(Irp, STATUS_INVALID_DEVICE_REQUEST, 0);
 }
-
-NTSTATUS
-KsyncDispatchCleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp)
-{
-    UNREFERENCED_PARAMETER(DeviceObject);
-
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
-}
-
 
 NTSTATUS
 KsyncCreateDevice(NDIS_HANDLE DriverHandle)
