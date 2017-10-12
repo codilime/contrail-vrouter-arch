@@ -4,6 +4,7 @@
 #include "vr_os.h"
 #include "vr_packet.h"
 #include "vr_stats.h"
+#include <vr_hash.h>
 #include "vr_windows.h"
 #include "vrouter.h"
 
@@ -1131,16 +1132,42 @@ win_pull_inner_headers_fast(struct vr_packet *pkt, unsigned char proto,
     return 0;
 }
 
-static __u16
+/*
+ * This function should hash some src/dest addresses to get a UDP src port
+ * that would nicely hash on MX but for now we only do some very basic hashing
+ *
+ * This cannot just return a const value because then load balancing on MX
+ * wouldn't work as MX hashes src/dest addresses, port, etc. and all of those
+ * values would be the same for all tunneled traffic from one compute node to
+ * another. That's why we should differentiate the port very carefully.
+ */
+static uint16_t
 win_get_udp_src_port(struct vr_packet *pkt, struct vr_forwarding_md *md,
     unsigned short vrf)
 {
-    UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(md);
-    UNREFERENCED_PARAMETER(vrf);
 
-    /* Dummy implementation */
-    return 0;
+    uint32_t hashval, port_range;
+    uint16_t port;
+
+    if (hashrnd_inited == 0) {
+        get_random_bytes(&vr_hashrnd, sizeof(vr_hashrnd));
+        hashrnd_inited = 1;
+    }
+
+    if (pkt_head_len(pkt) < ETH_HLEN)
+        return 0;
+
+    hashval = vr_hash(pkt_data(pkt), ETH_HLEN, vr_hashrnd);
+    hashval = vr_hash_2words(hashval, vrf, vr_hashrnd);
+
+    port_range = VR_MUDP_PORT_RANGE_END - VR_MUDP_PORT_RANGE_START;
+    port = (uint16_t)(((uint64_t)hashval * port_range) >> 32);
+
+    if (port > port_range)
+        return 0;
+
+    return (port + VR_MUDP_PORT_RANGE_START);
 }
 
 static int
