@@ -280,7 +280,7 @@ KsyncDispatchWrite(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         if (ctx->WrittenBytes < sizeof(struct nlmsghdr)) {
             size_t bytesNeeded = sizeof(struct nlmsghdr) - ctx->WrittenBytes;
             KsyncCopyUserBufferToContext(ctx, bytesNeeded, &userBuffer, &userBufferSize, &writtenBytes);
-        } else if (ctx->WrittenBytes >= sizeof(struct nlmsghdr)) {
+        } else {
             struct nlmsghdr *nlh = (struct nlmsghdr *)ctx->WriteBuffer;
             if (nlh->nlmsg_len > ctx->WriteBufferSize) {
                 KsyncContextResetWriteBuffer(ctx);
