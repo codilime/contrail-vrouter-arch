@@ -94,14 +94,16 @@ vif_cmn_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
         unsigned short len)
 {
     unsigned char *head;
+    struct vr_packet *tmp_pkt;
 
     if (!len)
         return pkt_data(*pkt);
 
     if (pkt_head_space(*pkt) < len) {
-        *pkt = vr_pexpand_head(*pkt, len - pkt_head_space(*pkt));
-        if (!*pkt)
+        tmp_pkt = vr_pexpand_head(*pkt, len - pkt_head_space(*pkt));
+        if (!tmp_pkt)
             return NULL;
+        *pkt = tmp_pkt;
     }
 
     head = pkt_push(*pkt, len);
@@ -271,14 +273,16 @@ agent_set_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
     unsigned char *head;
     unsigned int hdr_len;
     struct agent_hdr *hdr;
+    struct vr_packet *tmp_pkt;
 
     vr_preset(*pkt);
 
     hdr_len = sizeof(struct agent_hdr) + len;
     if (pkt_head_space(*pkt) < hdr_len) {
-        *pkt = vr_pexpand_head(*pkt, hdr_len - pkt_head_space(*pkt));
-        if (!*pkt)
+        tmp_pkt = vr_pexpand_head(*pkt, hdr_len - pkt_head_space(*pkt));
+        if (!tmp_pkt)
             return NULL;
+        *pkt = tmp_pkt;
     }
 
     head = pkt_push(*pkt, hdr_len);
