@@ -67,6 +67,7 @@ typedef UINT64 uint64_t;
 #define ENETRESET       117
 #define EOPNOTSUPP      130
 #define AF_BRIDGE       7
+#define ETH_HLEN        14
 
 #ifndef WIN_IOVEC
 #define WIN_IOVEC
