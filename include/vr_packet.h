@@ -260,7 +260,7 @@ struct vr_packet {
     unsigned char vp_queue;
     unsigned char vp_priority:4,
                   vp_notused:4;
-#ifdef _WINDOWS
+#ifdef _WIN32
     void* vp_net_buffer_list;
     ULONG vp_win_data_tag; /* Allocation tag used when vr_packet is CREATED */
     unsigned vp_ref_cnt;

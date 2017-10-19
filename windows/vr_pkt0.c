@@ -1,5 +1,5 @@
+#include "precomp.h"
 #include "windows_devices.h"
-#include <ntstrsafe.h>
 
 #include "vrouter.h"
 #include "vr_packet.h"

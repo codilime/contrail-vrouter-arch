@@ -1,5 +1,5 @@
+#include "precomp.h"
 #include "vr_os.h"
-#include "vr_windows.h"
 
 ULONG seed;
 bool isSeedInitialized;

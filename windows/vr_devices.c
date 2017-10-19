@@ -1,8 +1,5 @@
-#include <Wdm.h>
-#include <wdmsec.h>
-#include <Ntstrsafe.h>
+#include "precomp.h"
 #include "windows_devices.h"
-
 
 NTSTATUS
 VRouterSetUpNamedDevice(NDIS_HANDLE DriverHandle,
