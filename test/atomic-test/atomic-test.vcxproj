@@ -38,7 +38,7 @@
     <ProjectGuid>{621A6695-3A8D-4F94-942B-D8745888E768}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>atomic-test</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <ProjectName>atomic-test</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
