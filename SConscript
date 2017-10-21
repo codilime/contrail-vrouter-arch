@@ -216,7 +216,13 @@ if sys.platform != 'darwin':
 
     if sys.platform.startswith('win'):
         def make_cmd(target, source, env):
-            msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Configuration=Debug', '/p:Platform=x64']
+            msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Platform=x64']
+
+            if env['OPT'] == 'debug':
+                msbuild.append('/p:Configuration=Debug')
+            elif env['OPT'] == 'production':
+                msbuild.append('/p:Configuration=Release')
+
             subprocess.call(msbuild, cwd=Dir('#/vrouter').abspath)
         vrouter_target = File('#/build/debug/vrouter/extension/vRouter/vRouter.sys')
     else:
@@ -266,8 +272,9 @@ if sys.platform != 'darwin':
         libmod_dir += '/lib/modules/%s/extra/net/vrouter' % kern_version
         env.Alias('build-kmodule', env.Install(libmod_dir, kern))
     else:
+        env.Append(WIXCANDLEFLAGS = ['-doptimization=' + env['OPT']])
         env.Append(WIXLIGHTFLAGS = ['-ext', 'WixUtilExtension.dll'])
-        msi_command = env.WiX(File('#/build/debug/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
+        msi_command = env.WiX(File('#/build/' + env['OPT'] + '/vrouter/extension/vRouter.msi'), ['windows/installer/vrouter_msi.wxs'])
         env.Depends(msi_command, kern)
         env.Alias('vrouter.msi', msi_command)
 

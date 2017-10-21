@@ -1,11 +1,8 @@
-#include "windows_mem.h"
-#include "windows_devices.h"
-#include "Ntstrsafe.h"
-#include "vr_message.h"
-
+#include "precomp.h"
 #include "windows_ksync.h"
 
 #include "vr_genetlink.h"
+#include "vr_message.h"
 
 static ULONG KsyncAllocationTag = 'NYSK';
 

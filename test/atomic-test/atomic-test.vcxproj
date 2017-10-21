@@ -93,7 +93,8 @@
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>..\cmocka\debug\lib;$(LibraryPath)</LibraryPath>
     <IncludePath>..\cmocka\debug\include;$(ProjectDir)\..\..\include;$(ProjectDir)\..\..\windows\include;$(IncludePath)</IncludePath>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>..\..\..\build\debug\vrouter\atomic-test\</OutDir>
+    <IntDir>..\..\..\build\debug\vrouter\atomic-test\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -102,6 +103,8 @@
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>..\cmocka\release\lib;$(LibraryPath)</LibraryPath>
     <IncludePath>..\cmocka\release\include;$(ProjectDir)\..\..\include;$(ProjectDir)\..\..\windows\include;$(IncludePath)</IncludePath>
+    <OutDir>..\..\..\build\production\vrouter\atomic-test\</OutDir>
+    <IntDir>..\..\..\build\production\vrouter\atomic-test\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

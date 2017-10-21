@@ -9,13 +9,13 @@
                 <Directory Id="ManufacturerFolder" Name="Juniper Networks">
                     <Directory Id="INSTALLDIR" Name="vRouter">
                         <Component Id="CatFiles" Guid="833C429C-BCEC-4CBB-BB8D-8E0C9AB09F95" Win64="yes">
-                            <File Id="CatFile" Source="build/debug/vrouter/extension/vRouter/vrouter.cat"/>
+                            <File Id="CatFile" Source="build/$(var.optimization)/vrouter/extension/vRouter/vrouter.cat"/>
                         </Component>
                         <Component Id="InfFiles" Guid="661F72B0-4030-4402-9E86-7E6021B72FE1" Win64="yes">
-                            <File Id="InfFile" Source="build/debug/vrouter/extension/vRouter/vRouter.inf"/>
+                            <File Id="InfFile" Source="build/$(var.optimization)/vrouter/extension/vRouter/vRouter.inf"/>
                         </Component>
                         <Component Id="SysFiles" Guid="AE7D4293-7B00-4E4D-8990-77C6BBF414D9" Win64="yes">
-                            <File Id="SysFile" Source="build/debug/vrouter/extension/vRouter/vRouter.sys"/>
+                            <File Id="SysFile" Source="build/$(var.optimization)/vrouter/extension/vRouter/vRouter.sys"/>
                         </Component>
                     </Directory>
                 </Directory>
