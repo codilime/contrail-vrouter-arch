@@ -37,7 +37,6 @@
         <expect>
             <vr_interface_req>
                 <vifr_idx>1</vifr_idx>
-                <vifr_name>1</vifr_name>
                 <vifr_transport>2</vifr_transport>
                 <vifr_vrf>0</vifr_vrf>
                 <vifr_mtu>1514</vifr_mtu>
@@ -53,7 +52,6 @@
         <expect>
             <vr_interface_req>
                 <vifr_idx>2</vifr_idx>
-                <vifr_name>2</vifr_name>
                 <vifr_transport>2</vifr_transport>
                 <vifr_vrf>0</vifr_vrf>
                 <vifr_mtu>1514</vifr_mtu>
