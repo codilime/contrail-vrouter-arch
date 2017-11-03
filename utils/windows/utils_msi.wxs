@@ -32,10 +32,13 @@
                         <Component Id="VxlanFiles" Guid="E726A1C1-070A-4E3C-B45D-A5A48D4D65C8" Win64="yes">
                             <File Id="VxlanExe" Source="../vxlan.exe"/>
                         </Component>
+                        <Component Id="VrouterFiles" Guid="A7761417-38C9-4F79-83F4-7579B817EA3D" Win64="yes">
+                            <File Id="VrouterExe" Source="../vrouter.exe"/>
+                        </Component>
                         <Component Id="VtestFiles" Guid="13BFC527-4B1B-44F4-80E7-975FA16EA99A" Win64="yes">
                             <File Id="VtestExe" Source="../vtest/vtest.exe"/>
                         </Component>
-                        <Component Id="VrouterUtilsDLL" Guid="611FF57B-D728-4F23-8D2A-7F80509A9606" Win64="yes">
+                        <Component Id="Libxml2DLL" Guid="611FF57B-D728-4F23-8D2A-7F80509A9606" Win64="yes">
                             <File Id="Libxml" Source="../../../../../build/bin/libxml2.dll"/> 
                         </Component>
                         <Component Id="VRouterUtilsPath" Guid="C1341B97-2801-4C4E-8938-D1693FAA843B" Win64="yes" KeyPath="yes">
@@ -55,9 +58,10 @@
             <ComponentRef Id="VrfstatsFiles"/>
             <ComponentRef Id="DropstatsFiles"/>
             <ComponentRef Id="VxlanFiles"/>
+            <ComponentRef Id="VrouterFiles"/>
             <ComponentRef Id="VtestFiles"/>
+            <ComponentRef Id="Libxml2DLL"/>
             <ComponentRef Id="VRouterUtilsPath"/>
-            <ComponentRef Id="VrouterUtilsDLL"/>
         </Feature>
     </Product>
 </Wix>
