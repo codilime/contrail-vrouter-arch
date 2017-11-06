@@ -563,18 +563,13 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
         NdisQueryMdl(nb->CurrentMdl, &old_buffer, &mdl_len, LowPagePriority);
         UINT data_size_in_current_mdl = mdl_len - nb->CurrentMdlOffset;
         UINT required_continuous_buffer_size = data_size_in_current_mdl + hspace;
-        PVOID tmp_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, data_size_in_current_mdl, VrAllocationTag);
-        if (tmp_buffer == NULL)
-            goto cleanup;
-        RtlCopyMemory(tmp_buffer, old_buffer, data_size_in_current_mdl);
+        UINT data_offset = nb->CurrentMdlOffset;
         NdisAdvanceNetBufferDataStart(nb, data_size_in_current_mdl, TRUE, NULL);
         if (NdisRetreatNetBufferDataStart(nb, required_continuous_buffer_size, 0, NULL) != NDIS_STATUS_SUCCESS) {
-            ExFreePoolWithTag(tmp_buffer, VrAllocationTag);
             goto cleanup;
         }
         NdisQueryMdl(nb->CurrentMdl, &new_buffer, &mdl_len, LowPagePriority);
-        RtlCopyMemory((uint8_t*)new_buffer + hspace, tmp_buffer, required_continuous_buffer_size);
-        ExFreePoolWithTag(tmp_buffer, VrAllocationTag);
+        RtlCopyMemory((uint8_t*)new_buffer + hspace, (uint8_t*)old_buffer + data_offset, data_size_in_current_mdl);
     }
 
     pkt->vp_head =
