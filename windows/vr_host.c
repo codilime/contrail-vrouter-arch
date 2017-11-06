@@ -552,16 +552,36 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
     if (nb == NULL)
         goto cleanup;
 
-    if (NdisRetreatNetBufferDataStart(nb, hspace, 0, NULL) != NDIS_STATUS_SUCCESS)
-        goto cleanup;
+    if (nb->CurrentMdlOffset >= hspace) {
+        if (NdisRetreatNetBufferDataStart(nb, hspace, 0, NULL) != NDIS_STATUS_SUCCESS)
+            goto cleanup;
+    }
+    else {
+        UINT mdl_len = 0;
+        PVOID old_buffer = NULL;
+        PVOID new_buffer = NULL;
+        NdisQueryMdl(nb->CurrentMdl, &old_buffer, &mdl_len, LowPagePriority);
+        UINT data_size_in_current_mdl = mdl_len - nb->CurrentMdlOffset;
+        UINT required_continuous_buffer_size = data_size_in_current_mdl + hspace;
+        PVOID tmp_buffer = ExAllocatePoolWithTag(NonPagedPoolNx, data_size_in_current_mdl, VrAllocationTag);
+        if (tmp_buffer == NULL)
+            goto cleanup;
+        RtlCopyMemory(tmp_buffer, old_buffer, data_size_in_current_mdl);
+        NdisAdvanceNetBufferDataStart(nb, data_size_in_current_mdl, TRUE, NULL);
+        if (NdisRetreatNetBufferDataStart(nb, required_continuous_buffer_size, 0, NULL) != NDIS_STATUS_SUCCESS) {
+            ExFreePoolWithTag(tmp_buffer, VrAllocationTag);
+            goto cleanup;
+        }
+        NdisQueryMdl(nb->CurrentMdl, &new_buffer, &mdl_len, LowPagePriority);
+        RtlCopyMemory((uint8_t*)new_buffer + hspace, tmp_buffer, required_continuous_buffer_size);
+        ExFreePoolWithTag(tmp_buffer, VrAllocationTag);
+    }
 
     pkt->vp_head =
         (unsigned char*)MmGetSystemAddressForMdlSafe(nb->CurrentMdl, LowPagePriority | MdlMappingNoExecute) + NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    pkt->vp_data = (unsigned short)hspace;
-    pkt->vp_tail = (unsigned short)hspace;
-    pkt->vp_end = (unsigned short)hspace;
-
-    pkt->vp_len = 0; // The old data is guaranteed to be on another MDL.
+    pkt->vp_data += (unsigned short)hspace;
+    pkt->vp_tail += (unsigned short)hspace;
+    pkt->vp_end = MmGetMdlByteCount(nb->CurrentMdl);
 
     pkt->vp_network_h += (unsigned short)hspace;
     pkt->vp_inner_network_h += (unsigned short)hspace;
@@ -1085,7 +1105,8 @@ win_data_at_offset(struct vr_packet *pkt, unsigned short offset)
         length = MmGetMdlByteCount(current_mdl);
     }
 
-    void* ret = MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority);
+    void* ret = MmGetSystemAddressForMdlSafe(current_mdl,
+        LowPagePriority | MdlMappingNoExecute);
     if (ret == NULL)
         return NULL;
 
