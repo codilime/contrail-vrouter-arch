@@ -71,7 +71,7 @@ trim_csum(uint32_t csum)
 static uint16_t
 calc_csum(uint8_t* ptr, size_t size)
 {
-    uint32_t csum;
+    uint32_t csum = 0;
     // Checksum based on payload
     for (int i = 0; i < size; i++)
     {

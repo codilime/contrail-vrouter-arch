@@ -93,9 +93,10 @@ VrQuerySwitchNicArray(PSWITCH_OBJECT Switch, PVOID Buffer, ULONG BufferLength, P
 
     VrStoreOidRequestStatusHandle(oidRequest, NULL);
     ExFreePoolWithTag(oidRequest, VrAllocationTag);
+    status = oidRequestStatus->Status;
     ExFreePoolWithTag(oidRequestStatus, VrAllocationTag);
 
-    return oidRequestStatus->Status;
+    return status;
 }
 
 NDIS_STATUS

@@ -72,12 +72,13 @@ FlowDispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     if (flowMemoryMdl == NULL)
         goto Failure;
 
+    MM_PAGE_PRIORITY pagePriority = NormalPagePriority | MdlMappingNoExecute;
     PVOID userVirtualAddress = MmMapLockedPagesSpecifyCache(flowMemoryMdl,
                                                             UserMode,
                                                             MmNonCached,
                                                             NULL,
                                                             FALSE,
-                                                            NormalPagePriority);
+                                                            pagePriority);
     if (userVirtualAddress == NULL)
         goto Failure;
 
@@ -132,7 +133,8 @@ FlowHandleGetAddress(PDEVICE_OBJECT DeviceObject,
         goto Failure;
     }
 
-    PVOID buffer = MmGetSystemAddressForMdlSafe(bufferMdl, NormalPagePriority);
+    PVOID buffer = MmGetSystemAddressForMdlSafe(bufferMdl,
+        NormalPagePriority | MdlMappingNoExecute);
     if (buffer == NULL) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto Failure;
