@@ -9,9 +9,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "vr_os.h"
-
 struct ip_bucket;
 
 /*

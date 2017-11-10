@@ -63,7 +63,6 @@ static struct rtable_fspec rtable_families[] = {
     }
 };
 
-
 static struct rtable_fspec *
 vr_get_family(unsigned int family)
 {
@@ -78,6 +77,8 @@ vr_get_family(unsigned int family)
     default:
         return NULL;
     }
+
+    return NULL;
 }
 
 int

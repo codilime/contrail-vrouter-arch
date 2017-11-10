@@ -6,7 +6,6 @@
 #ifndef __VR_MPLS_H__
 #define __VR_MPLS_H__
 
-#include "vr_os.h"
 #include "vr_types.h"
 
 #define VR_MPLS_LABEL_SHIFT         12
