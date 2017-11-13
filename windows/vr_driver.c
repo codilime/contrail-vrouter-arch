@@ -1,10 +1,8 @@
-#include "precomp.h"
+#include "vr_packet.h"
 #include "vr_windows.h"
+#include "vrouter.h"
 #include "windows_devices.h"
 #include "windows_mem.h"
-
-#include "vrouter.h"
-#include "vr_packet.h"
 
 static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
 static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
@@ -48,8 +46,8 @@ extern FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
 extern FILTER_CANCEL_OID_REQUEST FilterCancelOidRequest;
 
 /* Functions used to initialize message subsystem */
-extern NTSTATUS vr_message_init(void);
-extern void vr_message_exit(void);
+extern NTSTATUS VrMessageInit(void);
+extern void VrMessageExit(void);
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -165,7 +163,7 @@ UninitializeVRouter(pvr_switch_context ctx)
         vrouter_exit(false);
 
     if (ctx->message_up)
-        vr_message_exit();
+        VrMessageExit();
 
     if (ctx->flow_up)
         FlowDestroyDevice();
@@ -218,7 +216,7 @@ InitializeVRouter(pvr_switch_context ctx)
     if (!ctx->flow_up)
         goto cleanup;
 
-    ctx->message_up = !vr_message_init();
+    ctx->message_up = !VrMessageInit();
     if (!ctx->message_up)
         goto cleanup;
 

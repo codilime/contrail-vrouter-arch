@@ -1,5 +1,3 @@
-#include "precomp.h"
-
 #include "vr_packet.h"
 #include "vrouter.h"
 #include "windows_devices.h"
@@ -176,7 +174,7 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
 
     RtlCopyMemory(pkt_data, data, count);
 
-    pkt = win_allocate_packet(pkt_data, count);
+    pkt = WinAllocatePacket(pkt_data, count);
     if (pkt == NULL)
         goto fail;
     pkt->vp_if = agent_if;
@@ -397,7 +395,7 @@ pkt0_if_tx(struct vr_interface *vif, struct vr_packet *vrp)
     }
 
     /* vr_packet is no longer needed, drop it without updating statistics */
-    win_free_packet(vrp);
+    WinFreePacket(vrp);
 
     return 0;
 }

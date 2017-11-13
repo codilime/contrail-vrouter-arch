@@ -1,5 +1,3 @@
-#include <precomp.h>
-
 #include "vr_message.h"
 #include "vr_sandesh.h"
 
@@ -52,7 +50,7 @@ vr_transport_init(void)
 }
 
 NTSTATUS
-vr_message_init(void)
+VrMessageInit(void)
 {
     int ret = vr_sandesh_init();
     if (ret) {
@@ -71,7 +69,7 @@ vr_message_init(void)
 }
 
 void
-vr_message_exit(void)
+VrMessageExit(void)
 {
     vr_transport_exit();
     vr_sandesh_exit();

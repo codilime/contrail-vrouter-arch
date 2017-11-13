@@ -145,14 +145,14 @@
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <OutputName>ndislwf</OutputName>
     <ApiValidator_Enable>false</ApiValidator_Enable>
-    <OutDir>..\build\debug\vrouter\extension\</OutDir>
-    <IntDir>..\build\debug\vrouter\extension\</IntDir>
+    <OutDir>..\..\build\debug\vrouter\extension\</OutDir>
+    <IntDir>..\..\build\debug\vrouter\extension\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <OutputName>ndislwf</OutputName>
-    <OutDir>..\build\production\vrouter\extension\</OutDir>
-    <IntDir>..\build\production\vrouter\extension\</IntDir>
+    <OutDir>..\..\build\production\vrouter\extension\</OutDir>
+    <IntDir>..\..\build\production\vrouter\extension\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -177,8 +177,8 @@
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Use</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -194,8 +194,8 @@
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Use</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -208,11 +208,11 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>..;.;..\Tools;..\Tools\sandesh\library\c;..\build\debug\vrouter\sandesh\gen-c;windows;include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..;.;..\..\tools;..\..\tools\sandesh\library\c;..\..\build\debug\vrouter\sandesh\gen-c;..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>NDIS_WDM=1;NDIS640=1;__KERNEL__;%(PreProcessorDefinitions)</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Create</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -226,11 +226,11 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>..;.;..\tools;..\tools\sandesh\library\c;..\build\production\vrouter\sandesh\gen-c;windows;include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..;.;..\..\tools;..\..\tools\sandesh\library\c;..\..\build\production\vrouter\sandesh\gen-c;..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>NDIS_WDM=1;NDIS640=1;__KERNEL__;%(PreProcessorDefinitions)</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Create</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <IntrinsicFunctions>true</IntrinsicFunctions>
     </ClCompile>
@@ -248,8 +248,8 @@
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Use</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -265,8 +265,8 @@
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Use</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -282,8 +282,8 @@
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Use</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -299,8 +299,8 @@
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
-      <PreCompiledHeaderFile>precomp.h</PreCompiledHeaderFile>
-      <PreCompiledHeader>Use</PreCompiledHeader>
+      <PreCompiledHeaderFile></PreCompiledHeaderFile>
+      <PreCompiledHeader>NotUsing</PreCompiledHeader>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
@@ -313,214 +313,211 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\build\debug\vrouter\sandesh\gen-c\vr_types.h" />
-    <ClInclude Include="include\genetlink.h" />
-    <ClInclude Include="include\netlink.h" />
-    <ClInclude Include="include\vrouter.h" />
-    <ClInclude Include="include\vr_bitmap.h" />
-    <ClInclude Include="include\vr_bridge.h" />
-    <ClInclude Include="include\vr_btable.h" />
-    <ClInclude Include="include\windows_flow_ioctl.h" />
-    <ClInclude Include="include\windows_nbl.h" />
-    <ClInclude Include="include\windows_types.h" />
-    <ClInclude Include="include\vr_datapath.h" />
-    <ClInclude Include="include\vr_defs.h" />
-    <ClInclude Include="include\vr_flow.h" />
-    <ClInclude Include="include\vr_fragment.h" />
-    <ClInclude Include="include\vr_genetlink.h" />
-    <ClInclude Include="include\vr_hash.h" />
-    <ClInclude Include="include\vr_htable.h" />
-    <ClInclude Include="include\vr_index_table.h" />
-    <ClInclude Include="include\vr_interface.h" />
-    <ClInclude Include="include\vr_ip_mtrie.h" />
-    <ClInclude Include="include\windows_mem.h" />
-    <ClInclude Include="include\vr_message.h" />
-    <ClInclude Include="include\vr_mirror.h" />
-    <ClInclude Include="include\vr_mpls.h" />
-    <ClInclude Include="include\windows_ksync.h" />
-    <ClInclude Include="include\vr_nexthop.h" />
-    <ClInclude Include="include\vr_os.h" />
-    <ClInclude Include="include\vr_packet.h" />
-    <ClInclude Include="include\vr_qos.h" />
-    <ClInclude Include="include\vr_queue.h" />
-    <ClInclude Include="include\vr_response.h" />
-    <ClInclude Include="include\vr_route.h" />
-    <ClInclude Include="include\vr_sandesh.h" />
-    <ClInclude Include="include\vr_stats.h" />
-    <ClInclude Include="include\vr_vxlan.h" />
-    <ClInclude Include="include\vr_windows.h" />
-    <ClInclude Include="include\windows_devices.h" />
-    <ClInclude Include="include\windows_builtins.h" />
-    <ClInclude Include="windows\include\windows_builtins.h" />
-    <ClInclude Include="windows\precomp.h" />
+    <ClInclude Include="..\..\build\debug\vrouter\sandesh\gen-c\vr_types.h" />
+    <ClInclude Include="..\include\genetlink.h" />
+    <ClInclude Include="..\include\netlink.h" />
+    <ClInclude Include="..\include\vrouter.h" />
+    <ClInclude Include="..\include\vr_bitmap.h" />
+    <ClInclude Include="..\include\vr_bridge.h" />
+    <ClInclude Include="..\include\vr_btable.h" />
+    <ClInclude Include="..\include\windows_flow_ioctl.h" />
+    <ClInclude Include="..\include\windows_nbl.h" />
+    <ClInclude Include="..\include\windows_types.h" />
+    <ClInclude Include="..\include\vr_datapath.h" />
+    <ClInclude Include="..\include\vr_defs.h" />
+    <ClInclude Include="..\include\vr_flow.h" />
+    <ClInclude Include="..\include\vr_fragment.h" />
+    <ClInclude Include="..\include\vr_genetlink.h" />
+    <ClInclude Include="..\include\vr_hash.h" />
+    <ClInclude Include="..\include\vr_htable.h" />
+    <ClInclude Include="..\include\vr_index_table.h" />
+    <ClInclude Include="..\include\vr_interface.h" />
+    <ClInclude Include="..\include\vr_ip_mtrie.h" />
+    <ClInclude Include="..\include\windows_mem.h" />
+    <ClInclude Include="..\include\vr_message.h" />
+    <ClInclude Include="..\include\vr_mirror.h" />
+    <ClInclude Include="..\include\vr_mpls.h" />
+    <ClInclude Include="..\include\windows_ksync.h" />
+    <ClInclude Include="..\include\vr_nexthop.h" />
+    <ClInclude Include="..\include\vr_os.h" />
+    <ClInclude Include="..\include\vr_packet.h" />
+    <ClInclude Include="..\include\vr_qos.h" />
+    <ClInclude Include="..\include\vr_queue.h" />
+    <ClInclude Include="..\include\vr_response.h" />
+    <ClInclude Include="..\include\vr_route.h" />
+    <ClInclude Include="..\include\vr_sandesh.h" />
+    <ClInclude Include="..\include\vr_stats.h" />
+    <ClInclude Include="..\include\vr_vxlan.h" />
+    <ClInclude Include="..\include\vr_windows.h" />
+    <ClInclude Include="..\include\windows_devices.h" />
+    <ClInclude Include="..\include\windows_builtins.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\build\kbuild\sandesh\gen-c\vr_types.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\gen-c\vr_types.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\build\kbuild\sandesh\library\c\protocol\thrift_binary_protocol.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\library\c\protocol\thrift_binary_protocol.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\build\kbuild\sandesh\library\c\protocol\thrift_protocol.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\library\c\protocol\thrift_protocol.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\build\kbuild\sandesh\library\c\sandesh.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\library\c\sandesh.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_fake_transport.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\library\c\transport\thrift_fake_transport.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_memory_buffer.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\library\c\transport\thrift_memory_buffer.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\build\kbuild\sandesh\library\c\transport\thrift_transport.c">
+    <ClCompile Include="..\..\build\kbuild\sandesh\library\c\transport\thrift_transport.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vrouter.c">
+    <ClCompile Include="..\dp-core\vrouter.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_bitmap.c">
+    <ClCompile Include="..\dp-core\vr_bitmap.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_bridge.c">
+    <ClCompile Include="..\dp-core\vr_bridge.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_btable.c">
+    <ClCompile Include="..\dp-core\vr_btable.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_buildinfo.c">
+    <ClCompile Include="..\dp-core\vr_buildinfo.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_datapath.c">
+    <ClCompile Include="..\dp-core\vr_datapath.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_flow.c">
+    <ClCompile Include="..\dp-core\vr_flow.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_fragment.c">
+    <ClCompile Include="..\dp-core\vr_fragment.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_htable.c">
+    <ClCompile Include="..\dp-core\vr_htable.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_index_table.c">
+    <ClCompile Include="..\dp-core\vr_index_table.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_interface.c">
+    <ClCompile Include="..\dp-core\vr_interface.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_ip_mtrie.c">
+    <ClCompile Include="..\dp-core\vr_ip_mtrie.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_message.c">
+    <ClCompile Include="..\dp-core\vr_message.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_mirror.c">
+    <ClCompile Include="..\dp-core\vr_mirror.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_mpls.c">
+    <ClCompile Include="..\dp-core\vr_mpls.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_nexthop.c">
+    <ClCompile Include="..\dp-core\vr_nexthop.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_packet.c">
+    <ClCompile Include="..\dp-core\vr_packet.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_proto_ip.c">
+    <ClCompile Include="..\dp-core\vr_proto_ip.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_proto_ip6.c">
+    <ClCompile Include="..\dp-core\vr_proto_ip6.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_qos.c">
+    <ClCompile Include="..\dp-core\vr_qos.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_queue.c">
+    <ClCompile Include="..\dp-core\vr_queue.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_response.c">
+    <ClCompile Include="..\dp-core\vr_response.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_route.c">
+    <ClCompile Include="..\dp-core\vr_route.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_sandesh.c">
+    <ClCompile Include="..\dp-core\vr_sandesh.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_stats.c">
+    <ClCompile Include="..\dp-core\vr_stats.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_vif_bridge.c">
+    <ClCompile Include="..\dp-core\vr_vif_bridge.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_vrf_assign.c">
+    <ClCompile Include="..\dp-core\vr_vrf_assign.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="dp-core\vr_vxlan.c">
+    <ClCompile Include="..\dp-core\vr_vxlan.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="windows\precompsrc2.c" />
-    <ClCompile Include="windows\vr_devices.c">
+    <ClCompile Include="vr_devices.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="windows\vr_driver.c" />
-    <ClCompile Include="windows\vr_flow_device.c" />
-    <ClCompile Include="windows\vr_ksync.c">
+    <ClCompile Include="vr_driver.c" />
+    <ClCompile Include="vr_flow_device.c" />
+    <ClCompile Include="vr_ksync.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="windows\vr_host_interface.c" />
-    <ClCompile Include="windows\vr_mem.c">
+    <ClCompile Include="vr_host_interface.c" />
+    <ClCompile Include="vr_mem.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="windows\vr_nbl.c" />
-    <ClCompile Include="windows\vr_oid.c" />
-    <ClCompile Include="windows\vr_pkt0.c">
+    <ClCompile Include="vr_nbl.c" />
+    <ClCompile Include="vr_oid.c" />
+    <ClCompile Include="vr_pkt0.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="windows\vr_win_transport.c" />
-    <ClCompile Include="windows\windows_random.c">
+    <ClCompile Include="vr_win_transport.c" />
+    <ClCompile Include="windows_random.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="windows\vr_host.c" />
+    <ClCompile Include="vr_host.c" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="windows\vRouter.inf" />
+    <Inf Include="vRouter.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

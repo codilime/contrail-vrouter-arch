@@ -1,8 +1,7 @@
-#include "precomp.h"
-#include "windows_ksync.h"
-
 #include "vr_genetlink.h"
 #include "vr_message.h"
+#include "windows_devices.h"
+#include "windows_ksync.h"
 
 #define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
 #define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)

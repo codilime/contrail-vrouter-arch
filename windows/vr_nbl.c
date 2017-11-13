@@ -1,5 +1,3 @@
-#include "precomp.h"
-
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
@@ -286,8 +284,7 @@ FilterSendNetBufferLists(
 
     SplitNetBufferListsByForwardingType(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
-    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
-    {
+    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl) {
         /* Save next NBL, because after passing control to vRouter it might drop curNbl.
         Also vRouter handles packets one-by-one, so we operate on single NBLs.
         */
@@ -306,11 +303,11 @@ FilterSendNetBufferLists(
             continue;
         }
 
-        struct vr_packet *pkt = win_get_packet(curNbl, vif);
+        struct vr_packet *pkt = WinGetPacket(curNbl, vif);
         ASSERTMSG("win_get_packed failed!", pkt != NULL);
 
         if (pkt == NULL) {
-            /* If `win_get_packet` fails, it will drop the NBL. */
+            /* If `WinGetPacket` fails, it will drop the NBL. */
             NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
@@ -359,7 +356,7 @@ FilterSendNetBufferListsComplete(
 }
 
 struct vr_packet *
-win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
+WinGetPacket(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     ASSERT(nbl != NULL);
 
@@ -421,7 +418,7 @@ drop:
 }
 
 struct vr_packet *
-win_allocate_packet(void *buffer, unsigned int size)
+WinAllocatePacket(void *buffer, unsigned int size)
 {
     ASSERT(size > 0);
 
@@ -437,7 +434,7 @@ win_allocate_packet(void *buffer, unsigned int size)
     if (nbl == NULL)
         goto fail;
 
-    pkt = win_get_packet(nbl, NULL);
+    pkt = WinGetPacket(nbl, NULL);
     if (pkt == NULL)
         goto fail;
 
@@ -470,7 +467,7 @@ free_associated_nbl(struct vr_packet* pkt)
 }
 
 void
-win_free_packet(struct vr_packet *pkt)
+WinFreePacket(struct vr_packet *pkt)
 {
     ASSERT(pkt != NULL);
     free_associated_nbl(pkt);

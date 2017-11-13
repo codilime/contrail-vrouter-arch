@@ -1,5 +1,3 @@
-#include "precomp.h"
-
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
@@ -130,9 +128,9 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     if (pkt->vp_type == VP_TYPE_IP6 || pkt->vp_type == VP_TYPE_IP6OIP) {
         struct vr_ip6 *hdr = (struct vr_ip6*) (packet_data + offset);
         offset += sizeof(struct vr_ip6);
-        size = ntohs(hdr->PayloadLength);
+        size = ntohs(hdr->ip6_plen);
 
-        type = hdr->NextHeader;
+        type = hdr->ip6_nxt;
     } else {
         struct vr_ip *hdr = (struct vr_ip*) &packet_data[offset];
         offset += hdr->ip_hl * 4;

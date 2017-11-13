@@ -1,4 +1,3 @@
-#include "precomp.h"
 #include "vr_windows.h"
 
 FILTER_OID_REQUEST FilterOidRequest;
