@@ -620,10 +620,10 @@ flow_dump_mirror(vr_nexthop_req *req)
 }
 
 
-static int64_t
+static uint64_t
 flow_sum_drops_stats(vr_drop_stats_req *req)
 {
-    int64_t sum = 0;
+    uint64_t sum = 0;
 
     sum += req->vds_flow_queue_limit_exceeded;
     sum += req->vds_flow_no_memory;
@@ -1645,23 +1645,21 @@ flow_table_map(vr_flow_req *req)
     if (req->fr_ftable_dev < 0)
         exit(ENODEV);
 
+#ifndef _WIN32
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform && ((strcmp(platform, PLATFORM_DPDK) == 0) ||
                 (strcmp(platform, PLATFORM_NIC) == 0))) {
         flow_path = req->fr_file_path;
     } else {
         flow_path = MEM_DEV;
-#ifndef _WIN32
         ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
                 makedev(req->fr_ftable_dev, req->fr_rid));
         if (ret && errno != EEXIST) {
             perror(MEM_DEV);
             exit(errno);
         }
-#endif
     }
 
-#ifndef _WIN32
     mem_fd = open(flow_path, O_RDONLY | O_SYNC);
     if (mem_fd <= 0) {
         perror(MEM_DEV);
@@ -1802,14 +1800,15 @@ flow_table_setup(void)
     ret = nl_connect(cl, get_ip(), get_port());
     if (ret < 0)
         return ret;
+#else
+    cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
+    if (cl == NULL)
+        return -ENOMEM;
+#endif
 
     ret = vrouter_get_family_id(cl);
     if (ret <= 0)
         return ret;
-#else
-    cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
-    ret = FAKE_NETLINK_FAMILY;
-#endif
 
     return ret;
 }

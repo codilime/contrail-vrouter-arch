@@ -80,6 +80,7 @@ binaries  = [vif, rt, nh, mpls, flow, vrfstats, dropstats, vxlan,
              vrouter]
 
 if not sys.platform.startswith('win'):
+    # 'mirror', 'vrmemstats', 'qosmap' utilities are not yet ported for Windows
     mirror_sources = ['mirror.c']
     mirror = env.Program(target = 'mirror', source = mirror_sources)
 

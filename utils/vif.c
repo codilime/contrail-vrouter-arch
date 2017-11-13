@@ -27,8 +27,10 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
+#endif
 
 
+#if defined(__linux__) || defined(_WIN32)
 #include <net/if.h>
 #include <net/ethernet.h>
 #include <netinet/ether.h>
@@ -36,10 +38,6 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <net/ethernet.h>
-#elif defined(_WIN32)
-#include <net/if.h>
-#include <net/ethernet.h>
-#include <netinet/ether.h>
 #endif
 
 #ifndef _WIN32
@@ -113,6 +111,9 @@ static int platform;
 static int8_t vr_ifmac[6];
 static struct ether_addr *mac_opt;
 
+/*
+ * GUID used on Windows to identify Hyper-V VMs interfaces
+ */
 static char vr_if_guid[256];
 
 static vr_interface_req prev_req[VR_MAX_INTERFACES];

@@ -4,6 +4,9 @@
 #include "vr_genetlink.h"
 #include "vr_message.h"
 
+#define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
+#define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)
+
 static ULONG KsyncAllocationTag = 'NYSK';
 
 const WCHAR KsyncDeviceName[]    = L"\\Device\\vrouterKsync";
