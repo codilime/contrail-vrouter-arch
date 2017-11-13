@@ -1,10 +1,11 @@
 #include "precomp.h"
 
-#include "vrouter.h"
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
+#include "vrouter.h"
 #include "windows_devices.h"
+#include "windows_nbl.h"
 
 static NDIS_MUTEX win_if_mutex;
 
@@ -153,7 +154,7 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     }
 
     if (packet_data_buffer)
-        ExFreePoolWithTag(packet_data_buffer, VrAllocationTag);
+        ExFreePool(packet_data_buffer);
 
     return true;
 }

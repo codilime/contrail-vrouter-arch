@@ -481,7 +481,7 @@ scheduled_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
     if (work_item_handle) {
         NdisFreeIoWorkItem(work_item_handle);
     }
-    ExFreePoolWithTag(cb_data, VrAllocationTag);
+    ExFreePool(cb_data);
 
     return;
 }
