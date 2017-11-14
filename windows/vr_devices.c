@@ -1,4 +1,10 @@
-#include "precomp.h"
+#include <ndis.h>
+#include <netiodef.h>
+#include <intsafe.h>
+#include <ntintsafe.h>
+#include <Ntstrsafe.h>
+#include <wdmsec.h>
+
 #include "windows_devices.h"
 
 NTSTATUS

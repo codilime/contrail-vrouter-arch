@@ -1,40 +1,15 @@
 #include <assert.h>
 #include <strsafe.h>
 #include <stdbool.h>
+#include <netinet/ether.h>
 #include "vr_defs.h"
 #include "nl_util.h"
 
-#define ETHER_ADDR_LEN	   (6)
+#define ETHER_ADDR_LEN     (ETH_ALEN)
 #define ETHER_ADDR_STR_LEN (ETHER_ADDR_LEN * 3)
 
 const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
 const LPCTSTR FLOW_PATH  = TEXT("\\\\.\\vrouterFlow");
-
-// TODO: JW-120 - Refactoring of vr_win_utils.c
-struct ether_addr {
-    u_char ether_addr_octet[ETHER_ADDR_LEN];
-};
-
-int gettimeofday(struct timeval * tp, struct timezone * tzp)
-{
-    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
-    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
-    // until 00:00:00 January 1, 1970
-    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
-
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time;
-
-    GetSystemTime(&system_time);
-    SystemTimeToFileTime(&system_time, &file_time);
-    time = ((uint64_t)file_time.dwLowDateTime);
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
-    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
-    return 0;
-}
 
 static DWORD
 print_and_get_error_code()
@@ -111,7 +86,7 @@ inet_aton(const char *cp, struct in_addr *addr)
 }
 
 struct ether_addr *
-    ether_aton_r(const char *asc, struct ether_addr * addr)
+ether_aton_r(const char *asc, struct ether_addr * addr)
 {
     int i, val0, val1;
     for (i = 0; i < ETHER_ADDR_LEN; ++i) {

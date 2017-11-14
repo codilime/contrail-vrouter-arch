@@ -1,8 +1,10 @@
-#include "precomp.h"
-#include "windows_ksync.h"
-
 #include "vr_genetlink.h"
 #include "vr_message.h"
+#include "windows_devices.h"
+#include "windows_ksync.h"
+
+#define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
+#define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)
 
 static ULONG KsyncAllocationTag = 'NYSK';
 
@@ -64,7 +66,7 @@ KsyncResponseDelete(PKSYNC_RESPONSE resp)
 {
     ASSERT(resp != NULL);
 
-    ExFreePoolWithTag(resp, KsyncAllocationTag);
+    ExFreePool(resp);
 }
 
 static VOID
@@ -142,7 +144,7 @@ KsyncDispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         response = KsyncPopResponse(ctx);
     }
 
-    ExFreePoolWithTag(ctx, KsyncAllocationTag);
+    ExFreePool(ctx);
     return KSyncCompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
@@ -190,7 +192,7 @@ KsyncHandleWrite(PKSYNC_DEVICE_CONTEXT ctx, uint8_t *buffer, size_t buffer_size)
         nlh_resp->nlmsg_type = nlh->nlmsg_type;
         nlh_resp->nlmsg_flags = multi_flag;
         nlh_resp->nlmsg_seq = nlh->nlmsg_seq;
-		nlh_resp->nlmsg_pid = 0;
+        nlh_resp->nlmsg_pid = 0;
 
         /* 'genlmsghdr' should be put directly after 'nlmsghdr', thus we can just
            increment previous header pointer */

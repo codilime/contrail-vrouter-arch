@@ -1,5 +1,3 @@
-#include "precomp.h"
-
 #include "windows_devices.h"
 #include "windows_flow_ioctl.h"
 #include "windows_ksync.h"

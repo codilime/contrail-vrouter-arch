@@ -1,11 +1,8 @@
-#include "precomp.h"
+#include "vr_packet.h"
 #include "vr_windows.h"
+#include "vrouter.h"
 #include "windows_devices.h"
 #include "windows_mem.h"
-
-#include "vrouter.h"
-#include "vr_packet.h"
-#include "vr_sandesh.h"
 
 static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
 static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
@@ -47,6 +44,10 @@ extern FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 extern FILTER_OID_REQUEST FilterOidRequest;
 extern FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
 extern FILTER_CANCEL_OID_REQUEST FilterCancelOidRequest;
+
+/* Functions used to initialize message subsystem */
+extern NTSTATUS VrMessageInit(void);
+extern void VrMessageExit(void);
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -128,32 +129,31 @@ DriverUnload(PDRIVER_OBJECT DriverObject)
     FlowMemoryExit();
 }
 
-/* TODO(WINDOWS): vRouter cleanup */
-static void
-vr_message_exit(void)
+static NDIS_HANDLE
+VrGenerateNetBufferListPool(VOID)
 {
-    vr_transport_exit();
-    vr_sandesh_exit();
+    NET_BUFFER_LIST_POOL_PARAMETERS params;
+    params.ContextSize = 0;
+    params.DataSize = 0;
+    params.fAllocateNetBuffer = TRUE;
+    params.PoolTag = VrAllocationTag;
+    params.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+    params.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+    params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+
+    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(VrSwitchObject->NdisFilterHandle, &params);
+
+    ASSERT(pool != NULL);
+
+    return pool;
 }
 
-/* TODO(WINDOWS): vRouter cleanup */
-static NTSTATUS
-vr_message_init(void)
+static void
+VrFreeNetBufferListPool(NDIS_HANDLE pool)
 {
-    int ret = vr_sandesh_init();
-    if (ret) {
-        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
-        return NDIS_STATUS_FAILURE;
-    }
-
-    ret = vr_transport_init();
-    if (ret) {
-        DbgPrint("%s: vr_transport_init() failed with return %d", __func__, ret);
-        vr_sandesh_exit();
-        return NDIS_STATUS_FAILURE;
-    }
-
-    return NDIS_STATUS_SUCCESS;
+    ASSERTMSG("NBL pool is not initialized", pool != NULL);
+    NdisFreeNetBufferListPool(pool);
 }
 
 static VOID
@@ -163,7 +163,7 @@ UninitializeVRouter(pvr_switch_context ctx)
         vrouter_exit(false);
 
     if (ctx->message_up)
-        vr_message_exit();
+        VrMessageExit();
 
     if (ctx->flow_up)
         FlowDestroyDevice();
@@ -179,17 +179,16 @@ static VOID
 UninitializeWindowsComponents(pvr_switch_context ctx)
 {
     if (VrNBLPool)
-        vrouter_free_pool(VrNBLPool);
+        VrFreeNetBufferListPool(VrNBLPool);
 
     if (AsyncWorkRWLock)
         NdisFreeRWLock(AsyncWorkRWLock);
 
-    if (ctx)
-    {
+    if (ctx) {
         if (ctx->lock)
             NdisFreeRWLock(ctx->lock);
 
-        ExFreePoolWithTag(ctx, VrAllocationTag);
+        ExFreePool(ctx);
     }
 }
 
@@ -206,27 +205,22 @@ InitializeVRouter(pvr_switch_context ctx)
     FlowMemoryClean();
 
     ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(VrDriverHandle));
-
     if (!ctx->ksync_up)
         goto cleanup;
 
     ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(VrDriverHandle));
-
     if (!ctx->pkt0_up)
         goto cleanup;
 
     ctx->flow_up = NT_SUCCESS(FlowCreateDevice(VrDriverHandle));
-
     if (!ctx->flow_up)
         goto cleanup;
 
-    ctx->message_up = !vr_message_init();
-
+    ctx->message_up = !VrMessageInit();
     if (!ctx->message_up)
         goto cleanup;
 
     ctx->vrouter_up = !vrouter_init();
-
     if (!ctx->vrouter_up)
         goto cleanup;
 
@@ -256,7 +250,7 @@ InitializeWindowsComponents(PSWITCH_OBJECT Switch)
     if (AsyncWorkRWLock == NULL)
         goto cleanup;
 
-    VrNBLPool = vrouter_generate_pool();
+    VrNBLPool = VrGenerateNetBufferListPool();
     if (VrNBLPool == NULL)
         goto cleanup;
 
@@ -273,16 +267,12 @@ cleanup:
 static NDIS_STATUS
 CreateSwitch(PSWITCH_OBJECT Switch)
 {
-    DbgPrint("CreateSwitch\r\n");
-
     if (VrSwitchObject != NULL)
         return NDIS_STATUS_FAILURE;
 
     vr_num_cpus = KeQueryActiveProcessorCount(NULL);
-    if (!vr_num_cpus) {
-        DbgPrint("%s: Failed to get processor count\n", __func__);
+    if (!vr_num_cpus)
         return NDIS_STATUS_FAILURE;
-    }
 
     VrSwitchObject = Switch;
 
@@ -290,17 +280,13 @@ CreateSwitch(PSWITCH_OBJECT Switch)
     BOOLEAN vrouter = FALSE;
 
     NDIS_STATUS status = InitializeWindowsComponents(Switch);
-
     if (!NT_SUCCESS(status))
         goto cleanup;
-
     windows = TRUE;
 
     status = InitializeVRouter(Switch->ExtensionContext);
-
     if (!NT_SUCCESS(status))
         goto cleanup;
-
     vrouter = TRUE;
 
     return NDIS_STATUS_SUCCESS;
@@ -331,8 +317,6 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
 
     UNREFERENCED_PARAMETER(DriverContext);
 
-    DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
-
     status = NDIS_STATUS_SUCCESS;
     switchObject = NULL;
     switchObjectSize = sizeof(SWITCH_OBJECT);
@@ -340,8 +324,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
     NT_ASSERT(DriverContext == (NDIS_HANDLE)VrDriverObject);
 
     // Accept Ethernet only
-    if (AttachParameters->MiniportMediaType != NdisMedium802_3)
-    {
+    if (AttachParameters->MiniportMediaType != NdisMedium802_3) {
         status = NDIS_STATUS_INVALID_PARAMETER;
         goto Cleanup;
     }
@@ -352,14 +335,10 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
 
     status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle, &switchContext, &switchHandler);
     if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("%s: Extension is not bound to the underlying extensible switch component.\r\n", __func__);
         goto Cleanup;
-    }
 
     switchObject = ExAllocatePoolWithTag(NonPagedPoolNx, switchObjectSize, VrAllocationTag);
-    if (switchObject == NULL)
-    {
+    if (switchObject == NULL) {
         status = NDIS_STATUS_RESOURCES;
         goto Cleanup;
     }
@@ -373,9 +352,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
 
     status = CreateSwitch(switchObject);
     if (status != NDIS_STATUS_SUCCESS)
-    {
         goto Cleanup;
-    }
 
     filterAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
     filterAttributes.Header.Size = NDIS_SIZEOF_FILTER_ATTRIBUTES_REVISION_1;
@@ -385,22 +362,15 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
     NDIS_DECLARE_FILTER_MODULE_CONTEXT(SWITCH_OBJECT);
     status = NdisFSetAttributes(NdisFilterHandle, switchObject, &filterAttributes);
     if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("%s: Failed to set attributes.\r\n", __func__);
         goto Cleanup;
-    }
 
     switchObject->Running = FALSE;
 
-Cleanup:
+    return NDIS_STATUS_SUCCESS;
 
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        if (switchObject != NULL)
-        {
-            ExFreePool(switchObject);
-        }
-    }
+Cleanup:
+    if (switchObject != NULL)
+        ExFreePool(switchObject);
 
     return status;
 }
@@ -410,10 +380,7 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
-    DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
-
     KeMemoryBarrier();
-
     while(switchObject->PendingOidCount > 0)
     {
         NdisMSleep(1000);
@@ -436,8 +403,6 @@ FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS Pause
 
     UNREFERENCED_PARAMETER(PauseParameters);
 
-    DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
-
     switchObject->Running = FALSE;
 
     return NDIS_STATUS_SUCCESS;
@@ -449,8 +414,6 @@ FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS R
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
     UNREFERENCED_PARAMETER(RestartParameters);
-
-    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
 
     switchObject->Running = TRUE;
 

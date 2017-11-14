@@ -63,7 +63,6 @@ static struct rtable_fspec rtable_families[] = {
     }
 };
 
-
 static struct rtable_fspec *
 vr_get_family(unsigned int family)
 {
@@ -78,6 +77,8 @@ vr_get_family(unsigned int family)
     default:
         return NULL;
     }
+
+    return NULL;
 }
 
 int
@@ -158,7 +159,7 @@ vr_route_get(vr_route_req *req)
 
     struct vr_route_req vr_req;
     struct vrouter *router;
-	struct vr_rtable *rtable = NULL;
+    struct vr_rtable *rtable = NULL;
 
     if (!req->rtr_mac)
         mac_mem_free = true;

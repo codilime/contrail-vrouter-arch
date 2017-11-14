@@ -28,8 +28,6 @@ static int vif_fat_flow_add(struct vr_interface *, vr_interface_req *);
 static bool vif_fat_flow_port_is_set(struct vr_interface *, uint8_t,
                 uint16_t);
 
-void vif_attach(struct vr_interface *);
-void vif_detach(struct vr_interface *);
 int vr_gro_vif_add(struct vrouter *, unsigned int, char *, unsigned short);
 struct vr_interface_stats *vif_get_stats(struct vr_interface *, unsigned short);
 struct vr_interface *__vrouter_get_interface_os(struct vrouter *, unsigned int);

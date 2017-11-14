@@ -1,12 +1,10 @@
-#include "precomp.h"
-
-#include "vrouter.h"
 #include "vr_interface.h"
 #include "vr_packet.h"
 #include "vr_windows.h"
+#include "vrouter.h"
 #include "windows_devices.h"
+#include "windows_nbl.h"
 
-extern PSWITCH_OBJECT VrSwitchObject;
 static NDIS_MUTEX win_if_mutex;
 
 void
@@ -130,9 +128,9 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     if (pkt->vp_type == VP_TYPE_IP6 || pkt->vp_type == VP_TYPE_IP6OIP) {
         struct vr_ip6 *hdr = (struct vr_ip6*) (packet_data + offset);
         offset += sizeof(struct vr_ip6);
-        size = ntohs(hdr->PayloadLength);
+        size = ntohs(hdr->ip6_plen);
 
-        type = hdr->NextHeader;
+        type = hdr->ip6_nxt;
     } else {
         struct vr_ip *hdr = (struct vr_ip*) &packet_data[offset];
         offset += hdr->ip_hl * 4;
@@ -154,7 +152,7 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     }
 
     if (packet_data_buffer)
-        ExFreePoolWithTag(packet_data_buffer, VrAllocationTag);
+        ExFreePool(packet_data_buffer);
 
     return true;
 }
@@ -229,9 +227,8 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
-    windows_host.hos_printf("%s: Got pkt\n", __func__);
     if (vif == NULL) {
-        free_nbl(pkt->vp_net_buffer_list, pkt->vp_win_data_tag);
+        FreeNetBufferList(pkt->vp_net_buffer_list);
         return 0; // Sent into /dev/null
     }
 
@@ -244,14 +241,10 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 static int
 win_if_rx(struct vr_interface *vif, struct vr_packet* pkt)
 {
-    windows_host.hos_printf("%s: Got pkt\n", __func__);
-
     // Since we are operating from virtual switch's PoV and not from OS's PoV, RXing is the same as TXing
     // On Linux, we receive the packet as an OS, but in Windows we are a switch to we simply push the packet to OS's networking stack
     // See vhost_tx for reference (it calls hif_ops->hif_rx)
-
     win_if_tx(vif, pkt);
-
     return 0;
 }
 

@@ -1,8 +1,6 @@
-#include "precomp.h"
-#include "windows_mem.h"
-
-#include "vrouter.h"
 #include "vr_flow.h"
+#include "vrouter.h"
+#include "windows_mem.h"
 
 static ULONG FlowMemoryAllocationTag = 'MEMS';
 

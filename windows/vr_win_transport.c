@@ -1,6 +1,5 @@
-#include <precomp.h>
-
 #include "vr_message.h"
+#include "vr_sandesh.h"
 
 static ULONG WIN_TRANSPORT_TAG = 'ARTV';
 
@@ -26,8 +25,8 @@ win_trans_free(char *buf)
 }
 
 static struct vr_mtransport win_transport = {
-	.mtrans_alloc   =   win_trans_alloc,
-	.mtrans_free	=   win_trans_free,
+    .mtrans_alloc   =   win_trans_alloc,
+    .mtrans_free    =   win_trans_free,
 };
 
 void
@@ -48,4 +47,30 @@ vr_transport_init(void)
     }
 
     return 0;
+}
+
+NTSTATUS
+VrMessageInit(void)
+{
+    int ret = vr_sandesh_init();
+    if (ret) {
+        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    ret = vr_transport_init();
+    if (ret) {
+        DbgPrint("%s: vr_transport_init() failed with return %d", __func__, ret);
+        vr_sandesh_exit();
+        return NDIS_STATUS_FAILURE;
+    }
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+void
+VrMessageExit(void)
+{
+    vr_transport_exit();
+    vr_sandesh_exit();
 }

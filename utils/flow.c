@@ -620,10 +620,10 @@ flow_dump_mirror(vr_nexthop_req *req)
 }
 
 
-static int64_t
+static uint64_t
 flow_sum_drops_stats(vr_drop_stats_req *req)
 {
-    int64_t sum = 0;
+    uint64_t sum = 0;
 
     sum += req->vds_flow_queue_limit_exceeded;
     sum += req->vds_flow_no_memory;
@@ -1645,38 +1645,7 @@ flow_table_map(vr_flow_req *req)
     if (req->fr_ftable_dev < 0)
         exit(ENODEV);
 
-    const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
-    if (platform && ((strcmp(platform, PLATFORM_DPDK) == 0) ||
-                (strcmp(platform, PLATFORM_NIC) == 0))) {
-        flow_path = req->fr_file_path;
-    } else {
-        flow_path = MEM_DEV;
-#ifndef _WIN32
-        ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
-                makedev(req->fr_ftable_dev, req->fr_rid));
-        if (ret && errno != EEXIST) {
-            perror(MEM_DEV);
-            exit(errno);
-        }
-#endif
-    }
-
-#ifndef _WIN32
-    mem_fd = open(flow_path, O_RDONLY | O_SYNC);
-    if (mem_fd <= 0) {
-        perror(MEM_DEV);
-        exit(errno);
-    }
-
-    ft->ft_entries = (struct vr_flow_entry *)mmap(NULL, req->fr_ftable_size,
-            PROT_READ, MAP_SHARED, mem_fd, 0);
-    /* the file descriptor is no longer needed */
-    close(mem_fd);
-    if (ft->ft_entries == MAP_FAILED) {
-        printf("flow table: %s\n", strerror(errno));
-        exit(errno);
-    }
-#else
+#ifdef _WIN32
     HANDLE flowPipe = CreateFile(FLOW_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (flowPipe == INVALID_HANDLE_VALUE) {
         DWORD lastError = GetLastError();
@@ -1700,6 +1669,35 @@ flow_table_map(vr_flow_req *req)
     }
 
     ft->ft_entries = outBuffer;
+#else
+    const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
+    if (platform && ((strcmp(platform, PLATFORM_DPDK) == 0) ||
+                (strcmp(platform, PLATFORM_NIC) == 0))) {
+        flow_path = req->fr_file_path;
+    } else {
+        flow_path = MEM_DEV;
+        ret = mknod(MEM_DEV, S_IFCHR | O_RDWR,
+                makedev(req->fr_ftable_dev, req->fr_rid));
+        if (ret && errno != EEXIST) {
+            perror(MEM_DEV);
+            exit(errno);
+        }
+    }
+
+    mem_fd = open(flow_path, O_RDONLY | O_SYNC);
+    if (mem_fd <= 0) {
+        perror(MEM_DEV);
+        exit(errno);
+    }
+
+    ft->ft_entries = (struct vr_flow_entry *)mmap(NULL, req->fr_ftable_size,
+            PROT_READ, MAP_SHARED, mem_fd, 0);
+    /* the file descriptor is no longer needed */
+    close(mem_fd);
+    if (ft->ft_entries == MAP_FAILED) {
+        printf("flow table: %s\n", strerror(errno));
+        exit(errno);
+    }
 #endif
 
     ft->ft_span = req->fr_ftable_size;
@@ -1802,14 +1800,15 @@ flow_table_setup(void)
     ret = nl_connect(cl, get_ip(), get_port());
     if (ret < 0)
         return ret;
+#else
+    cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
+    if (cl == NULL)
+        return -ENOMEM;
+#endif
 
     ret = vrouter_get_family_id(cl);
     if (ret <= 0)
         return ret;
-#else
-    cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
-    ret = FAKE_NETLINK_FAMILY;
-#endif
 
     return ret;
 }
