@@ -229,7 +229,7 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
     if (vif == NULL) {
         FreeNetBufferList(pkt->vp_net_buffer_list);
-        return 0;
+        return 0; // Sent into /dev/null
     }
 
     if (vif->vif_type == VIF_TYPE_AGENT)

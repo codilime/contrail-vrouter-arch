@@ -112,7 +112,7 @@ static int8_t vr_ifmac[6];
 static struct ether_addr *mac_opt;
 
 /*
- * GUID used on Windows to identify Hyper-V VMs interfaces
+ * GUID used on Windows to identify Hyper-V VMs' interfaces
  */
 static char vr_if_guid[256];
 
