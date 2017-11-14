@@ -403,7 +403,7 @@ WinGetPacket(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     // If a problem arises concerning IP checksums, tinker with:
     // if (skb->ip_summed == CHECKSUM_PARTIAL)
-    //	pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
+    //   pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
 
     pkt->vp_ttl = VR_DEFAULT_INITIAL_TTL;
     pkt->vp_type = VP_TYPE_NULL;

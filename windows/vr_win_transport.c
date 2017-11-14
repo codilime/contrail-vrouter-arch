@@ -25,8 +25,8 @@ win_trans_free(char *buf)
 }
 
 static struct vr_mtransport win_transport = {
-	.mtrans_alloc   =   win_trans_alloc,
-	.mtrans_free	=   win_trans_free,
+    .mtrans_alloc   =   win_trans_alloc,
+    .mtrans_free    =   win_trans_free,
 };
 
 void

@@ -9,8 +9,8 @@ extern "C" {
 
 #define VR_MINIPORT_VPKT_INDEX 0
 
-#define VR_OID_SOURCE	0x00000001
-#define VR_AGENT_SOURCE	0x00000002
+#define VR_OID_SOURCE   0x00000001
+#define VR_AGENT_SOURCE 0x00000002
 
 typedef struct _vr_switch_context
 {

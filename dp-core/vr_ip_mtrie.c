@@ -1,7 +1,7 @@
 /*
- * vr_ip_mtrie.c -- 	VRF mtrie management
+ * vr_ip_mtrie.c -- VRF mtrie management
  *
- * Copyright (c) 2014 Juniper Networks, Inc. All rights reserved.	
+ * Copyright (c) 2014 Juniper Networks, Inc. All rights reserved.
  */
 #include <vr_os.h>
 #include "vr_sandesh.h"

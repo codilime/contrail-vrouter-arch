@@ -192,7 +192,7 @@ KsyncHandleWrite(PKSYNC_DEVICE_CONTEXT ctx, uint8_t *buffer, size_t buffer_size)
         nlh_resp->nlmsg_type = nlh->nlmsg_type;
         nlh_resp->nlmsg_flags = multi_flag;
         nlh_resp->nlmsg_seq = nlh->nlmsg_seq;
-		nlh_resp->nlmsg_pid = 0;
+        nlh_resp->nlmsg_pid = 0;
 
         /* 'genlmsghdr' should be put directly after 'nlmsghdr', thus we can just
            increment previous header pointer */
