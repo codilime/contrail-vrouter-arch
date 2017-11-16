@@ -13,10 +13,6 @@ extern "C" {
 #include "vr_utils.h"
 #include "vr_response.h"
 
-#ifdef _WIN32
-#include "windows_ksync.h"
-#endif
-
 #define NL_RESP_DEFAULT_SIZE        512
 #define NL_MSG_DEFAULT_SIZE         4096
 
@@ -32,8 +28,6 @@ extern "C" {
 #else
 #define CLEAN_SCREEN_CMD        "clear"
 #endif
-
-extern struct nl_sandesh_callbacks nl_cb;
 
 struct nl_response {
     uint8_t *nl_data;
@@ -103,6 +97,8 @@ struct nl_sandesh_callbacks {
     void (*vr_fc_map_req_process)(void *);
     void (*vr_qos_map_req_process)(void *);
 };
+
+extern struct nl_sandesh_callbacks nl_cb;
 
 /* Suppress NetLink error messages */
 extern bool vr_ignore_nl_errors;

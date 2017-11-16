@@ -8,8 +8,6 @@
 #define __VR_FRAGMENT_H__
 
 #include "vr_os.h"
-#include "vr_flow.h"
-#include "vr_packet.h"
 
 #define VR_ASSEMBLER_TIMEOUT_TIME               5
 #define VR_LINUX_ASSEMBLER_BUCKETS              1024

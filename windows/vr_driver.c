@@ -5,7 +5,6 @@
 
 #include "vrouter.h"
 #include "vr_packet.h"
-#include "vr_sandesh.h"
 
 static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
 static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
@@ -47,6 +46,10 @@ extern FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 extern FILTER_OID_REQUEST FilterOidRequest;
 extern FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
 extern FILTER_CANCEL_OID_REQUEST FilterCancelOidRequest;
+
+/* Functions used to initialize message subsystem */
+extern NTSTATUS vr_message_init(void);
+extern void vr_message_exit(void);
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -128,32 +131,31 @@ DriverUnload(PDRIVER_OBJECT DriverObject)
     FlowMemoryExit();
 }
 
-/* TODO(WINDOWS): vRouter cleanup */
-static void
-vr_message_exit(void)
+static NDIS_HANDLE
+VrGenerateNetBufferListPool(VOID)
 {
-    vr_transport_exit();
-    vr_sandesh_exit();
+    NET_BUFFER_LIST_POOL_PARAMETERS params;
+    params.ContextSize = 0;
+    params.DataSize = 0;
+    params.fAllocateNetBuffer = TRUE;
+    params.PoolTag = VrAllocationTag;
+    params.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+    params.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+    params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+
+    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(VrSwitchObject->NdisFilterHandle, &params);
+
+    ASSERT(pool != NULL);
+
+    return pool;
 }
 
-/* TODO(WINDOWS): vRouter cleanup */
-static NTSTATUS
-vr_message_init(void)
+static void
+VrFreeNetBufferListPool(NDIS_HANDLE pool)
 {
-    int ret = vr_sandesh_init();
-    if (ret) {
-        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
-        return NDIS_STATUS_FAILURE;
-    }
-
-    ret = vr_transport_init();
-    if (ret) {
-        DbgPrint("%s: vr_transport_init() failed with return %d", __func__, ret);
-        vr_sandesh_exit();
-        return NDIS_STATUS_FAILURE;
-    }
-
-    return NDIS_STATUS_SUCCESS;
+    ASSERTMSG("NBL pool is not initialized", pool != NULL);
+    NdisFreeNetBufferListPool(pool);
 }
 
 static VOID
@@ -179,17 +181,16 @@ static VOID
 UninitializeWindowsComponents(pvr_switch_context ctx)
 {
     if (VrNBLPool)
-        vrouter_free_pool(VrNBLPool);
+        VrFreeNetBufferListPool(VrNBLPool);
 
     if (AsyncWorkRWLock)
         NdisFreeRWLock(AsyncWorkRWLock);
 
-    if (ctx)
-    {
+    if (ctx) {
         if (ctx->lock)
             NdisFreeRWLock(ctx->lock);
 
-        ExFreePoolWithTag(ctx, VrAllocationTag);
+        ExFreePool(ctx);
     }
 }
 
@@ -256,7 +257,7 @@ InitializeWindowsComponents(PSWITCH_OBJECT Switch)
     if (AsyncWorkRWLock == NULL)
         goto cleanup;
 
-    VrNBLPool = vrouter_generate_pool();
+    VrNBLPool = VrGenerateNetBufferListPool();
     if (VrNBLPool == NULL)
         goto cleanup;
 
