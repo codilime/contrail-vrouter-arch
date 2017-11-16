@@ -1,21 +1,18 @@
 #include <assert.h>
 #include <strsafe.h>
 #include <stdbool.h>
+#include <netinet/ether.h>
 #include "vr_defs.h"
 #include "nl_util.h"
 
-#define ETHER_ADDR_LEN	   (6)
+#define ETHER_ADDR_LEN	   (ETH_ALEN)
 #define ETHER_ADDR_STR_LEN (ETHER_ADDR_LEN * 3)
 
 const LPCTSTR KSYNC_PATH = TEXT("\\\\.\\vrouterKsync");
 const LPCTSTR FLOW_PATH  = TEXT("\\\\.\\vrouterFlow");
 
-// TODO: JW-120 - Refactoring of vr_win_utils.c
-struct ether_addr {
-    u_char ether_addr_octet[ETHER_ADDR_LEN];
-};
-
-int gettimeofday(struct timeval * tp, struct timezone * tzp)
+int
+gettimeofday(struct timeval * tp, struct timezone * tzp)
 {
     // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
     // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
@@ -111,7 +108,7 @@ inet_aton(const char *cp, struct in_addr *addr)
 }
 
 struct ether_addr *
-    ether_aton_r(const char *asc, struct ether_addr * addr)
+ether_aton_r(const char *asc, struct ether_addr * addr)
 {
     int i, val0, val1;
     for (i = 0; i < ETHER_ADDR_LEN; ++i) {
