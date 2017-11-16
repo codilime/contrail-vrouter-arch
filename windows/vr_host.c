@@ -127,7 +127,7 @@ free_cloned_nbl(PNET_BUFFER_LIST nbl)
 }
 
 static void
-free_created_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
+free_created_nbl(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
     ASSERT(nbl->Next == NULL);
@@ -146,7 +146,7 @@ free_created_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
             data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
             NdisFreeMdl(mdl);
             if (data != NULL)
-                ExFreePoolWithTag(data, data_allocation_tag);
+                ExFreePool(data);
         }
 
     NdisFreeNetBufferList(nbl);
@@ -164,7 +164,7 @@ complete_received_nbl(PNET_BUFFER_LIST nbl)
 }
 
 void
-free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
+free_nbl(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
     ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
@@ -181,11 +181,11 @@ free_nbl(PNET_BUFFER_LIST nbl, ULONG data_allocation_tag)
             if (IS_CLONE(nbl))
                 free_cloned_nbl(nbl);
             else
-                free_created_nbl(nbl, data_allocation_tag);
+                free_created_nbl(nbl);
 
             PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
             if (parent)
-                free_nbl(parent, data_allocation_tag);
+                free_nbl(parent);
         }
         else
             complete_received_nbl(nbl);
@@ -201,7 +201,7 @@ free_associated_nbl(struct vr_packet* pkt)
 
     ASSERT(nbl != NULL);
 
-    free_nbl(nbl, pkt->vp_win_data_tag);
+    free_nbl(nbl);
 }
 
 void
@@ -280,15 +280,9 @@ win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag)
         goto fail;
 
     if (buffer != NULL) {
-        /* Allocation tag used to allocate underlying packet data */
-        pkt->vp_win_data_tag = allocation_tag;
-
         ptr = pkt_pull_tail(pkt, size);
         if (ptr == NULL)
             goto fail;
-    } else {
-        /* If no buffer is provided, create_nbl() uses default allocation tag*/
-        pkt->vp_win_data_tag = VrAllocationTag;
     }
 
     return pkt;
@@ -297,7 +291,7 @@ fail:
     if (pkt)
         NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
     if (nbl)
-        free_created_nbl(nbl, allocation_tag);
+        free_created_nbl(nbl);
     return NULL;
 }
 
@@ -512,7 +506,7 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
-        free_created_nbl(nb_head, VrAllocationTag);
+        free_created_nbl(nb_head);
         return NULL;
     }
 

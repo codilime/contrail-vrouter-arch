@@ -190,7 +190,7 @@ UninitializeWindowsComponents(pvr_switch_context ctx)
         if (ctx->lock)
             NdisFreeRWLock(ctx->lock);
 
-        ExFreePoolWithTag(ctx, VrAllocationTag);
+        ExFreePool(ctx);
     }
 }
 

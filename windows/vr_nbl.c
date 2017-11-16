@@ -196,6 +196,6 @@ FilterSendNetBufferListsComplete(
         next = current->Next;
         current->Next = NULL;
 
-        free_nbl(current, 0);
+        free_nbl(current);
     } while (next != NULL);
 }
