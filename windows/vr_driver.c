@@ -131,6 +131,33 @@ DriverUnload(PDRIVER_OBJECT DriverObject)
     FlowMemoryExit();
 }
 
+static NDIS_HANDLE
+VrGenerateNetBufferListPool(VOID)
+{
+    NET_BUFFER_LIST_POOL_PARAMETERS params;
+    params.ContextSize = 0;
+    params.DataSize = 0;
+    params.fAllocateNetBuffer = TRUE;
+    params.PoolTag = VrAllocationTag;
+    params.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+    params.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+    params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+
+    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(VrSwitchObject->NdisFilterHandle, &params);
+
+    ASSERT(pool != NULL);
+
+    return pool;
+}
+
+static void
+VrFreeNetBufferListPool(NDIS_HANDLE pool)
+{
+    ASSERTMSG("NBL pool is not initialized", pool != NULL);
+    NdisFreeNetBufferListPool(pool);
+}
+
 static VOID
 UninitializeVRouter(pvr_switch_context ctx)
 {
@@ -154,13 +181,12 @@ static VOID
 UninitializeWindowsComponents(pvr_switch_context ctx)
 {
     if (VrNBLPool)
-        vrouter_free_pool(VrNBLPool);
+        VrFreeNetBufferListPool(VrNBLPool);
 
     if (AsyncWorkRWLock)
         NdisFreeRWLock(AsyncWorkRWLock);
 
-    if (ctx)
-    {
+    if (ctx) {
         if (ctx->lock)
             NdisFreeRWLock(ctx->lock);
 
@@ -231,7 +257,7 @@ InitializeWindowsComponents(PSWITCH_OBJECT Switch)
     if (AsyncWorkRWLock == NULL)
         goto cleanup;
 
-    VrNBLPool = vrouter_generate_pool();
+    VrNBLPool = VrGenerateNetBufferListPool();
     if (VrNBLPool == NULL)
         goto cleanup;
 

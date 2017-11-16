@@ -1401,29 +1401,3 @@ vrouter_get_host(void)
 {
     return &windows_host;
 }
-
-NDIS_HANDLE
-vrouter_generate_pool()
-{
-    NET_BUFFER_LIST_POOL_PARAMETERS params;
-    params.ContextSize = 0;
-    params.DataSize = 0;
-    params.fAllocateNetBuffer = TRUE;
-    params.PoolTag = VrAllocationTag;
-    params.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
-    params.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-    params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
-    params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
-
-    NDIS_HANDLE pool = NdisAllocateNetBufferListPool(VrSwitchObject->NdisFilterHandle, &params);
-
-    ASSERT(pool != NULL);
-
-    return pool;
-}
-
-void vrouter_free_pool(NDIS_HANDLE pool)
-{
-    ASSERTMSG("NBL pool is not initialized", pool != NULL);
-    NdisFreeNetBufferListPool(pool);
-}
