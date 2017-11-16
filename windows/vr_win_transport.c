@@ -1,6 +1,7 @@
 #include <precomp.h>
 
 #include "vr_message.h"
+#include "vr_sandesh.h"
 
 static ULONG WIN_TRANSPORT_TAG = 'ARTV';
 
@@ -48,4 +49,30 @@ vr_transport_init(void)
     }
 
     return 0;
+}
+
+NTSTATUS
+vr_message_init(void)
+{
+    int ret = vr_sandesh_init();
+    if (ret) {
+        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
+        return NDIS_STATUS_FAILURE;
+    }
+
+    ret = vr_transport_init();
+    if (ret) {
+        DbgPrint("%s: vr_transport_init() failed with return %d", __func__, ret);
+        vr_sandesh_exit();
+        return NDIS_STATUS_FAILURE;
+    }
+
+    return NDIS_STATUS_SUCCESS;
+}
+
+void
+vr_message_exit(void)
+{
+    vr_transport_exit();
+    vr_sandesh_exit();
 }

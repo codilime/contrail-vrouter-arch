@@ -5,7 +5,6 @@
 
 #include "vrouter.h"
 #include "vr_packet.h"
-#include "vr_sandesh.h"
 
 static const PWSTR FriendlyName = L"OpenContrail's vRouter forwarding extension";
 static const PWSTR UniqueName = L"{56553588-1538-4BE6-B8E0-CB46402DC205}";
@@ -47,6 +46,10 @@ extern FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 extern FILTER_OID_REQUEST FilterOidRequest;
 extern FILTER_OID_REQUEST_COMPLETE FilterOidRequestComplete;
 extern FILTER_CANCEL_OID_REQUEST FilterCancelOidRequest;
+
+/* Functions used to initialize message subsystem */
+extern NTSTATUS vr_message_init(void);
+extern void vr_message_exit(void);
 
 NTSTATUS
 DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -126,34 +129,6 @@ DriverUnload(PDRIVER_OBJECT DriverObject)
     NdisFDeregisterFilterDriver(VrDriverHandle);
 
     FlowMemoryExit();
-}
-
-/* TODO(WINDOWS): vRouter cleanup */
-static void
-vr_message_exit(void)
-{
-    vr_transport_exit();
-    vr_sandesh_exit();
-}
-
-/* TODO(WINDOWS): vRouter cleanup */
-static NTSTATUS
-vr_message_init(void)
-{
-    int ret = vr_sandesh_init();
-    if (ret) {
-        DbgPrint("%s: vr_sandesh_init() failed with return %d\n", __func__, ret);
-        return NDIS_STATUS_FAILURE;
-    }
-
-    ret = vr_transport_init();
-    if (ret) {
-        DbgPrint("%s: vr_transport_init() failed with return %d", __func__, ret);
-        vr_sandesh_exit();
-        return NDIS_STATUS_FAILURE;
-    }
-
-    return NDIS_STATUS_SUCCESS;
 }
 
 static VOID
