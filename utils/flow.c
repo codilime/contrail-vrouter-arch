@@ -1645,7 +1645,31 @@ flow_table_map(vr_flow_req *req)
     if (req->fr_ftable_dev < 0)
         exit(ENODEV);
 
-#ifndef _WIN32
+#ifdef _WIN32
+    HANDLE flowPipe = CreateFile(FLOW_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (flowPipe == INVALID_HANDLE_VALUE) {
+        DWORD lastError = GetLastError();
+        printf("Error: CreateFile on flow pipe: %d\n", lastError);
+        exit(lastError);
+    }
+
+    PVOID outBuffer;
+    DWORD outBytes;
+    BOOL transactionResult = DeviceIoControl(flowPipe, IOCTL_FLOW_GET_ADDRESS,
+                                             NULL, 0,
+                                             &outBuffer, sizeof(outBuffer),
+                                             &outBytes, NULL);
+    if (!transactionResult) {
+        DWORD lastError = GetLastError();
+        printf("Error: DeviceIoControl on flow pipe: %d\n", lastError);
+        exit(lastError);
+    } else if (outBytes != sizeof(outBuffer)) {
+        printf("Error: DeviceIoControl on flow pipe: outBuffer was not filled\n");
+        exit(ERROR_INVALID_DATA);
+    }
+
+    ft->ft_entries = outBuffer;
+#else
     const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
     if (platform && ((strcmp(platform, PLATFORM_DPDK) == 0) ||
                 (strcmp(platform, PLATFORM_NIC) == 0))) {
@@ -1674,30 +1698,6 @@ flow_table_map(vr_flow_req *req)
         printf("flow table: %s\n", strerror(errno));
         exit(errno);
     }
-#else
-    HANDLE flowPipe = CreateFile(FLOW_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (flowPipe == INVALID_HANDLE_VALUE) {
-        DWORD lastError = GetLastError();
-        printf("Error: CreateFile on flow pipe: %d\n", lastError);
-        exit(lastError);
-    }
-
-    PVOID outBuffer;
-    DWORD outBytes;
-    BOOL transactionResult = DeviceIoControl(flowPipe, IOCTL_FLOW_GET_ADDRESS,
-                                             NULL, 0,
-                                             &outBuffer, sizeof(outBuffer),
-                                             &outBytes, NULL);
-    if (!transactionResult) {
-        DWORD lastError = GetLastError();
-        printf("Error: DeviceIoControl on flow pipe: %d\n", lastError);
-        exit(lastError);
-    } else if (outBytes != sizeof(outBuffer)) {
-        printf("Error: DeviceIoControl on flow pipe: outBuffer was not filled\n");
-        exit(ERROR_INVALID_DATA);
-    }
-
-    ft->ft_entries = outBuffer;
 #endif
 
     ft->ft_span = req->fr_ftable_size;
