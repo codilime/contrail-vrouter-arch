@@ -207,27 +207,22 @@ InitializeVRouter(pvr_switch_context ctx)
     FlowMemoryClean();
 
     ctx->ksync_up = NT_SUCCESS(KsyncCreateDevice(VrDriverHandle));
-
     if (!ctx->ksync_up)
         goto cleanup;
 
     ctx->pkt0_up = NT_SUCCESS(Pkt0CreateDevice(VrDriverHandle));
-
     if (!ctx->pkt0_up)
         goto cleanup;
 
     ctx->flow_up = NT_SUCCESS(FlowCreateDevice(VrDriverHandle));
-
     if (!ctx->flow_up)
         goto cleanup;
 
     ctx->message_up = !vr_message_init();
-
     if (!ctx->message_up)
         goto cleanup;
 
     ctx->vrouter_up = !vrouter_init();
-
     if (!ctx->vrouter_up)
         goto cleanup;
 
@@ -274,16 +269,12 @@ cleanup:
 static NDIS_STATUS
 CreateSwitch(PSWITCH_OBJECT Switch)
 {
-    DbgPrint("CreateSwitch\r\n");
-
     if (VrSwitchObject != NULL)
         return NDIS_STATUS_FAILURE;
 
     vr_num_cpus = KeQueryActiveProcessorCount(NULL);
-    if (!vr_num_cpus) {
-        DbgPrint("%s: Failed to get processor count\n", __func__);
+    if (vr_num_cpus == 0)
         return NDIS_STATUS_FAILURE;
-    }
 
     VrSwitchObject = Switch;
 
@@ -291,17 +282,13 @@ CreateSwitch(PSWITCH_OBJECT Switch)
     BOOLEAN vrouter = FALSE;
 
     NDIS_STATUS status = InitializeWindowsComponents(Switch);
-
     if (!NT_SUCCESS(status))
         goto cleanup;
-
     windows = TRUE;
 
     status = InitializeVRouter(Switch->ExtensionContext);
-
     if (!NT_SUCCESS(status))
         goto cleanup;
-
     vrouter = TRUE;
 
     return NDIS_STATUS_SUCCESS;
@@ -332,8 +319,6 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
 
     UNREFERENCED_PARAMETER(DriverContext);
 
-    DbgPrint("%s: NdisFilterHandle %p\r\n", __func__, NdisFilterHandle);
-
     status = NDIS_STATUS_SUCCESS;
     switchObject = NULL;
     switchObjectSize = sizeof(SWITCH_OBJECT);
@@ -341,8 +326,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
     NT_ASSERT(DriverContext == (NDIS_HANDLE)VrDriverObject);
 
     // Accept Ethernet only
-    if (AttachParameters->MiniportMediaType != NdisMedium802_3)
-    {
+    if (AttachParameters->MiniportMediaType != NdisMedium802_3) {
         status = NDIS_STATUS_INVALID_PARAMETER;
         goto Cleanup;
     }
@@ -353,14 +337,10 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
 
     status = NdisFGetOptionalSwitchHandlers(NdisFilterHandle, &switchContext, &switchHandler);
     if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("%s: Extension is not bound to the underlying extensible switch component.\r\n", __func__);
         goto Cleanup;
-    }
 
     switchObject = ExAllocatePoolWithTag(NonPagedPoolNx, switchObjectSize, VrAllocationTag);
-    if (switchObject == NULL)
-    {
+    if (switchObject == NULL) {
         status = NDIS_STATUS_RESOURCES;
         goto Cleanup;
     }
@@ -374,9 +354,7 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
 
     status = CreateSwitch(switchObject);
     if (status != NDIS_STATUS_SUCCESS)
-    {
         goto Cleanup;
-    }
 
     filterAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
     filterAttributes.Header.Size = NDIS_SIZEOF_FILTER_ATTRIBUTES_REVISION_1;
@@ -386,22 +364,15 @@ FilterAttach(NDIS_HANDLE NdisFilterHandle,
     NDIS_DECLARE_FILTER_MODULE_CONTEXT(SWITCH_OBJECT);
     status = NdisFSetAttributes(NdisFilterHandle, switchObject, &filterAttributes);
     if (status != NDIS_STATUS_SUCCESS)
-    {
-        DbgPrint("%s: Failed to set attributes.\r\n", __func__);
         goto Cleanup;
-    }
 
     switchObject->Running = FALSE;
 
-Cleanup:
+    return NDIS_STATUS_SUCCESS;
 
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        if (switchObject != NULL)
-        {
-            ExFreePool(switchObject);
-        }
-    }
+Cleanup:
+    if (switchObject != NULL)
+        ExFreePool(switchObject);
 
     return status;
 }
@@ -411,10 +382,7 @@ FilterDetach(NDIS_HANDLE FilterModuleContext)
 {
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
-    DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
-
     KeMemoryBarrier();
-
     while(switchObject->PendingOidCount > 0)
     {
         NdisMSleep(1000);
@@ -437,8 +405,6 @@ FilterPause(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_PAUSE_PARAMETERS Pause
 
     UNREFERENCED_PARAMETER(PauseParameters);
 
-    DbgPrint("%s: FilterModuleContext %p\r\n", __func__, FilterModuleContext);
-
     switchObject->Running = FALSE;
 
     return NDIS_STATUS_SUCCESS;
@@ -450,8 +416,6 @@ FilterRestart(NDIS_HANDLE FilterModuleContext, PNDIS_FILTER_RESTART_PARAMETERS R
     PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)FilterModuleContext;
 
     UNREFERENCED_PARAMETER(RestartParameters);
-
-    DbgPrint("%s: FilterModuleContext %p\n", __func__, FilterModuleContext);
 
     switchObject->Running = TRUE;
 
