@@ -24,9 +24,6 @@ typedef struct _vr_switch_context
     BOOLEAN                 vrouter_up;
 } vr_switch_context, *pvr_switch_context;
 
-extern const ULONG VrAllocationTag;
-extern const ULONG VrOidRequestId;
-
 typedef struct _SWITCH_OBJECT
 {
     pvr_switch_context ExtensionContext;
@@ -51,6 +48,9 @@ typedef struct _VR_OID_REQUEST_STATUS
     ULONG BytesNeeded;
 
 } VR_OID_REQUEST_STATUS, *PVR_OID_REQUEST_STATUS;
+
+extern const ULONG VrAllocationTag;
+extern const ULONG VrOidRequestId;
 
 NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
 VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);
