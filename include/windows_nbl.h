@@ -15,8 +15,8 @@
     (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * \
         MEMORY_ALLOCATION_ALIGNMENT)
 
-#define IS_OWNED(nbl) (nbl->NdisPoolHandle == VrNBLPool)
-#define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
+#define IS_NBL_OWNED(nbl) ((nbl)->NdisPoolHandle == VrNBLPool)
+#define IS_NBL_CLONE(nbl) ((nbl)->ParentNetBufferList != NULL)
 
 #define VP_DEFAULT_INITIAL_TTL 64
 

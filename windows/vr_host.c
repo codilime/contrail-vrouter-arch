@@ -159,7 +159,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
 
-    if (IS_OWNED(nbl) && !IS_CLONE(nbl))
+    if (IS_NBL_OWNED(nbl) && !IS_NBL_CLONE(nbl))
         pkt->vp_tail = pkt->vp_len = 0;
     else
         pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);

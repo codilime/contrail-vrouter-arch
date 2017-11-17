@@ -147,8 +147,8 @@ free_nbl(PNET_BUFFER_LIST nbl)
     if (pkt->vp_ref_cnt == 0) {
         NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
-        if (IS_OWNED(nbl)) {
-            if (IS_CLONE(nbl))
+        if (IS_NBL_OWNED(nbl)) {
+            if (IS_NBL_CLONE(nbl))
                 free_cloned_nbl(nbl);
             else
                 free_created_nbl(nbl);
