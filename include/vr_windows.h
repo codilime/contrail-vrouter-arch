@@ -65,14 +65,9 @@ struct host_os * vrouter_get_host(void);
 
 NDIS_HANDLE vrouter_generate_pool(void);
 void vrouter_free_pool(NDIS_HANDLE pool);
-void free_nbl(PNET_BUFFER_LIST nbl);
-struct vr_packet* win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif);
 int win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER src, unsigned int offset, unsigned int len);
 
 extern struct host_os windows_host;
-
-extern struct vr_packet *win_allocate_packet(void *buffer, unsigned int size, ULONG allocation_tag);
-extern void win_free_packet(struct vr_packet *pkt);
 
 extern void win_if_lock(void);
 extern void win_if_unlock(void);
