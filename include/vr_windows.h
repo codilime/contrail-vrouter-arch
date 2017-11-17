@@ -52,6 +52,10 @@ typedef struct _VR_OID_REQUEST_STATUS
 extern const ULONG VrAllocationTag;
 extern const ULONG VrOidRequestId;
 
+extern PSWITCH_OBJECT VrSwitchObject;
+extern NDIS_HANDLE VrNBLPool;
+extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
+
 NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
 VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);
 
