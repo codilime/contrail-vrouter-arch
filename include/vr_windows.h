@@ -9,14 +9,8 @@ extern "C" {
 
 #define VR_MINIPORT_VPKT_INDEX 0
 
-#define VR_OID_SOURCE	0x00000001
-#define VR_AGENT_SOURCE	0x00000002
-#define NLA_DATA(nla)   ((char *)nla + NLA_HDRLEN)
-#define NLA_LEN(nla)    (nla->nla_len - NLA_HDRLEN)
-
-struct vr_interface; // Forward declaration
-
-struct vr_packet;
+#define VR_OID_SOURCE   0x00000001
+#define VR_AGENT_SOURCE 0x00000002
 
 typedef struct _vr_switch_context
 {
@@ -29,9 +23,6 @@ typedef struct _vr_switch_context
     BOOLEAN                 message_up;
     BOOLEAN                 vrouter_up;
 } vr_switch_context, *pvr_switch_context;
-
-extern const ULONG VrAllocationTag;
-extern const ULONG VrOidRequestId;
 
 typedef struct _SWITCH_OBJECT
 {
@@ -57,6 +48,13 @@ typedef struct _VR_OID_REQUEST_STATUS
     ULONG BytesNeeded;
 
 } VR_OID_REQUEST_STATUS, *PVR_OID_REQUEST_STATUS;
+
+extern const ULONG VrAllocationTag;
+extern const ULONG VrOidRequestId;
+
+extern PSWITCH_OBJECT VrSwitchObject;
+extern NDIS_HANDLE VrNBLPool;
+extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
 NDIS_STATUS VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray);
 VOID VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray);

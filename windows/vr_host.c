@@ -15,10 +15,6 @@
 // CONTEXT_SIZE is sizeof(struct vr_packet) rounded up to the nearest multiple of MEMORY_ALLOCATION_ALIGNMENT
 #define CONTEXT_SIZE (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * MEMORY_ALLOCATION_ALIGNMENT)
 
-/* Defined in windows/vrouter_mod.c */
-extern PSWITCH_OBJECT VrSwitchObject;
-extern NDIS_HANDLE VrNBLPool;
-extern PNDIS_RW_LOCK_EX AsyncWorkRWLock;
 
 typedef void(*scheduled_work_cb)(void *arg);
 

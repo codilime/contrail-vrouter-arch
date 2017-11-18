@@ -6,7 +6,6 @@
 #include "vr_windows.h"
 #include "windows_devices.h"
 
-extern PSWITCH_OBJECT VrSwitchObject;
 static NDIS_MUTEX win_if_mutex;
 
 void
