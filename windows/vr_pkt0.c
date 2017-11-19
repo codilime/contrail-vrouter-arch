@@ -1,8 +1,9 @@
 #include "precomp.h"
-#include "windows_devices.h"
 
-#include "vrouter.h"
 #include "vr_packet.h"
+#include "vrouter.h"
+#include "windows_devices.h"
+#include "windows_nbl.h"
 
 struct pkt0_context {
     LIST_ENTRY pkt_read_queue;
@@ -175,7 +176,7 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
 
     RtlCopyMemory(pkt_data, data, count);
 
-    pkt = win_allocate_packet(pkt_data, count, pkt0_allocation_tag);
+    pkt = win_allocate_packet(pkt_data, count);
     if (pkt == NULL)
         goto fail;
     pkt->vp_if = agent_if;
