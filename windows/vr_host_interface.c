@@ -229,7 +229,6 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 static int
 win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
-    windows_host.hos_printf("%s: Got pkt\n", __func__);
     if (vif == NULL) {
         FreeNetBufferList(pkt->vp_net_buffer_list);
         return 0; // Sent into /dev/null
@@ -244,8 +243,6 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 static int
 win_if_rx(struct vr_interface *vif, struct vr_packet* pkt)
 {
-    windows_host.hos_printf("%s: Got pkt\n", __func__);
-
     // Since we are operating from virtual switch's PoV and not from OS's PoV, RXing is the same as TXing
     // On Linux, we receive the packet as an OS, but in Windows we are a switch to we simply push the packet to OS's networking stack
     // See vhost_tx for reference (it calls hif_ops->hif_rx)
