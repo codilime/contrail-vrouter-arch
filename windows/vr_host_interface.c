@@ -153,8 +153,8 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
         tcp->tcp_csum = htons(~(trim_csum(csum)));
     }
 
-    if (packet_data_buffer)
-        ExFreePoolWithTag(packet_data_buffer, VrAllocationTag);
+    if (packet_data_buffer != NULL)
+        ExFreePool(packet_data_buffer);
 
     return true;
 }

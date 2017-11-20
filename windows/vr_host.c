@@ -87,7 +87,7 @@ win_free(void *mem, unsigned int object)
 
     if (mem != NULL) {
         vr_free_stats(object);
-        ExFreePoolWithTag(mem, VrAllocationTag);
+        ExFreePool(mem);
     }
 
     return;
@@ -109,7 +109,7 @@ win_page_free(void *address, unsigned int size)
     ASSERT(address != NULL);
 
     if (address != NULL)
-        ExFreePoolWithTag(address, VrAllocationTag);
+        ExFreePool(address);
 
     return;
 }
@@ -538,7 +538,7 @@ scheduled_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
     if (work_item_handle) {
         NdisFreeIoWorkItem(work_item_handle);
     }
-    ExFreePoolWithTag(cb_data, VrAllocationTag);
+    ExFreePool(cb_data);
 
     return;
 }
