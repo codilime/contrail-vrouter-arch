@@ -47,11 +47,9 @@ win_printf(const char *format, ...)
 static void *
 win_malloc(unsigned int size, unsigned int object)
 {
-    UNREFERENCED_PARAMETER(object);
-
-    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag); // TODO: Check with paged pool
-
-    //vr_malloc_stats(size, object);
+    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag);
+    if (mem != NULL)
+        vr_malloc_stats(size, object);
 
     return mem;
 }
@@ -59,17 +57,13 @@ win_malloc(unsigned int size, unsigned int object)
 static void *
 win_zalloc(unsigned int size, unsigned int object)
 {
-    UNREFERENCED_PARAMETER(object);
-
     ASSERT(size > 0);
 
-    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag); // TODO: Check with paged pool
-    if (!mem)
-        return NULL;
-
-    NdisZeroMemory(mem, size);
-
-    vr_malloc_stats(size, object);
+    void *mem = ExAllocatePoolWithTag(NonPagedPoolNx, size, VrAllocationTag);
+    if (mem != NULL) {
+        NdisZeroMemory(mem, size);
+        vr_malloc_stats(size, object);
+    }
 
     return mem;
 }
@@ -80,10 +74,8 @@ win_page_alloc(unsigned int size)
     ASSERT(size > 0);
 
     void *mem = ExAllocatePoolWithTag(PagedPool, size, VrAllocationTag);
-    if (!mem)
-        return NULL;
-
-    NdisZeroMemory(mem, size);
+    if (mem != NULL)
+        NdisZeroMemory(mem, size);
 
     return mem;
 }
@@ -93,9 +85,7 @@ win_free(void *mem, unsigned int object)
 {
     ASSERT(mem != NULL);
 
-    UNREFERENCED_PARAMETER(object);
-
-    if (mem) {
+    if (mem != NULL) {
         vr_free_stats(object);
         ExFreePoolWithTag(mem, VrAllocationTag);
     }
@@ -108,7 +98,6 @@ win_vtop(void *address)
 {
     ASSERT(address != NULL);
     PHYSICAL_ADDRESS physical_address = MmGetPhysicalAddress(address);
-
     return physical_address.QuadPart;
 }
 
@@ -119,7 +108,7 @@ win_page_free(void *address, unsigned int size)
 
     ASSERT(address != NULL);
 
-    if (address)
+    if (address != NULL)
         ExFreePoolWithTag(address, VrAllocationTag);
 
     return;
@@ -160,8 +149,7 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
         return NULL;
 
     struct vr_packet* npkt = GetPacketFromNetBufferList(nb_head, pkt->vp_if);
-    if (npkt == NULL)
-    {
+    if (npkt == NULL) {
         FreeCreatedNetBufferList(nb_head);
         return NULL;
     }
@@ -246,16 +234,16 @@ win_preset(struct vr_packet *pkt)
     ASSERT(pkt != NULL);
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
-    if (!nbl)
+    if (nbl == NULL)
         return;
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    if (!nb)
+    if (nb == NULL)
         return;
 
     PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    pkt->vp_head =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    PVOID buffer = MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    pkt->vp_head = (unsigned char *)buffer;
     pkt->vp_data = 0;
     pkt->vp_tail = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
     pkt->vp_len = (unsigned short)NET_BUFFER_DATA_LENGTH(nb);
@@ -331,13 +319,13 @@ win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER nb,
         /* Requested offset lies outside of the first MDL => traverse MDL list until offset is reached */
         offset -= MmGetMdlByteCount(current_mdl) - NET_BUFFER_CURRENT_MDL_OFFSET(nb);
         current_mdl = current_mdl->Next;
-        if (!current_mdl) {
+        if (current_mdl == NULL) {
             return -EFAULT;
         }
         while (offset >= MmGetMdlByteCount(current_mdl)) {
             offset -= MmGetMdlByteCount(current_mdl);
             current_mdl = current_mdl->Next;
-            if (!current_mdl) {
+            if (current_mdl == NULL) {
                 return -EFAULT;
             }
         }
@@ -347,9 +335,9 @@ win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER nb,
     }
 
     /* Retrieve pointer to the beginning of MDL's data buffer */
-    unsigned char *mdl_data =
-        (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
-    if (!mdl_data) {
+    PVOID mdl_buffer = MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    unsigned char *mdl_data = (unsigned char *)mdl_buffer;
+    if (mdl_data == NULL) {
         return -EFAULT;
     }
 
@@ -369,11 +357,11 @@ win_pcopy_from_nb(unsigned char *dst, PNET_BUFFER nb,
         of the requested data
     */
     current_mdl = current_mdl->Next;
-    while (current_mdl && copied_bytes < len) {
+    while (current_mdl != NULL && copied_bytes < len) {
         /* Get the pointer to the beginning of data represented in current MDL. */
-        mdl_data =
-            (unsigned char *)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
-        if (!mdl_data) {
+        mdl_buffer = MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+        mdl_data = (unsigned char *)mdl_buffer;
+        if (mdl_data == NULL) {
             return -EFAULT;
         }
 
@@ -406,17 +394,17 @@ static int
 win_pcopy(unsigned char *dst, struct vr_packet *p_src,
         unsigned int offset, unsigned int len)
 {
-    if (!p_src) {
+    if (p_src == NULL)
         return -EFAULT;
-    }
+
     PNET_BUFFER_LIST nbl = p_src->vp_net_buffer_list;
-    if (!nbl) {
+    if (nbl == NULL)
         return -EFAULT;
-    }
+
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    if (!nb) {
+    if (nb == NULL)
         return -EFAULT;
-    }
+
 
     return win_pcopy_from_nb(dst, nb, offset, len);
 }
@@ -427,11 +415,11 @@ win_pfrag_len(struct vr_packet *pkt)
     ASSERT(pkt != NULL);
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
-    if (!nbl)
+    if (nbl == NULL)
         return 0;
 
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    if (!nb)
+    if (nb == NULL)
         return 0;
 
     PMDL nb_mdl = NET_BUFFER_CURRENT_MDL(nb);
@@ -564,18 +552,17 @@ win_schedule_work(unsigned int cpu, void(*fn)(void *), void *arg)
     NDIS_HANDLE work_item;
 
     cb_data = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*cb_data), VrAllocationTag);
-    if (!cb_data)
+    if (cb_data == NULL)
         return -ENOMEM;
 
     cb_data->user_cb = fn;
     cb_data->data = arg;
 
     work_item = NdisAllocateIoWorkItem(VrSwitchObject->NdisFilterHandle);
-    if (!work_item) {
+    if (work_item == NULL) {
         DbgPrint("%s: NdisAllocateIoWorkItem failed", __func__);
         scheduled_work_routine((PVOID)(cb_data), NULL);
-    }
-    else {
+    } else {
         NdisQueueIoWorkItem(work_item, scheduled_work_routine, (PVOID)(cb_data));
     }
 
@@ -628,7 +615,7 @@ win_defer(struct vrouter *router, vr_defer_cb user_cb, void *data)
     cb_data->router = router;
 
     work_item = NdisAllocateIoWorkItem(VrSwitchObject->NdisFilterHandle);
-    if (!work_item) {
+    if (work_item == NULL) {
         deferred_work_routine((PVOID)(cb_data), NULL);
     } else {
         NdisQueueIoWorkItem(work_item, deferred_work_routine, (PVOID)(cb_data));
@@ -646,7 +633,7 @@ win_get_defer_data(unsigned int len)
         return NULL;
 
     cb_data = win_malloc(sizeof(*cb_data) + len, VR_DEFER_OBJECT);
-    if (!cb_data) {
+    if (cb_data == NULL) {
         DbgPrint("%s: deferred_work_cb_data struct allocation failed", __func__);
         return NULL;
     }
@@ -659,7 +646,7 @@ win_put_defer_data(void *data)
 {
     struct deferred_work_cb_data * cb_data;
 
-    if (!data)
+    if (data == NULL)
         return;
 
     cb_data = CONTAINER_OF(user_data, struct deferred_work_cb_data, data);
@@ -762,7 +749,8 @@ win_pull_inner_headers(struct vr_packet *pkt,
     UNREFERENCED_PARAMETER(reason);
     UNREFERENCED_PARAMETER(tunnel_type_cb);
 
-    //TODO: Implement
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
 
     return 1;
 }
@@ -773,7 +761,9 @@ win_pcow(struct vr_packet *pkt, unsigned short head_room)
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(head_room);
 
-    /* Dummy implementation */
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
+
     return 0;
 }
 
@@ -788,7 +778,9 @@ win_pull_inner_headers_fast(struct vr_packet *pkt, unsigned char proto,
     UNREFERENCED_PARAMETER(ret);
     UNREFERENCED_PARAMETER(encap_type);
 
-    /* Dummy implementation */
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
+
     return 0;
 }
 
@@ -836,7 +828,9 @@ win_pkt_from_vm_tcp_mss_adj(struct vr_packet *pkt, unsigned short overlay_len)
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(overlay_len);
 
-    /* Dummy implementation */
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
+
     return 0;
 }
 
@@ -846,7 +840,9 @@ win_pkt_may_pull(struct vr_packet *pkt, unsigned int len)
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(len);
 
-    /* Dummy implementation */
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
+
     return 0;
 }
 
@@ -857,7 +853,9 @@ win_gro_process(struct vr_packet *pkt, struct vr_interface *vif, bool l2_pkt)
     UNREFERENCED_PARAMETER(vif);
     UNREFERENCED_PARAMETER(l2_pkt);
 
-    /* Dummy implementation */
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
+
     return 0;
 }
 
@@ -869,7 +867,9 @@ win_enqueue_to_assembler(struct vrouter *router, struct vr_packet *pkt,
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(fmd);
 
-    /* Dummy implementation */
+    // TODO: Implement
+    ASSERTMSG("Not implemented", FALSE);
+
     return 0;
 }
 
@@ -877,7 +877,7 @@ static void
 win_set_log_level(unsigned int log_level)
 {
     UNREFERENCED_PARAMETER(log_level);
-    return;
+    // TODO: Implement
 }
 
 static void
@@ -885,12 +885,13 @@ win_set_log_type(unsigned int log_type, int enable)
 {
     UNREFERENCED_PARAMETER(log_type);
     UNREFERENCED_PARAMETER(enable);
-    return;
+    // TODO: Implement
 }
 
 static unsigned int
 win_get_log_level(void)
 {
+    // TODO: Implement
     return 0;
 }
 
@@ -898,6 +899,7 @@ static unsigned int *
 win_get_enabled_log_types(int *size)
 {
     UNREFERENCED_PARAMETER(size);
+    // TODO: Implement
 
     size = 0;
     return NULL;
@@ -915,32 +917,41 @@ win_soft_reset(struct vrouter *router)
             rcu_barrier();
     */
     UNREFERENCED_PARAMETER(router);
+}
 
-    return;
+static BOOLEAN
+NicGuidMatches(PNDIS_SWITCH_NIC_PARAMETERS nicParameters, const int8_t *ifGuid)
+{
+    PGUID nicGuid = &nicParameters->NetCfgInstanceId;
+    return memcmp(nicGuid, ifGuid, sizeof(*nicGuid)) == 0;
+}
+
+static BOOLEAN
+NicUnicodeGuidMatches(PNDIS_SWITCH_NIC_PARAMETERS nicParameters, PUNICODE_STRING ifGuid)
+{
+    PNDIS_IF_COUNTED_STRING nicGuid = &nicParameters->NicName;
+    size_t size = nicGuid->Length < ifGuid->Length ? nicGuid->Length : ifGuid->Length;
+    return memcmp(ifGuid->Buffer, nicGuid->String, size) == 0;
 }
 
 static void
 win_update_vif_port(struct vr_interface *vif, vr_interface_req *vifr, PNDIS_SWITCH_NIC_ARRAY array)
 {
-    for (unsigned int i = 0; i < array->NumElements; i++){
+    for (unsigned int i = 0; i < array->NumElements; i++) {
         PNDIS_SWITCH_NIC_PARAMETERS element = NDIS_SWITCH_NIC_AT_ARRAY_INDEX(array, i);
 
         // "Fake" interface pointing to the default interface, it's not needed.
         if (element->NicType == NdisSwitchNicTypeExternal && element->NicIndex == 0)
             continue;
 
-        if (element->NicType == NdisSwitchNicTypeExternal || element->NicType == NdisSwitchNicTypeInternal)
-        {
-            if (memcmp(&element->NetCfgInstanceId, vifr->vifr_if_guid, sizeof(element->NetCfgInstanceId)) == 0)
-            {
+        if (element->NicType == NdisSwitchNicTypeExternal || element->NicType == NdisSwitchNicTypeInternal) {
+            if (NicGuidMatches(element, vifr->vifr_if_guid)) {
                 vif->vif_port = element->PortId;
                 vif->vif_nic = element->NicIndex;
 
                 break;
             }
-        }
-        else if (element->NicType == NdisSwitchNicTypeEmulated || element->NicType == NdisSwitchNicTypeSynthetic)
-        {
+        } else if (element->NicType == NdisSwitchNicTypeEmulated || element->NicType == NdisSwitchNicTypeSynthetic) {
             ANSI_STRING ansi_name;
             ansi_name.Buffer = vifr->vifr_if_guid;
             ansi_name.Length = vifr->vifr_if_guid_size + 1; // For NULL character
@@ -949,13 +960,11 @@ win_update_vif_port(struct vr_interface *vif, vr_interface_req *vifr, PNDIS_SWIT
             UNICODE_STRING unicode_name;
             RtlAnsiStringToUnicodeString(&unicode_name, &ansi_name, TRUE);
 
-            if (memcmp(unicode_name.Buffer, element->NicName.String, (element->NicName.Length < unicode_name.Length ? element->NicName.Length : unicode_name.Length)) == 0)
-            {
+            if (NicUnicodeGuidMatches(element, &unicode_name)) {
                 vif->vif_port = element->PortId;
                 vif->vif_nic = element->NicIndex;
 
                 RtlFreeUnicodeString(&unicode_name);
-
                 break;
             } else {
                 RtlFreeUnicodeString(&unicode_name);
