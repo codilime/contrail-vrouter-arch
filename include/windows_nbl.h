@@ -10,13 +10,13 @@
 #include "vr_packet.h"
 #include "vr_windows.h"
 
-// CONTEXT_SIZE is sizeof(struct vr_packet) rounded up to the nearest multiple of MEMORY_ALLOCATION_ALIGNMENT
-#define CONTEXT_SIZE \
+// VR_NBL_CONTEXT_SIZE is sizeof(struct vr_packet) rounded up to the nearest multiple of MEMORY_ALLOCATION_ALIGNMENT
+#define VR_NBL_CONTEXT_SIZE \
     (((sizeof(struct vr_packet) + MEMORY_ALLOCATION_ALIGNMENT - 1) / MEMORY_ALLOCATION_ALIGNMENT) * \
         MEMORY_ALLOCATION_ALIGNMENT)
 
-#define IS_OWNED(nbl) (nbl->NdisPoolHandle == VrNBLPool)
-#define IS_CLONE(nbl) (nbl->ParentNetBufferList != NULL)
+#define IS_NBL_OWNED(nbl) ((nbl)->NdisPoolHandle == VrNBLPool)
+#define IS_NBL_CLONE(nbl) ((nbl)->ParentNetBufferList != NULL)
 
 #define VP_DEFAULT_INITIAL_TTL 64
 

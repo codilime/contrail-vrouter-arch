@@ -145,11 +145,10 @@ free_nbl(PNET_BUFFER_LIST nbl)
     pkt->vp_ref_cnt--;
 
     if (pkt->vp_ref_cnt == 0) {
+        NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
-        NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
-
-        if (IS_OWNED(nbl)) {
-            if (IS_CLONE(nbl))
+        if (IS_NBL_OWNED(nbl)) {
+            if (IS_NBL_CLONE(nbl))
                 free_cloned_nbl(nbl);
             else
                 free_created_nbl(nbl);
@@ -256,7 +255,7 @@ win_allocate_packet(void *buffer, unsigned int size)
 
 fail:
     if (pkt)
-        NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
+        NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
     if (nbl)
         free_created_nbl(nbl);
     return NULL;

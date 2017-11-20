@@ -129,7 +129,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, VrAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
     struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (!pkt)
         return NULL;
@@ -159,7 +159,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
     ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
 
-    if (IS_OWNED(nbl) && !IS_CLONE(nbl))
+    if (IS_NBL_OWNED(nbl) && !IS_NBL_CLONE(nbl))
         pkt->vp_tail = pkt->vp_len = 0;
     else
         pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
@@ -184,7 +184,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     return pkt;
 
 drop:
-    NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
+    NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
     return NULL;
 }
 
@@ -252,7 +252,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
     if (new_nbl == NULL)
         goto cleanup;
 
-    NdisAllocateNetBufferListContext(new_nbl, CONTEXT_SIZE, 0, VrAllocationTag);
+    NdisAllocateNetBufferListContext(new_nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
     struct vr_packet* npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(new_nbl);
     *npkt = *pkt;
     pkt = npkt;
@@ -339,7 +339,7 @@ win_pclone(struct vr_packet *pkt)
     if (nbl == NULL)
         return NULL;
 
-    NdisAllocateNetBufferListContext(nbl, CONTEXT_SIZE, 0, VrAllocationTag);
+    NdisAllocateNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
     struct vr_packet *npkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
     if (npkt == NULL)
         goto cleanup_nbl;
@@ -364,7 +364,7 @@ win_pclone(struct vr_packet *pkt)
     return npkt;
 
 cleanup_pkt:
-    NdisFreeNetBufferListContext(nbl, CONTEXT_SIZE);
+    NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
 cleanup_nbl:
     free_cloned_nbl(nbl);
