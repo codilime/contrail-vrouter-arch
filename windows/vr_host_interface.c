@@ -231,7 +231,7 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
     windows_host.hos_printf("%s: Got pkt\n", __func__);
     if (vif == NULL) {
-        free_nbl(pkt->vp_net_buffer_list);
+        FreeNetBufferList(pkt->vp_net_buffer_list);
         return 0; // Sent into /dev/null
     }
 
