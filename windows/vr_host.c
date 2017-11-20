@@ -24,8 +24,11 @@ struct scheduled_work_cb_data {
 
 NDIS_IO_WORKITEM_FUNCTION deferred_work_routine;
 
-static unsigned int win_get_cpu(void);
-static void win_pfree(struct vr_packet *pkt, unsigned short reason);  // Forward declaration
+static unsigned int
+win_get_cpu(void)
+{
+    return KeGetCurrentProcessorNumberEx(NULL);
+}
 
 static int
 win_printf(const char *format, ...)
@@ -694,12 +697,6 @@ win_get_mono_time(unsigned int *sec, unsigned int *nsec)
 
     *sec = i.HighPart;
     *nsec = i.LowPart;
-}
-
-static unsigned int
-win_get_cpu(void)
-{
-    return KeGetCurrentProcessorNumberEx(NULL);
 }
 
 static void *
