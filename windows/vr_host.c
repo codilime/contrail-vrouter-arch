@@ -125,7 +125,7 @@ win_page_free(void *address, unsigned int size)
 static struct vr_packet *
 win_palloc(unsigned int size)
 {
-    return win_allocate_packet(NULL, size);
+    return AllocateVrPacket(NULL, size);
 }
 
 static void
@@ -139,7 +139,7 @@ win_pfree(struct vr_packet *pkt, unsigned short reason)
     if (router)
         ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
 
-    win_free_packet(pkt);
+    FreeVrPacket(pkt);
 }
 
 static struct vr_packet *
@@ -156,7 +156,7 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     if (nb_head == NULL)
         return NULL;
 
-    struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
+    struct vr_packet* npkt = AllocateVrPacketForNetBufferList(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
         FreeCreatedNetBufferList(nb_head);
