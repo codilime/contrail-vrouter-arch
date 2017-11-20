@@ -60,6 +60,8 @@ fail:
 PNET_BUFFER_LIST
 CreateNetBufferList(unsigned int BytesCount)
 {
+    ASSERT(BytesCount > 0);
+
     if (BytesCount == 0)
         return NULL;
 
@@ -78,32 +80,32 @@ CreateNetBufferList(unsigned int BytesCount)
 }
 
 VOID
-FreeClonedNetBufferList(PNET_BUFFER_LIST Nbl)
+FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
 {
-    ASSERT(Nbl != NULL);
-    ASSERT(Nbl->ParentNetBufferList != NULL);
+    ASSERT(nbl != NULL);
+    ASSERT(nbl->ParentNetBufferList != NULL);
 
-    PNET_BUFFER_LIST parentNbl = Nbl->ParentNetBufferList;
+    PNET_BUFFER_LIST parentNbl = nbl->ParentNetBufferList;
 
-    NdisFreeCloneNetBufferList(Nbl, 0);
+    NdisFreeCloneNetBufferList(nbl, 0);
     parentNbl->ChildRefCount--;
 }
 
 VOID
-FreeCreatedNetBufferList(PNET_BUFFER_LIST Nbl)
+FreeCreatedNetBufferList(PNET_BUFFER_LIST nbl)
 {
-    ASSERT(Nbl != NULL);
-    ASSERTMSG("A non-singular NBL made it's way into the process", Nbl->Next == NULL);
+    ASSERT(nbl != NULL);
+    ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
     PNET_BUFFER nb = NULL;
     PMDL mdl = NULL;
     PMDL mdl_next = NULL;
     PVOID data = NULL;
 
-    FreeForwardingContext(Nbl);
+    FreeForwardingContext(nbl);
 
     /* Free MDLs associated with NET_BUFFERS */
-    for (nb = NET_BUFFER_LIST_FIRST_NB(Nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
+    for (nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
         for (mdl = NET_BUFFER_FIRST_MDL(nb); mdl != NULL; mdl = mdl_next) {
             mdl_next = mdl->Next;
             data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
@@ -112,44 +114,44 @@ FreeCreatedNetBufferList(PNET_BUFFER_LIST Nbl)
                 ExFreePool(data);
         }
 
-    NdisFreeNetBufferList(Nbl);
+    NdisFreeNetBufferList(nbl);
 }
 
 static VOID
-CompleteReceivedNetBufferList(PNET_BUFFER_LIST Nbl)
+CompleteReceivedNetBufferList(PNET_BUFFER_LIST nbl)
 {
-    ASSERT(Nbl != NULL);
+    ASSERT(nbl != NULL);
 
     /* Flag SINGLE_SOURCE is used, because of singular NBLS */
     NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
-        Nbl,
+        nbl,
         NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP);
 }
 
 VOID
-FreeNetBufferList(PNET_BUFFER_LIST Nbl)
+FreeNetBufferList(PNET_BUFFER_LIST nbl)
 {
-    ASSERT(Nbl != NULL);
-    ASSERTMSG("A non-singular NBL made it's way into the process", Nbl->Next == NULL);
+    ASSERT(nbl != NULL);
+    ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
-    struct vr_packet *pkt = (struct vr_packet *)NET_BUFFER_LIST_CONTEXT_DATA_START(Nbl);
+    struct vr_packet *pkt = (struct vr_packet *)NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
 
     pkt->vp_ref_cnt--;
     if (pkt->vp_ref_cnt == 0) {
-        NdisFreeNetBufferListContext(Nbl, VR_NBL_CONTEXT_SIZE);
+        NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
-        if (IS_NBL_OWNED(Nbl)) {
-            PNET_BUFFER_LIST parent = Nbl->ParentNetBufferList;
+        if (IS_NBL_OWNED(nbl)) {
+            PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
 
-            if (IS_NBL_CLONE(Nbl))
-                FreeClonedNetBufferList(Nbl);
+            if (IS_NBL_CLONE(nbl))
+                FreeClonedNetBufferList(nbl);
             else
-                FreeCreatedNetBufferList(Nbl);
+                FreeCreatedNetBufferList(nbl);
 
             if (parent != NULL)
                 FreeNetBufferList(parent);
         } else {
-            CompleteReceivedNetBufferList(Nbl);
+            CompleteReceivedNetBufferList(nbl);
         }
     }
 }
@@ -177,25 +179,25 @@ delete_unbound_nbl(PNET_BUFFER_LIST nbl, unsigned long flags)
 }
 
 PNET_BUFFER_LIST
-CloneNetBufferList(PNET_BUFFER_LIST OriginalNbl)
+CloneNetBufferList(PNET_BUFFER_LIST originalNbl)
 {
-    ASSERT(OriginalNbl != NULL);
+    ASSERT(originalNbl != NULL);
 
     BOOLEAN contextCreated = false;
-    PNET_BUFFER_LIST newNbl = NdisAllocateCloneNetBufferList(OriginalNbl, VrNBLPool, NULL, 0);
+    PNET_BUFFER_LIST newNbl = NdisAllocateCloneNetBufferList(originalNbl, VrNBLPool, NULL, 0);
     if (newNbl == NULL)
         goto cleanup;
 
     newNbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
-    newNbl->ParentNetBufferList = OriginalNbl;
-    OriginalNbl->ChildRefCount++;
+    newNbl->ParentNetBufferList = originalNbl;
+    originalNbl->ChildRefCount++;
 
     if (CreateForwardingContext(newNbl) != NDIS_STATUS_SUCCESS)
         goto cleanup;
     contextCreated = true;
 
     NDIS_STATUS status = VrSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
-        VrSwitchObject->NdisSwitchContext, newNbl, OriginalNbl, 0);
+        VrSwitchObject->NdisSwitchContext, newNbl, originalNbl, 0);
     if (status != NDIS_STATUS_SUCCESS)
         goto cleanup;
 
@@ -207,7 +209,7 @@ cleanup:
 
     if (newNbl) {
         NdisFreeCloneNetBufferList(newNbl, 0);
-        OriginalNbl->ChildRefCount--;
+        originalNbl->ChildRefCount--;
     }
 
     return NULL;
@@ -289,7 +291,7 @@ SplitNetBufferListsByForwardingType(
 }
 
 static struct vr_interface *
-GetAssociatedVrInterface(NDIS_SWITCH_PORT_ID VifPort, NDIS_SWITCH_NIC_INDEX VifNic)
+GetAssociatedVrInterface(NDIS_SWITCH_PORT_ID vifPort, NDIS_SWITCH_NIC_INDEX vifNic)
 {
     struct vrouter *vrouter = vrouter_get(0);
     ASSERT(vrouter != NULL);
@@ -300,7 +302,7 @@ GetAssociatedVrInterface(NDIS_SWITCH_PORT_ID VifPort, NDIS_SWITCH_NIC_INDEX VifN
         if (vif == NULL)
             continue;
 
-        if (vif->vif_port == VifPort && vif->vif_nic == VifNic)
+        if (vif->vif_port == vifPort && vif->vif_nic == vifNic)
             return vif;
     }
 
