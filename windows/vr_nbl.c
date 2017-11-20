@@ -214,7 +214,7 @@ cleanup:
 }
 
 struct vr_packet *
-win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
+GetPacketFromNetBufferList(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     ASSERT(nbl != NULL);
 
@@ -229,7 +229,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     pkt->vp_net_buffer_list = nbl;
     pkt->vp_ref_cnt = 1;
-    pkt->vp_cpu = (unsigned char)win_get_cpu();
+    pkt->vp_cpu = (unsigned char)KeQueryActiveProcessorCount(NULL);
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
@@ -280,7 +280,7 @@ drop:
 }
 
 struct vr_packet *
-win_allocate_packet(void *buffer, unsigned int size)
+AllocatePacket(void *buffer, unsigned int size)
 {
     ASSERT(size > 0);
 
@@ -296,7 +296,7 @@ win_allocate_packet(void *buffer, unsigned int size)
     if (nbl == NULL)
         goto fail;
 
-    pkt = win_get_packet(nbl, NULL);
+    pkt = GetPacketFromNetBufferList(nbl, NULL);
     if (pkt == NULL)
         goto fail;
 
@@ -317,7 +317,7 @@ fail:
 }
 
 void
-win_free_packet(struct vr_packet *pkt)
+FreePacket(struct vr_packet *pkt)
 {
     ASSERT(pkt != NULL);
     free_associated_nbl(pkt);
@@ -438,11 +438,11 @@ FilterSendNetBufferLists(
             continue;
         }
 
-        struct vr_packet *pkt = win_get_packet(curNbl, vif);
+        struct vr_packet *pkt = GetPacketFromNetBufferList(curNbl, vif);
         ASSERTMSG("win_get_packed failed!", pkt != NULL);
 
         if (pkt == NULL) {
-            /* If `win_get_packet` fails, it will drop the NBL. */
+            /* If `GetPacketFromNetBufferList` fails, it will drop the NBL. */
             NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
