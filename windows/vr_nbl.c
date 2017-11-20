@@ -214,6 +214,72 @@ cleanup:
 }
 
 struct vr_packet *
+win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
+{
+    ASSERT(nbl != NULL);
+
+    DbgPrint("%s()\n", __func__);
+    /* Allocate NDIS context, which will store vr_packet pointer */
+    NdisAllocateNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
+    struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    if (!pkt)
+        return NULL;
+
+    RtlZeroMemory(pkt, sizeof(struct vr_packet));
+
+    pkt->vp_net_buffer_list = nbl;
+    pkt->vp_ref_cnt = 1;
+    pkt->vp_cpu = (unsigned char)win_get_cpu();
+
+    /* vp_head points to the beginning of accesible non-paged memory of the packet */
+    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
+    ULONG current_mdl_count = MmGetMdlByteCount(current_mdl);
+    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
+    unsigned char* mdl_data =
+        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
+    if (!mdl_data)
+        goto drop;
+    pkt->vp_head = mdl_data + current_mdl_offset;
+    /* vp_data is the offset from vp_head, where packet begins.
+       TODO: When packet encapsulation comes into play, then vp_data should differ.
+             There should be enough room between vp_head and vp_data to add packet headers.
+    */
+    pkt->vp_data = 0;
+
+    ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
+
+    if (IS_NBL_OWNED(nbl) && !IS_NBL_CLONE(nbl))
+        pkt->vp_tail = pkt->vp_len = 0;
+    else
+        pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
+
+    /* vp_end points to the end of accesible non-paged memory */
+    pkt->vp_end = left_mdl_space;
+
+    pkt->vp_if = vif;
+    pkt->vp_network_h = pkt->vp_inner_network_h = 0;
+    pkt->vp_nh = NULL;
+    pkt->vp_flags = 0;
+
+    // If a problem arises concerning IP checksums, tinker with:
+    // if (skb->ip_summed == CHECKSUM_PARTIAL)
+    //	pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
+
+    pkt->vp_ttl = VP_DEFAULT_INITIAL_TTL;
+    pkt->vp_type = VP_TYPE_NULL;
+    pkt->vp_queue = 0;
+    pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
+
+    return pkt;
+
+drop:
+    NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
+    return NULL;
+}
+
+struct vr_packet *
 win_allocate_packet(void *buffer, unsigned int size)
 {
     ASSERT(size > 0);
