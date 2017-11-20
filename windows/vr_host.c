@@ -196,7 +196,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 
 cleanup:
     if (new_nbl)
-        FreeNetBufferList(new_nbl);
+        FreeClonedNetBufferList(new_nbl);
 
     return NULL;
 }
