@@ -10,8 +10,13 @@
 extern "C" {
 #endif
 
+#include <net/if.h> /* For IFNAMSIZ */
+#include <stdbool.h> /* For bool */
 #include "vr_utils.h"
 #include "vr_response.h"
+
+#define VR_DEF_NETLINK_PORT         20914
+#define VR_DEF_SOCKET_DIR           "/var/run/vrouter"
 
 #define NL_RESP_DEFAULT_SIZE        512
 #define NL_MSG_DEFAULT_SIZE         4096
@@ -21,7 +26,11 @@ extern "C" {
 #define NL_MSG_TYPE_GEN_CTRL        2
 #define NL_MSG_TYPE_FMLY            3
 
-#define VR_NETLINK_PROTO_DEFAULT    0xFFFFFFFF
+#define VR_NETLINK_PROTO_DEFAULT    -1
+#define VR_NETLINK_PROTO_TEST       -2
+
+#define BRIDGE_TABLE_DEV            "/dev/vr_bridge"
+#define FLOW_TABLE_DEV              "/dev/flow"
 
 #ifdef _WIN32
 #define CLEAN_SCREEN_CMD        "cls"
@@ -56,6 +65,7 @@ struct nl_client {
     struct nl_response resp;
     unsigned int cl_resp_buf_len;
     uint8_t *cl_resp_buf;
+    uint8_t *cl_attr;
     int cl_socket_domain;
     int cl_socket_type;
     int cl_socket_proto;
@@ -83,6 +93,7 @@ struct genl_ctrl_message {
 struct nl_sandesh_callbacks {
     void (*vrouter_ops_process)(void *);
     void (*vr_flow_req_process)(void *);
+    void (*vr_flow_response_process)(void *);
     void (*vr_route_req_process)(void *);
     void (*vr_interface_req_process)(void *);
     void (*vr_mpls_req_process)(void *);
@@ -96,12 +107,17 @@ struct nl_sandesh_callbacks {
     void (*vr_mem_stats_req_process)(void *);
     void (*vr_fc_map_req_process)(void *);
     void (*vr_qos_map_req_process)(void *);
+    void (*vr_flow_table_data_process)(void *);
+    void (*vr_bridge_table_data_process)(void *);
 };
 
 extern struct nl_sandesh_callbacks nl_cb;
 
 /* Suppress NetLink error messages */
 extern bool vr_ignore_nl_errors;
+extern char *vr_socket_dir;
+extern uint16_t vr_netlink_port;
+
 
 extern struct nl_client *nl_register_client(void);
 extern void nl_free_client(struct nl_client *cl);
@@ -127,16 +143,35 @@ extern void nl_init_generic_client_resp(struct nl_client *cl, char *resp,
 extern int nl_build_nlh(struct nl_client *, uint32_t, uint32_t);
 extern void nl_update_nlh(struct nl_client *);
 extern int nl_build_genlh(struct nl_client *, uint8_t, uint8_t);
-extern int nl_build_if_create_msg(struct nl_client *cl, struct vn_if *ifp, uint8_t ack);
-extern int nl_build_header(struct nl_client *cl, unsigned char **buf, uint32_t *buf_len);
-extern void nl_update_header(struct nl_client *cl, int data_len);
-extern int nl_build_family_name_attr(struct nl_client *cl, char *family);
-extern int nl_build_get_family_id(struct nl_client *cl, char *family);
+
+extern int nl_build_if_create_msg(struct nl_client *, struct vn_if *, uint8_t);
+extern int nl_build_header(struct nl_client *, unsigned char **, uint32_t *);
+extern void nl_update_header(struct nl_client *, int);
+extern int nl_build_family_name_attr(struct nl_client *, char *);
+extern int nl_build_get_family_id(struct nl_client *, char *);
+
+extern int nl_build_set_dcb_state_msg(struct nl_client *, uint8_t *, uint8_t);
+extern int nl_build_get_dcb_state_msg(struct nl_client *, uint8_t *);
+extern int nl_build_set_priority_config_msg(struct nl_client *, uint8_t *,
+        struct priority *);
+extern int nl_build_get_priority_config_msg(struct nl_client *, uint8_t *);
+extern int nl_build_set_dcb_all(struct nl_client *, uint8_t *);
+extern int nl_build_set_dcbx(struct nl_client *, uint8_t *,  uint8_t);
+extern int nl_build_get_dcbx(struct nl_client *, uint8_t *);
+extern int nl_build_set_ieee_ets(struct nl_client *, uint8_t *,
+        struct priority *);
+extern int nl_build_get_ieee_ets(struct nl_client *, uint8_t *,
+        struct priority *);
+extern int nl_dcb_parse_reply(struct nl_client *, uint8_t, void *);
+extern int nl_dcb_sendmsg(struct nl_client *, uint8_t, void *);
+extern int nl_parse_dcb_state(uint8_t *);
+
 extern int nl_get_sandesh_attr_size();
 extern int nl_get_attr_hdr_size();
 extern uint8_t *nl_get_buf_ptr(struct nl_client *cl);
 extern uint32_t nl_get_buf_len(struct nl_client *cl);
 extern void nl_build_attr(struct nl_client *cl, int len, int attr);
+extern void nl_update_attr_len(struct nl_client *, int);
 extern int vrouter_get_family_id(struct nl_client *cl);
 extern int get_vrouter_pid(void);
 
@@ -148,18 +183,20 @@ extern char *vr_proto_string(unsigned short);
 
 extern int vr_recvmsg(struct nl_client *cl, bool dump);
 extern int vr_sendmsg(struct nl_client *, void *, char *);
-extern struct nl_client *vr_get_nl_client(unsigned int);
+extern struct nl_client *vr_get_nl_client(int);
 
 extern int vr_response_common_process(vr_response *, bool *);
 
+extern void *vr_table_map(int, unsigned int, char *, size_t);
 extern uint64_t vr_sum_drop_stats(vr_drop_stats_req *);
 extern void vr_drop_stats_req_destroy(vr_drop_stats_req *);
 extern vr_drop_stats_req *vr_drop_stats_req_get_copy(vr_drop_stats_req *);
-extern int vr_send_drop_stats_get(struct nl_client *, unsigned int, int);
+extern int vr_send_drop_stats_get(struct nl_client *, unsigned int,
+        short);
 
 extern int vr_send_interface_dump(struct nl_client *, unsigned int, int, int);
 extern int vr_send_interface_get(struct nl_client *, unsigned int,
-                int, int, int);
+                int, int, int, int);
 extern int vr_send_interface_delete(struct nl_client *, unsigned int,
         char *, int);
 extern int vr_send_interface_add(struct nl_client *, int, char *, int,
@@ -199,11 +236,13 @@ extern int vr_send_nexthop_add(struct nl_client *, unsigned int,
         unsigned int, int, unsigned int, int, int);
 extern vr_nexthop_req *vr_nexthop_req_get_copy(vr_nexthop_req *);
 extern void vr_nexthop_req_destroy(vr_nexthop_req *);
+extern int vr_send_pbb_tunnel_add(struct nl_client *, unsigned int, int,
+        unsigned int, int, int8_t *, unsigned int, unsigned int);
 
 
 extern void address_mask(uint8_t *, uint8_t, unsigned int);
 extern int vr_send_route_dump(struct nl_client *, unsigned int, unsigned int,
-        unsigned int, uint8_t *, unsigned int);
+        unsigned int, uint8_t *);
 extern int vr_send_route_get(struct nl_client *, unsigned int, unsigned int,
         unsigned int family, uint8_t *, unsigned int, uint8_t *);
 extern int vr_send_route_delete(struct nl_client *, unsigned int, unsigned int,
@@ -244,6 +283,22 @@ extern int vr_send_fc_map_get(struct nl_client *, unsigned int, uint8_t);
 extern int vr_send_fc_map_dump(struct nl_client *, unsigned int, int);
 extern int vr_send_fc_map_add(struct nl_client *, unsigned int, int16_t *,
         uint8_t, uint8_t *, uint8_t *, uint8_t *, uint8_t *);
+
+extern int vr_send_set_dcb_state(struct nl_client *, uint8_t *, uint8_t);
+extern int vr_send_set_dcbx(struct nl_client *, uint8_t *, uint8_t);
+extern int vr_send_set_priority_config(struct nl_client *, uint8_t *,
+        struct priority *);
+
+extern int vr_send_get_dcb_state(struct nl_client *, uint8_t *);
+extern int vr_send_get_dcbx(struct nl_client *, uint8_t *);
+extern int vr_send_get_priority_config(struct nl_client *, uint8_t *,
+        struct priority *);
+extern int vr_send_set_dcb_all(struct nl_client *, uint8_t *);
+extern int vr_send_set_ieee_ets(struct nl_client *, uint8_t *,
+        struct priority *);
+extern int vr_send_get_ieee_ets(struct nl_client *, uint8_t *,
+        struct priority *);
+extern void vr_print_drop_stats(vr_drop_stats_req *, int);
 
 #ifdef _WINDOWS
 extern int win_setup_nl_client(struct nl_client *, unsigned int);

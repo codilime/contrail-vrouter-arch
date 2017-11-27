@@ -10,6 +10,9 @@
 #include "vr_qos.h"
 #include "vr_flow.h"
 #include "vrouter.h"
+#include "vr_btable.h"
+#include "vr_bridge.h"
+#include "vr_mirror.h"
 
 /* ethernet header */
 #define VR_ETHER_DMAC_OFF       0
@@ -93,7 +96,8 @@
 #define VP_TYPE_IP6OIP          5
 
 #define VP_TYPE_AGENT           6
-#define VP_TYPE_UNKNOWN         7
+#define VP_TYPE_PBB             7
+#define VP_TYPE_UNKNOWN         8
 #define VP_TYPE_MAX             VP_TYPE_UNKNOWN
 
 
@@ -108,11 +112,11 @@
 /*
  * Values to define the MPLS tunnel type
  */
-#define PKT_MPLS_TUNNEL_INVALID         0x00
-#define PKT_MPLS_TUNNEL_L3              0x01
-#define PKT_MPLS_TUNNEL_L2_UCAST        0x02
-#define PKT_MPLS_TUNNEL_L2_MCAST        0x03
-#define PKT_MPLS_TUNNEL_L2_MCAST_EVPN   0x04
+#define PKT_MPLS_TUNNEL_INVALID               0x00
+#define PKT_MPLS_TUNNEL_L3                    0x01
+#define PKT_MPLS_TUNNEL_L2_UCAST              0x02
+#define PKT_MPLS_TUNNEL_L2_MCAST              0x03
+#define PKT_MPLS_TUNNEL_L2_CONTROL_DATA       0x04
 
 
 /*
@@ -136,108 +140,52 @@
 #define VP_DROP_DISCARD                     0
 #define VP_DROP_PULL                        1
 #define VP_DROP_INVALID_IF                  2
-#define VP_DROP_ARP_NO_WHERE_TO_GO          3
-#define VP_DROP_GARP_FROM_VM                4
-#define VP_DROP_INVALID_ARP                 5
-#define VP_DROP_TRAP_NO_IF                  6
-#define VP_DROP_NOWHERE_TO_GO               7
-#define VP_DROP_FLOW_QUEUE_LIMIT_EXCEEDED   8
-#define VP_DROP_FLOW_NO_MEMORY              9
-#define VP_DROP_FLOW_INVALID_PROTOCOL       10
-#define VP_DROP_FLOW_NAT_NO_RFLOW           11
-#define VP_DROP_FLOW_ACTION_DROP            12
-#define VP_DROP_FLOW_ACTION_INVALID         13
-#define VP_DROP_FLOW_UNUSABLE               14
-#define VP_DROP_FLOW_TABLE_FULL             15
-#define VP_DROP_INTERFACE_TX_DISCARD        16
-#define VP_DROP_INTERFACE_DROP              17
-#define VP_DROP_DUPLICATED                  18
-#define VP_DROP_PUSH                        19
-#define VP_DROP_TTL_EXCEEDED                20
-#define VP_DROP_INVALID_NH                  21
-#define VP_DROP_INVALID_LABEL               22
-#define VP_DROP_INVALID_PROTOCOL            23
-#define VP_DROP_INTERFACE_RX_DISCARD        24
-#define VP_DROP_INVALID_MCAST_SOURCE        25
-#define VP_DROP_HEAD_ALLOC_FAIL             26
-#define VP_DROP_HEAD_SPACE_RESERVE_FAIL     27
-#define VP_DROP_PCOW_FAIL                   28
-#define VP_DROP_MCAST_DF_BIT                29
-#define VP_DROP_MCAST_CLONE_FAIL            30
-#define VP_DROP_NO_MEMORY                   31
-#define VP_DROP_REWRITE_FAIL                32
-#define VP_DROP_MISC                        33
-#define VP_DROP_INVALID_PACKET              34
-#define VP_DROP_CKSUM_ERR                   35
-/* #define VP_DROP_CLONE_FAIL               36 - UNUSED */
-#define VP_DROP_NO_FMD                      37
-#define VP_DROP_CLONED_ORIGINAL             38
-#define VP_DROP_INVALID_VNID                39
-#define VP_DROP_FRAGMENTS                   40
-#define VP_DROP_INVALID_SOURCE              41
-#define VP_DROP_ARP_NO_ROUTE                42
-#define VP_DROP_L2_NO_ROUTE                 43
-#define VP_DROP_FRAGMENT_QUEUE_FAIL         44
-#define VP_DROP_VLAN_FWD_TX                 45
-#define VP_DROP_VLAN_FWD_ENQ                46
-#define VP_DROP_NEW_FLOWS                   47
-#define VP_DROP_FLOW_EVICT                  48
-#define VP_DROP_TRAP_ORIGINAL               49
-#define VP_DROP_MAX                         50
-
-
-struct vr_drop_stats {
-    uint64_t vds_discard;
-    uint64_t vds_pull;
-    uint64_t vds_invalid_if;
-    uint64_t vds_arp_no_where_to_go;
-    uint64_t vds_garp_from_vm;
-    uint64_t vds_invalid_arp;
-    uint64_t vds_trap_no_if;
-    uint64_t vds_nowhere_to_go;
-    uint64_t vds_flow_queue_limit_exceeded;
-    uint64_t vds_flow_no_memory;
-    uint64_t vds_flow_invalid_protocol;
-    uint64_t vds_flow_nat_no_rflow;
-    uint64_t vds_flow_action_drop;
-    uint64_t vds_flow_action_invalid;
-    uint64_t vds_flow_unusable;
-    uint64_t vds_flow_table_full;
-    uint64_t vds_interface_tx_discard;
-    uint64_t vds_interface_drop;
-    uint64_t vds_duplicated;
-    uint64_t vds_push;
-    uint64_t vds_ttl_exceeded;
-    uint64_t vds_invalid_nh;
-    uint64_t vds_invalid_label;
-    uint64_t vds_invalid_protocol;
-    uint64_t vds_interface_rx_discard;
-    uint64_t vds_invalid_mcast_source;
-    uint64_t vds_head_alloc_fail;
-    uint64_t vds_head_space_reserve_fail;
-    uint64_t vds_pcow_fail;
-    uint64_t vds_mcast_df_bit;
-    uint64_t vds_mcast_clone_fail;
-    uint64_t vds_no_memory;
-    uint64_t vds_rewrite_fail;
-    uint64_t vds_misc;
-    uint64_t vds_invalid_packet;
-    uint64_t vds_cksum_err;
-    uint64_t vds_clone_fail;
-    uint64_t vds_no_fmd;
-    uint64_t vds_cloned_original;
-    uint64_t vds_invalid_vnid;
-    uint64_t vds_frag_err;
-    uint64_t vds_invalid_source;
-    uint64_t vds_arp_no_route;
-    uint64_t vds_l2_no_route;
-    uint64_t vds_fragment_queue_fail;
-    uint64_t vds_vlan_fwd_tx;
-    uint64_t vds_vlan_fwd_enq;
-    uint64_t vds_drop_new_flow;
-    uint64_t vds_flow_evict;
-    uint64_t vds_trap_original;
-};
+#define VP_DROP_INVALID_ARP                 3
+#define VP_DROP_TRAP_NO_IF                  4
+#define VP_DROP_NOWHERE_TO_GO               5
+#define VP_DROP_FLOW_QUEUE_LIMIT_EXCEEDED   6
+#define VP_DROP_FLOW_NO_MEMORY              7
+#define VP_DROP_FLOW_INVALID_PROTOCOL       8
+#define VP_DROP_FLOW_NAT_NO_RFLOW           9
+#define VP_DROP_FLOW_ACTION_DROP            10
+#define VP_DROP_FLOW_ACTION_INVALID         11
+#define VP_DROP_FLOW_UNUSABLE               12
+#define VP_DROP_FLOW_TABLE_FULL             13
+#define VP_DROP_INTERFACE_TX_DISCARD        14
+#define VP_DROP_INTERFACE_DROP              15
+#define VP_DROP_DUPLICATED                  16
+#define VP_DROP_PUSH                        17
+#define VP_DROP_TTL_EXCEEDED                18
+#define VP_DROP_INVALID_NH                  19
+#define VP_DROP_INVALID_LABEL               20
+#define VP_DROP_INVALID_PROTOCOL            21
+#define VP_DROP_INTERFACE_RX_DISCARD        22
+#define VP_DROP_INVALID_MCAST_SOURCE        23
+#define VP_DROP_HEAD_ALLOC_FAIL             24
+#define VP_DROP_PCOW_FAIL                   25
+#define VP_DROP_MCAST_DF_BIT                26
+#define VP_DROP_MCAST_CLONE_FAIL            27
+#define VP_DROP_NO_MEMORY                   28
+#define VP_DROP_REWRITE_FAIL                29
+#define VP_DROP_MISC                        30
+#define VP_DROP_INVALID_PACKET              31
+#define VP_DROP_CKSUM_ERR                   32
+#define VP_DROP_NO_FMD                      33
+#define VP_DROP_CLONED_ORIGINAL             34
+#define VP_DROP_INVALID_VNID                35
+#define VP_DROP_FRAGMENTS                   36
+#define VP_DROP_INVALID_SOURCE              37
+#define VP_DROP_L2_NO_ROUTE                 38
+#define VP_DROP_FRAGMENT_QUEUE_FAIL         39
+#define VP_DROP_VLAN_FWD_TX                 40
+#define VP_DROP_VLAN_FWD_ENQ                41
+#define VP_DROP_NEW_FLOWS                   42
+#define VP_DROP_FLOW_EVICT                  43
+#define VP_DROP_TRAP_ORIGINAL               44
+#define VP_DROP_LEAF_TO_LEAF                45
+#define VP_DROP_BMAC_ISID_MISMATCH          46
+#define VP_DROP_PKT_LOOP                    47
+#define VP_DROP_MAX                         48
 
 /*
  * NOTE: Please do not add any more fields without ensuring
@@ -267,11 +215,13 @@ struct vr_packet {
 };
 
 
+#define VP_QUEUE_INVALID    0xFF
 #define VP_PRIORITY_INVALID 0xF
 
 extern void pkt_reset(struct vr_packet *);
 extern struct vr_packet *pkt_copy(struct vr_packet *, unsigned short,
         unsigned short);
+extern struct vr_packet *pkt_cow(struct vr_packet *, unsigned short);
 extern int vr_myip(struct vr_interface *, unsigned int);
 
 typedef enum {
@@ -300,6 +250,16 @@ struct vr_vlan_hdr {
 } __attribute__packed__close__;
 
 
+__attribute__packed__open__
+struct vr_pbb_itag {
+    uint8_t    pbbi_pcp:3,
+               pbbi_dei:1,
+               pbbi_uca:1,
+               pbbi_res:3;
+    uint32_t   pbbi_isid:24;
+} __attribute__packed__close__;
+
+
 #define VR_ARP_HW_LEN           6
 #define VR_ARP_OP_REQUEST       1
 #define VR_ARP_OP_REPLY         2
@@ -308,6 +268,7 @@ struct vr_vlan_hdr {
 #define VR_ETH_PROTO_IP         0x800
 #define VR_ETH_PROTO_IP6        0x86DD
 #define VR_ETH_PROTO_VLAN       0x8100
+#define VR_ETH_PROTO_PBB        0x88E7
 
 #define VR_DIAG_CSUM         0xffff
 #define VR_UDP_PORT_RANGE_START 49152
@@ -364,6 +325,9 @@ vr_grat_arp(struct vr_arp *sarp)
 #define VR_IP_DSCP(val)         ((val) << 2)
 
 #define VR_IP_ADDRESS_LEN       4
+
+#define VR_IP6_MF               0x1
+#define VR_IP6_FRAG_OFFSET_BITS 3
 
 __attribute__packed__open__
 struct vr_ip {
@@ -473,6 +437,13 @@ struct vr_neighbor_option {
     uint8_t vno_value[0];
 } __attribute__packed__close__;
 
+__attribute__packed__open__
+struct vr_ip6_frag {
+    uint8_t ip6_frag_nxt;
+    uint8_t ip6_frag_res;
+    uint16_t ip6_frag_offset;
+    uint32_t ip6_frag_id;
+} __attribute__packed__close__;
 
 __attribute__packed__open__
 struct vr_ip6_pseudo {
@@ -570,6 +541,22 @@ int vr_inner_pkt_parse(unsigned char *va,
 #define IS_BMCAST_IP(ip) \
             (((ntohl(ip) & MCAST_IP_MASK) == MCAST_IP) || (ip == 0xFFFFFFFF))
 
+static inline void
+vr_mcast_mac_from_isid(uint32_t isid, uint8_t *mac)
+{
+    if (!mac)
+        return;
+
+    mac[0] = 1;
+    mac[1] = 0x1E;
+    mac[2] = 0x83;
+    mac[3] = 0xFF & (isid >> 16);
+    mac[4] = 0xFF & (isid >> 8);
+    mac[5] = 0xFF & isid;
+
+    return;
+}
+
 #define VR_IP_ADDR_SIZE(type) \
         ((type == VP_TYPE_IP6) ? VR_IP6_ADDRESS_LEN \
                                : VR_IP_ADDRESS_LEN)
@@ -583,8 +570,10 @@ vr_eth_proto_to_pkt_type(unsigned short eth_proto)
         return VP_TYPE_IP6;
     else if (eth_proto == VR_ETH_PROTO_ARP)
         return VP_TYPE_ARP;
-    else
-        return VP_TYPE_UNKNOWN;
+    else if (eth_proto == VR_ETH_PROTO_PBB)
+        return VP_TYPE_PBB;
+
+    return VP_TYPE_UNKNOWN;
 }
 
 static inline bool
@@ -677,6 +666,28 @@ static inline void
 vr_pkt_set_diag(struct vr_packet *pkt)
 {
     pkt->vp_flags |= VP_FLAG_DIAG;
+    return;
+}
+
+static inline bool
+vr_pkt_is_gro(struct vr_packet *pkt)
+{
+    if (pkt->vp_flags & VP_FLAG_GRO)
+        return true;
+    return false;
+}
+
+static inline void
+vr_pkt_set_gro(struct vr_packet *pkt)
+{
+    pkt->vp_flags |= VP_FLAG_GRO;
+    return;
+}
+
+static inline void
+vr_pkt_unset_gro(struct vr_packet *pkt)
+{
+    pkt->vp_flags &= ~VP_FLAG_GRO;
     return;
 }
 
@@ -781,6 +792,14 @@ struct vr_sctp {
 #define VR_ICMP6_TYPE_NEIGH_SOL    135
 #define VR_ICMP6_TYPE_NEIGH_AD     136
 
+#define VR_ICMP6_NEIGH_AD_FLAG_ROUTER   0x8000
+#define VR_ICMP6_NEIGH_AD_FLAG_SOLCITED 0x4000
+#define VR_ICMP6_NEIGH_AD_FLAG_OVERRIDE 0x2000
+
+#define VR_ICMP6_NEIGH_AD_FLAG_ROUTER   0x8000
+#define VR_ICMP6_NEIGH_AD_FLAG_SOLCITED 0x4000
+#define VR_ICMP6_NEIGH_AD_FLAG_OVERRIDE 0x2000
+
 #define VR_IP6_PROTO_FRAG          44
 
 __attribute__packed__open__
@@ -807,6 +826,25 @@ vr_icmp_echo(struct vr_icmp *icmph)
 }
 
 static inline bool
+vr_v6_prefix_is_ll(uint8_t *prefix)
+{
+    if (prefix && (prefix[0] == 0xFE) && (prefix[1] == 0x80))
+        return true;
+
+    return false;
+}
+
+static inline bool
+vr_v6_prefix_null(uint8_t *prefix)
+{
+    uint64_t *p = (uint64_t *)(prefix);
+    if (p && (!p[0]) && (!p[1]))
+        return true;
+
+    return false;
+}
+
+static inline bool
 vr_icmp_error(struct vr_icmp *icmph)
 {
     uint8_t type = icmph->icmp_type;
@@ -817,6 +855,54 @@ vr_icmp_error(struct vr_icmp *icmph)
 
     return false;
 }
+
+static inline bool
+vr_ip6_transport_header_valid(struct vr_ip6 *ip6)
+{
+    struct vr_ip6_frag *frag;
+    unsigned short offset;
+
+    if (ip6->ip6_nxt != VR_IP6_PROTO_FRAG)
+        return true;
+
+    frag = (struct vr_ip6_frag *)(ip6 + 1);
+    offset = (ntohs(frag->ip6_frag_offset)) >> VR_IP6_FRAG_OFFSET_BITS;
+    if (offset)
+        return false;
+
+    return true;
+}
+
+static inline bool
+vr_ip6_fragment(struct vr_ip6 *ip6)
+{
+    if (ip6->ip6_nxt == VR_IP6_PROTO_FRAG)
+        return true;
+
+    return false;
+}
+
+static inline bool
+vr_ip6_fragment_head(struct vr_ip6 *ip6)
+{
+    struct vr_ip6_frag *frag;
+    unsigned short offset;
+    bool more;
+
+    if (ip6->ip6_nxt != VR_IP6_PROTO_FRAG)
+        return false;
+
+    frag = (struct vr_ip6_frag *)(ip6 + 1);
+    offset = ntohs(frag->ip6_frag_offset);
+    more = (offset & VR_IP6_MF) ? true : false;
+    offset = offset >> VR_IP6_FRAG_OFFSET_BITS;
+
+    if (more && !offset)
+        return true;
+
+    return false;
+}
+
 
 static inline bool
 vr_icmp6_error(struct vr_icmp *icmp6)
@@ -833,6 +919,12 @@ __attribute__packed__open__
 struct vr_gre {
     unsigned short gre_flags;
     unsigned short gre_proto;
+} __attribute__packed__close__;
+
+__attribute__packed__open__
+struct vr_gre_key {
+    struct vr_gre gre_comm_hdr;
+    unsigned int gre_key;
 } __attribute__packed__close__;
 
 struct vr_pcap {
@@ -875,8 +967,8 @@ struct vr_vxlan {
 #define VR_VXLAN_HDR_LEN        (sizeof(struct vr_vxlan) + \
                                     sizeof(struct vr_ip) + sizeof(struct vr_udp))
 
-#define VR_L2_MCAST_CTRL_DATA           (0x0000)
-#define VR_L2_MCAST_CTRL_DATA_LEN       4
+#define VR_L2_CTRL_DATA           (0x0000)
+#define VR_L2_CTRL_DATA_LEN       4
 
 /*
  * The L2 mcast head space contains Vxlan header and 4 bytes of control
@@ -884,7 +976,7 @@ struct vr_vxlan {
  */
 #define VR_L2_MCAST_PKT_HEAD_SPACE  (VR_L3_MCAST_PKT_HEAD_SPACE + \
                                       VR_VXLAN_HDR_LEN + \
-                                        VR_L2_MCAST_CTRL_DATA_LEN)
+                                        VR_L2_CTRL_DATA_LEN)
 
 
 extern unsigned short vr_ip_csum(struct vr_ip *);
@@ -896,6 +988,7 @@ extern unsigned short vr_ip6_partial_csum(struct vr_ip6 *);
 enum {
     UNKNOWN_SOURCE,
     TOR_SOURCE,
+    TOR_EVPN_SOURCE,
 };
 
 enum {
@@ -913,6 +1006,19 @@ enum {
  * this variable
  */
 #define FMD_FLAG_LABEL_IS_VXLAN_ID      0x01
+#define FMD_FLAG_MAC_IS_MY_MAC          0x02
+#define FMD_FLAG_ETREE_ENABLE           0x04
+#define FMD_FLAG_ETREE_ROOT             0x08
+#define FMD_FLAG_L2_CONTROL_DATA        0x10
+
+/*
+ * 16 bits of fmd_mirror_data constitutes the below
+ * MSB - 0 - last 12 bits indicate Vlan id
+ * MSB - 1 - Last 13 bits are interface id
+ *       2 bits after MSB - Mirror type
+ */
+
+#define FMD_MIRROR_INVALID_DATA 0xFFFF
 
 struct vr_forwarding_md {
     int32_t fmd_flow_index;
@@ -922,6 +1028,7 @@ struct vr_forwarding_md {
     int16_t fmd_dvrf;
     uint32_t fmd_outer_src_ip;
     uint16_t fmd_vlan;
+    uint16_t fmd_mirror_data;
     uint16_t fmd_udp_src_port;
     uint8_t fmd_to_me;
     uint8_t fmd_src;
@@ -929,6 +1036,8 @@ struct vr_forwarding_md {
     int8_t fmd_dscp;
     int8_t fmd_dotonep;
     int8_t fmd_queue;
+    int8_t fmd_dmac[VR_ETHER_ALEN];
+    int8_t fmd_smac[VR_ETHER_ALEN];
 };
 
 static inline void
@@ -941,17 +1050,21 @@ vr_init_forwarding_md(struct vr_forwarding_md *fmd)
     fmd->fmd_dvrf = -1;
     fmd->fmd_outer_src_ip = 0;
     fmd->fmd_vlan = VLAN_ID_INVALID;
+    fmd->fmd_mirror_data = FMD_MIRROR_INVALID_DATA;
     fmd->fmd_udp_src_port = 0;
     fmd->fmd_to_me = 0;
     fmd->fmd_src = 0;
     fmd->fmd_flags = 0;
     fmd->fmd_dscp = -1;
     fmd->fmd_dotonep = -1;
+    VR_MAC_RESET(fmd->fmd_dmac);
+    VR_MAC_RESET(fmd->fmd_smac);
+
     return;
 }
 
 static inline bool
-vr_forwarding_md_label_is_vxlan_id(struct vr_forwarding_md *fmd)
+vr_fmd_label_is_vxlan_id(struct vr_forwarding_md *fmd)
 {
     if (fmd->fmd_flags & FMD_FLAG_LABEL_IS_VXLAN_ID)
         return true;
@@ -959,7 +1072,47 @@ vr_forwarding_md_label_is_vxlan_id(struct vr_forwarding_md *fmd)
 }
 
 static inline void
-vr_forwarding_md_update_label_type(struct vr_forwarding_md *fmd,
+vr_fmd_update_etree(struct vr_forwarding_md *fmd, bool valid)
+{
+    if (valid)
+        fmd->fmd_flags |= FMD_FLAG_ETREE_ENABLE;
+    else
+        fmd->fmd_flags &= ~FMD_FLAG_ETREE_ENABLE;
+
+    return;
+}
+
+static inline void
+vr_fmd_update_etree_root(struct vr_forwarding_md *fmd, bool root)
+{
+    if (root)
+        fmd->fmd_flags |= FMD_FLAG_ETREE_ROOT;
+    else
+        fmd->fmd_flags &= ~FMD_FLAG_ETREE_ROOT;
+
+    return;
+}
+
+static inline bool
+vr_fmd_etree_is_enabled(struct vr_forwarding_md *fmd)
+{
+    if (fmd->fmd_flags & FMD_FLAG_ETREE_ENABLE)
+        return true;
+
+    return false;
+}
+
+static inline bool
+vr_fmd_etree_is_root(struct vr_forwarding_md *fmd)
+{
+    if (fmd->fmd_flags & FMD_FLAG_ETREE_ROOT)
+        return true;
+
+    return false;
+}
+
+static inline void
+vr_fmd_update_label_type(struct vr_forwarding_md *fmd,
         unsigned int type)
 {
     if (type == VR_LABEL_TYPE_VXLAN_ID) {
@@ -972,11 +1125,96 @@ vr_forwarding_md_update_label_type(struct vr_forwarding_md *fmd,
 }
 
 static inline void
-vr_forwarding_md_set_label(struct vr_forwarding_md *fmd, unsigned int label,
+vr_fmd_set_label(struct vr_forwarding_md *fmd, unsigned int label,
         unsigned int type)
 {
     fmd->fmd_label = label;
-    vr_forwarding_md_update_label_type(fmd, type);
+    vr_fmd_update_label_type(fmd, type);
+
+    return;
+}
+
+static inline void
+vr_fmd_update_l2_control_data(struct vr_forwarding_md *fmd, bool enable)
+{
+    if (enable)
+        fmd->fmd_flags |= FMD_FLAG_L2_CONTROL_DATA;
+    else
+        fmd->fmd_flags &= ~FMD_FLAG_L2_CONTROL_DATA;
+
+    return;
+}
+
+static inline bool
+vr_fmd_l2_control_data_is_enabled(struct vr_forwarding_md *fmd)
+{
+    if (fmd->fmd_flags & FMD_FLAG_L2_CONTROL_DATA)
+        return true;
+
+    return false;
+}
+
+static inline uint16_t
+vr_fmd_get_mirror_vlan(struct vr_forwarding_md *fmd)
+{
+    if (fmd->fmd_mirror_data != FMD_MIRROR_INVALID_DATA) {
+        if (!(fmd->fmd_mirror_data & 0x8000))
+            return (fmd->fmd_mirror_data & 0x0FFF);
+    }
+
+    return FMD_MIRROR_INVALID_DATA;
+}
+
+static inline mirror_type_t
+vr_fmd_get_mirror_type(struct vr_forwarding_md *fmd)
+{
+    if (fmd->fmd_mirror_data != FMD_MIRROR_INVALID_DATA) {
+        if (fmd->fmd_mirror_data & 0x8000)
+            return (((fmd->fmd_mirror_data & 0x6000) >> 13) & 0x0003);
+    }
+
+    return MIRROR_TYPE_UNKNOWN;
+}
+
+static inline uint16_t
+vr_fmd_get_mirror_if_id(struct vr_forwarding_md *fmd)
+{
+    uint16_t intf_id = FMD_MIRROR_INVALID_DATA;
+
+    if (fmd->fmd_mirror_data != FMD_MIRROR_INVALID_DATA) {
+        if (fmd->fmd_mirror_data & 0x8000) {
+            intf_id = fmd->fmd_mirror_data & 0x1FFF;
+            if (intf_id == 0x1FFF)
+                intf_id = FMD_MIRROR_INVALID_DATA;
+        }
+    }
+
+    return intf_id;
+}
+
+static inline void
+vr_fmd_put_mirror_vlan(struct vr_forwarding_md *fmd, uint16_t vlan)
+{
+    fmd->fmd_mirror_data = vlan & 0x0FFF;
+
+    return;
+}
+
+
+static inline void
+vr_fmd_put_mirror_type(struct vr_forwarding_md *fmd, mirror_type_t type)
+{
+    uint16_t intf_id = vr_fmd_get_mirror_if_id(fmd);
+    fmd->fmd_mirror_data = 0x8000 | ((type & 0x3) << 13) | (intf_id & 0x1FFF);
+
+    return;
+}
+
+static inline void
+vr_fmd_put_mirror_if_id(struct vr_forwarding_md *fmd, uint16_t if_id)
+{
+    mirror_type_t type = vr_fmd_get_mirror_type(fmd);
+    fmd->fmd_mirror_data = 0x8000 | ((type & 0x3) << 13) | (if_id & 0x1FFF);
 
     return;
 }
@@ -992,7 +1230,7 @@ vr_forwarding_md_set_label(struct vr_forwarding_md *fmd, unsigned int label,
                                     sizeof(struct vr_ip6) + \
                                     sizeof(struct vr_icmp) + \
                                     sizeof(struct vr_ip6) + VR_VXLAN_HDR_LEN + \
-                                    VR_L2_MCAST_CTRL_DATA_LEN + \
+                                    VR_L2_CTRL_DATA_LEN + \
                                     (2 * VR_ETHER_HLEN) + sizeof(struct agent_hdr))
 
 static inline bool
@@ -1153,6 +1391,59 @@ pkt_init_fragment(struct vr_packet *dst, struct vr_packet *src)
     dst->vp_nh = src->vp_nh;
     dst->vp_cpu = src->vp_cpu;
     dst->vp_flags = src->vp_flags;
+
+    return;
+}
+
+static inline void
+pkt_drop_stats(struct vr_interface *vif, unsigned short reason, int cpu)
+{
+    uint8_t *data;
+    unsigned int count = 1;
+    struct vrouter *router = vrouter_get(0);
+
+    /*
+     * Lets log the errors as of now, till we are sure that nothing is
+     * un accounted
+     */
+    if (reason >= VP_DROP_MAX) {
+        vr_printf("Vrouter: vr_pdrop_stats invalid reason %d\n", reason);
+        return;
+    }
+
+    if (cpu < 0) {
+        vr_printf("Vrouter: vr_pdrop_stats invalid CPU %d"
+                   " reason %d\n", cpu, reason);
+        return;
+    }
+
+    /* Lets increment the per cpu global stats */
+    if (router)
+        ((uint64_t *)(router->vr_pdrop_stats[cpu]))[reason]++;
+
+    /* If vif is NULL, no accounting can be done against the vif. So return */
+    if (!vif)
+        return;
+
+    /* Increment per cpu stats */
+    if (vif->vif_pcpu_drop_stats) {
+        data = vr_btable_get(vif->vif_pcpu_drop_stats,
+                            ((cpu * VP_DROP_MAX) + reason));
+        if (data) {
+            count = ++(*data);
+            if (count < 255)
+                return;
+            *data = 0;
+        }
+    }
+
+    /*
+     * Fall through, either for failure of per cpu stat or for carry
+     * over
+     */
+    if (vif->vif_drop_stats) {
+        (void)vr_sync_add_and_fetch_64u(vif->vif_drop_stats + reason, count);
+    }
 
     return;
 }

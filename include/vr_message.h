@@ -29,10 +29,12 @@
 #define VR_DROP_STATS_OBJECT_ID         10
 #define VR_VXLAN_OBJECT_ID              11
 #define VR_VROUTER_OPS_OBJECT_ID        12
-#define VR_FLOW_INFO_OBJECT_ID          13
+#define VR_FLOW_TABLE_DATA_OBJECT_ID    13
 #define VR_MEM_STATS_OBJECT_ID          14
 #define VR_QOS_MAP_OBJECT_ID            15
 #define VR_FC_MAP_OBJECT_ID             16
+#define VR_FLOW_RESPONSE_OBJECT_ID      17
+#define VR_BRIDGE_TABLE_DATA_OBJECT_ID  18
 
 #define VR_MESSAGE_PAGE_SIZE            (4096 - 128)
 
@@ -55,7 +57,16 @@ struct vr_mtransport {
 struct vr_message {
     char *vr_message_buf;
     unsigned int vr_message_len;
+    bool vr_message_broadcast;
     struct vr_qelem vr_message_queue;
+};
+
+#define VR_MESSAGE_MULTI_MAX_OBJECTS    8
+
+struct vr_message_multi {
+    unsigned int vr_mm_object_count;
+    unsigned int vr_mm_object_type[VR_MESSAGE_MULTI_MAX_OBJECTS];
+    void *vr_mm_object[VR_MESSAGE_MULTI_MAX_OBJECTS];
 };
 
 struct vr_message_handler {
@@ -84,7 +95,8 @@ struct vr_message_dumper *vr_message_dump_init(void *);
 void vr_message_dump_exit(void *, int);
 
 int vr_message_request(struct vr_message *);
-int vr_message_response(unsigned int, void *, int);
+int vr_message_response(unsigned int, void *, int, bool);
+int vr_message_multi_response(struct vr_message_multi *);
 int vr_message_make_request(unsigned int, void *);
 int vr_message_process_response(int (*)(void *, unsigned int, void *), void *);
 int vr_message_dump_object(void *, unsigned int, void *);

@@ -33,6 +33,11 @@ vr_get_proxy_mac(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
     stats = vr_inet_vrf_stats(fmd->fmd_dvrf, pkt->vp_cpu);
     /* here we will not check for stats, but will check before use */
 
+    if (vif->vif_flags & VIF_FLAG_MAC_PROXY) {
+        resp_mac = vif->vif_mac;
+        goto proxy_selected;
+    }
+
     if (vif->vif_type == VIF_TYPE_PHYSICAL)
         from_fabric = true;
 
@@ -136,7 +141,8 @@ vr_get_proxy_mac(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
          * true only for the DNS ip.
          */
         if (to_gateway) {
-            if (fmd->fmd_src != TOR_SOURCE) {
+            if ((fmd->fmd_src != TOR_SOURCE) && (fmd->fmd_src !=
+                        TOR_EVPN_SOURCE)) {
                 return MR_DROP;
             }
         }
@@ -153,7 +159,8 @@ vr_get_proxy_mac(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
          */
         if (to_vcp || to_gateway ||
                 (nh && ((nh->nh_type == NH_ENCAP) ||
-                (fmd->fmd_src == TOR_SOURCE)))) {
+                (fmd->fmd_src == TOR_SOURCE) ||
+                (fmd->fmd_src == TOR_EVPN_SOURCE)))) {
             if (stats)
                 stats->vrf_arp_physical_stitch++;
         } else {
@@ -163,6 +170,7 @@ vr_get_proxy_mac(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
         }
     } else {
 
+proxy_selected:
         if (!stitched && flood) {
             /*
              * if there is no stitching information, but flood flag is set
@@ -177,6 +185,7 @@ vr_get_proxy_mac(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
             if (stitched) {
                 stats->vrf_arp_virtual_stitch++;
             } else {
+                fmd->fmd_flags |= FMD_FLAG_MAC_IS_MY_MAC;
                 stats->vrf_arp_virtual_proxy++;
             }
         }
@@ -351,7 +360,7 @@ vr_handle_arp_reply(struct vr_arp *sarp, struct vr_packet *pkt,
             return !handled;
 
         /* If fabric: Agent and kernel are interested in it */
-        cloned_pkt = vr_pclone(pkt);
+        cloned_pkt = pkt_cow(pkt, AGENT_PKT_HEAD_SPACE);
         if (cloned_pkt) {
             vr_preset(cloned_pkt);
             vif_xconnect(vif, cloned_pkt, fmd);
@@ -502,10 +511,27 @@ vr_pkt_type(struct vr_packet *pkt, unsigned short offset,
         pkt->vp_flags |= VP_FLAG_MULTICAST;
 
     eth_proto = ntohs(*(unsigned short *)(eth + VR_ETHER_PROTO_OFF));
+    if (eth_proto == VR_ETH_PROTO_PBB) {
+
+        if (pkt_len < (pull_len + sizeof(struct vr_pbb_itag)))
+            return -1;
+        pull_len += sizeof(struct vr_pbb_itag);
+
+        if (pkt_len < (pull_len + VR_ETHER_HLEN))
+            return -1;
+
+        pkt->vp_type = vr_eth_proto_to_pkt_type(eth_proto);
+        return 0;
+    }
+
     while (eth_proto == VR_ETH_PROTO_VLAN) {
         if (pkt_len < (pull_len + sizeof(*vlan)))
             return -1;
         vlan = (struct vr_vlan_hdr *)(eth + pull_len);
+        /*
+         * consider the packet as vlan tagged only if it is provider
+         * vlan tag. Customers vlan tag, Vrouter is not bothered off
+         */
         if (fmd && (fmd->fmd_vlan == VLAN_ID_INVALID))
             fmd->fmd_vlan = vlan->vlan_tag & 0xFFF;
         eth_proto = ntohs(vlan->vlan_proto);
@@ -527,8 +553,7 @@ vr_arp_input(struct vr_packet *pkt, struct vr_forwarding_md *fmd,
     int handled = 1;
     struct vr_arp sarp;
 
-    /* If vlan tagged packet, we let the VM handle the ARP packets */
-    if ((pkt->vp_type != VP_TYPE_ARP) || (fmd->fmd_vlan != VLAN_ID_INVALID))
+    if (pkt->vp_type != VP_TYPE_ARP)
         return !handled;
 
     if (pkt->vp_len < sizeof(struct vr_arp)) {
@@ -608,19 +633,17 @@ vr_reinject_packet(struct vr_packet *pkt, struct vr_forwarding_md *fmd)
  */
 unsigned int
 vr_virtual_input(unsigned short vrf, struct vr_interface *vif,
-                 struct vr_packet *pkt, unsigned short vlan_id)
+                 struct vr_packet *pkt, struct vr_forwarding_md *fmd,
+                 unsigned short vlan_id)
 {
-    struct vr_forwarding_md fmd;
-
-    vr_init_forwarding_md(&fmd);
-    fmd.fmd_vlan = vlan_id;
-    fmd.fmd_dvrf = vrf;
+    fmd->fmd_vlan = vlan_id;
+    fmd->fmd_dvrf = vrf;
     if (pkt->vp_priority != VP_PRIORITY_INVALID) {
-        fmd.fmd_dotonep = pkt->vp_priority;
+        fmd->fmd_dotonep = pkt->vp_priority;
         pkt->vp_priority = VP_PRIORITY_INVALID;
     }
 
-    if (vr_pkt_type(pkt, 0, &fmd) < 0) {
+    if (vr_pkt_type(pkt, 0, fmd) < 0) {
         vif_drop_pkt(vif, pkt, 1);
         return 0;
     }
@@ -637,34 +660,32 @@ vr_virtual_input(unsigned short vrf, struct vr_interface *vif,
         return 0;
     }
 
-    if (!vr_flow_forward(pkt->vp_if->vif_router, pkt, &fmd))
+    if (!vr_flow_forward(pkt->vp_if->vif_router, pkt, fmd))
         return 0;
 
-    vr_bridge_input(vif->vif_router, pkt, &fmd);
-    return 0;
+    vr_bridge_input(vif->vif_router, pkt, fmd);
 
+    return 0;
 }
 
 unsigned int
 vr_fabric_input(struct vr_interface *vif, struct vr_packet *pkt,
-                unsigned short vlan_id)
+                struct vr_forwarding_md *fmd, unsigned short vlan_id)
 {
     int handled = 0;
     unsigned short pull_len;
-    struct vr_forwarding_md fmd;
     unsigned char *data, eth_dmac[VR_ETHER_ALEN];
 
-    vr_init_forwarding_md(&fmd);
-    fmd.fmd_vlan = vlan_id;
-    fmd.fmd_dvrf = vif->vif_vrf;
+    fmd->fmd_vlan = vlan_id;
+    fmd->fmd_dvrf = vif->vif_vrf;
 
-    if (vr_pkt_type(pkt, 0, &fmd) < 0) {
+    if (vr_pkt_type(pkt, 0, fmd) < 0) {
         vif_drop_pkt(vif, pkt, 1);
         return 0;
     }
 
     if (pkt->vp_type == VP_TYPE_IP6)
-        return vif_xconnect(vif, pkt, &fmd);
+        return vif_xconnect(vif, pkt, fmd);
 
     /*
      * On Fabric only ARP packets are specially handled. Rest all BUM
@@ -672,7 +693,7 @@ vr_fabric_input(struct vr_interface *vif, struct vr_packet *pkt,
      */
     if ((pkt->vp_type != VP_TYPE_ARP) &&
             (pkt->vp_flags & VP_FLAG_MULTICAST)) {
-        return vif_xconnect(vif, pkt, &fmd);
+        return vif_xconnect(vif, pkt, fmd);
     }
 
     data = pkt_data(pkt);
@@ -680,15 +701,15 @@ vr_fabric_input(struct vr_interface *vif, struct vr_packet *pkt,
     pkt_pull(pkt, pull_len);
 
     if (pkt->vp_type == VP_TYPE_IP || pkt->vp_type == VP_TYPE_IP6) {
-        handled = vr_l3_input(pkt, &fmd);
+        handled = vr_l3_input(pkt, fmd);
     } else if (pkt->vp_type == VP_TYPE_ARP) {
         VR_MAC_COPY(eth_dmac, data);
-        handled = vr_arp_input(pkt, &fmd, eth_dmac);
+        handled = vr_arp_input(pkt, fmd, eth_dmac);
     }
 
     if (!handled) {
         pkt_push(pkt, pull_len);
-        return vif_xconnect(vif, pkt, &fmd);
+        return vif_xconnect(vif, pkt, fmd);
     }
 
     return 0;
@@ -739,15 +760,26 @@ vr_untag_pkt(struct vr_packet *pkt)
  * modify the data pointer of skb
  */
 int
-vr_tag_pkt(struct vr_packet *pkt, unsigned short vlan_id)
+vr_tag_pkt(struct vr_packet *pkt, unsigned short vlan_id, bool force_tag)
 {
     uint8_t priority = 0;
+    struct vr_packet *tmp_pkt;
     struct vr_eth *new_eth, *eth;
     unsigned short *vlan_tag;
 
     eth = (struct vr_eth *)pkt_data(pkt);
-    if (eth->eth_proto == htons(VR_ETH_PROTO_VLAN))
-        return 0;
+    if (!force_tag) {
+        if (eth->eth_proto == htons(VR_ETH_PROTO_VLAN))
+            return 0;
+    }
+
+    if (pkt_head_space(pkt) < VR_VLAN_HLEN) {
+        tmp_pkt = vr_pexpand_head(pkt, VR_VLAN_HLEN - pkt_head_space(pkt));
+        if (!tmp_pkt) {
+            return -1;
+        }
+        pkt = tmp_pkt;
+    }
 
     new_eth = (struct vr_eth *)pkt_push(pkt, VR_VLAN_HLEN);
     if (!new_eth)
@@ -784,26 +816,80 @@ vr_vlan_set_priority(struct vr_packet *pkt)
 int
 vr_gro_input(struct vr_packet *pkt, struct vr_nexthop *nh)
 {
-    unsigned short *nh_id, *vif_id;
+    unsigned short *nh_id, *vif_id, push_len = 0;
     int handled = 1;
 
-    if (!vr_gro_process)
-        return !handled;
+    if (!vr_gro_process) {
+        handled = 0;
+        goto not_handled;
+    }
 
     nh_id = (unsigned short *)pkt_push(pkt, sizeof(*nh_id));
     if (!nh_id) {
-        vr_pfree(pkt, VP_DROP_PUSH);
-        return handled;
+        handled = 0;
+        goto not_handled;
     }
+    push_len += sizeof(*nh_id);
     *nh_id = nh->nh_id;
 
     vif_id = (unsigned short *)pkt_push(pkt, sizeof(*vif_id));
     if (!vif_id) {
-        vr_pfree(pkt, VP_DROP_PUSH);
-        return handled;
+        handled = 0;
+        goto not_handled;
     }
+    push_len += sizeof(*vif_id);
     *vif_id = pkt->vp_if->vif_idx;
 
     handled = vr_gro_process(pkt, nh->nh_dev, (nh->nh_family == AF_BRIDGE));
+
+not_handled:
+    if (!handled) {
+        pkt_pull(pkt, push_len);
+    }
+
     return handled;
+}
+
+int
+__vr_pbb_decode(struct vr_eth *eth, int len, struct vr_forwarding_md *fmd)
+{
+    int pbb_size = sizeof(struct vr_eth) + sizeof(struct vr_pbb_itag);
+
+    if (!eth || !fmd || (len < pbb_size))
+        return -1;
+
+    if (ntohs(eth->eth_proto) != VR_ETH_PROTO_PBB)
+        return -1;
+
+    /* Copy the PBB mac addresses to fmd */
+    VR_MAC_COPY(fmd->fmd_smac, eth->eth_smac);
+    VR_MAC_COPY(fmd->fmd_dmac, eth->eth_dmac);
+
+    return pbb_size;
+}
+
+int
+vr_pbb_decode(struct vr_packet *pkt, struct vr_forwarding_md *fmd)
+{
+    int pbb_size, decode_error = 1;
+
+    pbb_size = __vr_pbb_decode((struct vr_eth *)pkt_data(pkt),
+            pkt_head_len(pkt), fmd);
+    if (pbb_size <= 0) {
+        vr_pfree(pkt, VP_DROP_INVALID_PACKET);
+        return decode_error;
+    }
+
+    if (!pkt_pull(pkt, pbb_size)) {
+        vr_pfree(pkt, VP_DROP_PULL);
+        return decode_error;
+    }
+
+    /* Get the inner ether type and header pointers */
+    if (vr_pkt_type(pkt, 0, fmd) < 0) {
+        vr_pfree(pkt, VP_DROP_INVALID_PACKET);
+        return decode_error;
+    }
+
+    return !decode_error;
 }

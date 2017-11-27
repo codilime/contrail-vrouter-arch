@@ -47,6 +47,10 @@ __forceinline UINT32 vr_sync_add_and_fetch_32u(UINT32 *ptr, UINT32 val) {
     return InterlockedAdd((PLONG)ptr, (LONG)val);
 }
 
+__forceinline UINT64 vr_sync_add_and_fetch_64u(UINT64 *ptr, UINT64 val) {
+    return InterlockedExchangeAdd64((PLONGLONG)ptr, (LONGLONG)val) + val;
+}
+
 
 __forceinline UINT32 vr_sync_fetch_and_add_32u(UINT32 *ptr, UINT32 val) {
     return InterlockedExchangeAdd((PLONG)ptr, (LONG)val);
@@ -71,6 +75,11 @@ __forceinline UINT32 vr_sync_and_and_fetch_32u(UINT32 *ptr, UINT32 val) {
 }
 
 
+__forceinline bool vr_sync_bool_compare_and_swap_8s(UINT8 *ptr, UINT8 oldval, UINT8 newval) {
+    return _InterlockedCompareExchange8(ptr, newval, oldval) == oldval;
+}
+
+
 __forceinline bool vr_sync_bool_compare_and_swap_8u(UINT8 *ptr, UINT8 oldval, UINT8 newval) {
     return _InterlockedCompareExchange8((PCHAR)ptr, (CHAR)newval, (CHAR)oldval) == (CHAR)oldval;
 }
@@ -85,6 +94,15 @@ __forceinline bool vr_sync_bool_compare_and_swap_32u(UINT32 *ptr, UINT32 oldval,
 
 __forceinline bool vr_sync_bool_compare_and_swap_p(void **ptr, void *oldval, void *newval) {
     return _InterlockedCompareExchangePointer(ptr, newval, oldval) == oldval;
+}
+
+
+__forceinline UINT16 vr_sync_val_compare_and_swap_16u(UINT16 *ptr, UINT16 oldval, UINT16 newval) {
+    return _InterlockedCompareExchange16(ptr, newval, oldval);
+}
+
+__forceinline UINT8 vr_sync_lock_test_and_set_8u(UINT8 *ptr, UINT8 val) {
+    return InterlockedExchange8(ptr, val);
 }
 
 

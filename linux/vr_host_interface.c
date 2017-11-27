@@ -14,6 +14,7 @@
 #include <linux/if_arp.h>
 #include <linux/ip.h>
 #include <linux/jhash.h>
+#include <linux/pkt_sched.h>
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39))
 #include <linux/if_bridge.h>
@@ -36,7 +37,7 @@ extern void vhost_exit(void);
 extern void vhost_if_add(struct vr_interface *);
 extern void vhost_if_del(struct net_device *);
 extern void vhost_if_del_phys(struct net_device *);
-extern void lh_pfree_skb(struct sk_buff *, unsigned short);
+extern void lh_pfree_skb(struct sk_buff *, struct vr_interface *, unsigned short);
 extern int vr_gro_vif_add(struct vrouter *, unsigned int, char *, unsigned short);
 extern struct vr_interface_stats *vif_get_stats(struct vr_interface *,
         unsigned short);
@@ -151,12 +152,13 @@ vr_skb_get_rxhash(struct sk_buff *skb)
 }
 
 static inline struct sk_buff*
-linux_skb_vlan_insert(struct sk_buff *skb, unsigned short vlan_id)
+linux_skb_vlan_insert(struct vr_interface *vif, struct sk_buff *skb,
+                      unsigned short vlan_id)
 {
     struct vlan_ethhdr *veth;
 
     if (skb_cow_head(skb, VLAN_HLEN) < 0) {
-        lh_pfree_skb(skb, VP_DROP_MISC);
+        lh_pfree_skb(skb, vif, VP_DROP_MISC);
         return NULL;
     }
 
@@ -280,7 +282,7 @@ linux_inet_fragment(struct vr_interface *vif, struct sk_buff *skb,
      */
     if (skb->ip_summed == CHECKSUM_PARTIAL) {
         if (skb_checksum_help(skb)) {
-            lh_pfree_skb(skb, VP_DROP_MISC);
+            lh_pfree_skb(skb, vif, VP_DROP_MISC);
             return 0;
         }
     }
@@ -302,7 +304,7 @@ linux_inet_fragment(struct vr_interface *vif, struct sk_buff *skb,
      *
      * and hence access to packet structure beyond this point is suicidal
      */
-    memset(skb->cb, 0, sizeof(struct vrouter_gso_cb));
+    memset(skb->cb, 0, sizeof(skb->cb));
     segs = skb_segment(skb, features);
     if (IS_ERR(segs))
         return PTR_ERR(segs);
@@ -345,11 +347,14 @@ linux_xmit_segment(struct vr_interface *vif, struct sk_buff *seg,
         unsigned short type, int diag)
 {
     int err = -ENOMEM;
+    unsigned short iphlen, ethlen;
+    unsigned short eth_proto, reason = 0;
+    unsigned int num_vlan_hdrs = 0;
+
+    struct vr_eth *eth;
+    struct vr_vlan_hdr *vlan;
     struct vr_ip *iph, *i_iph = NULL;
-    unsigned short iphlen;
-    unsigned short ethlen;
     struct udphdr *udph;
-    unsigned short reason = 0;
 
     /* we will do tunnel header updates after the fragmentation */
     if (seg->len > seg->dev->mtu + seg->dev->hard_header_len
@@ -366,6 +371,27 @@ linux_xmit_segment(struct vr_interface *vif, struct sk_buff *seg,
     if (!pskb_may_pull(seg, ethlen + sizeof(struct vr_ip))) {
         reason = VP_DROP_PULL;
         goto exit_xmit;
+    }
+
+    if (ethlen) {
+        eth = (struct vr_eth *)(seg->data);
+        eth_proto = eth->eth_proto;
+        while (eth_proto == htons(VR_ETH_PROTO_VLAN)) {
+            if (num_vlan_hdrs > 3) {
+                reason = VP_DROP_INVALID_PROTOCOL;
+                goto exit_xmit;
+            }
+
+            num_vlan_hdrs++;
+            vlan = (struct vr_vlan_hdr *)(seg->data + ethlen);
+            eth_proto = vlan->vlan_proto;
+            ethlen += sizeof(struct vr_vlan_hdr);
+        }
+
+        if (!pskb_may_pull(seg, ethlen + sizeof(struct vr_ip))) {
+            reason = VP_DROP_PULL;
+            goto exit_xmit;
+        }
     }
 
     iph = (struct vr_ip *)(seg->data + ethlen);
@@ -448,7 +474,7 @@ linux_xmit_segment(struct vr_interface *vif, struct sk_buff *seg,
     return linux_xmit(vif, seg, type);
 
 exit_xmit:
-    lh_pfree_skb(seg, reason);
+    lh_pfree_skb(seg, vif, reason);
     return err;
 }
 
@@ -790,9 +816,20 @@ linux_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     }
 
     skb_reset_mac_header(skb);
-    /* skb->queue_mapping = pkt->vp_queue; */
-    if (pkt->vp_priority != VP_PRIORITY_INVALID)
-        skb->priority = pkt->vp_priority;
+    /* linux subtracts 1 from the queue value */
+    if (pkt->vp_queue != VP_QUEUE_INVALID)
+        skb->queue_mapping = pkt->vp_queue + 1;
+
+    if (!vif_is_fabric(vif) ||
+            (vr_priority_tagging || is_vlan_dev(dev))) {
+        if (pkt->vp_priority != VP_PRIORITY_INVALID) {
+            skb->priority = pkt->vp_priority;
+        } else {
+            skb->priority = TC_PRIO_BESTEFFORT;
+        }
+    } else {
+        skb->priority = TC_PRIO_CONTROL;
+    }
 
     /*
      * Set the network header and trasport header of skb only if the type is
@@ -820,8 +857,12 @@ linux_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
                 ip6 = (struct vr_ip6 *)ip;
                 transport_off = network_off + sizeof(struct vr_ip6);
                 proto = ip6->ip6_nxt;
+                if (proto == VR_IP6_PROTO_FRAG) {
+                    transport_off += sizeof(struct vr_ip6_frag);
+                    proto = ((struct vr_ip6_frag *)(ip6 + 1))->ip6_frag_nxt;
+                }
             } else {
-                lh_pfree_skb(skb, VP_DROP_INVALID_PROTOCOL);
+                lh_pfree_skb(skb, vif, VP_DROP_INVALID_PROTOCOL);
                 return 0;
             }
 
@@ -920,7 +961,7 @@ linux_get_packet(struct sk_buff *skb, struct vr_interface *vif)
 
     pkt->vp_ttl = 64;
     pkt->vp_type = VP_TYPE_NULL;
-    pkt->vp_queue = 0;
+    pkt->vp_queue = VP_QUEUE_INVALID;
     pkt->vp_priority = VP_PRIORITY_INVALID;
 
     return pkt;
@@ -952,10 +993,11 @@ linux_pull_outer_headers(struct sk_buff *skb)
 {
     struct vlan_hdr *vhdr;
     bool thdr = false, pull = false;
-    uint16_t proto, offset, ip_proto = 0;
+    uint16_t proto, offset, ip_proto = 0, ip_hdr_len = 0;
     struct iphdr *iph = NULL;
     struct ipv6hdr *ip6h = NULL;
     struct vr_icmp *icmph;
+    struct vr_ip6_frag *v6_frag;
 
     offset = skb->mac_len;
     proto = skb->protocol;
@@ -976,6 +1018,7 @@ linux_pull_outer_headers(struct sk_buff *skb)
             goto pull_fail;
 
         iph = ip_hdr(skb);
+        ip_hdr_len = iph->ihl * 4;
         offset += (iph->ihl * 4) - sizeof(struct iphdr);
         if (!pskb_may_pull(skb, offset))
             goto pull_fail;
@@ -992,11 +1035,21 @@ linux_pull_outer_headers(struct sk_buff *skb)
         if (!pskb_may_pull(skb, offset))
             goto pull_fail;
 
+        ip_hdr_len = sizeof(struct ipv6hdr);
         ip6h = ipv6_hdr(skb);
-        thdr = true;
         pull = vr_ip6_proto_pull((struct vr_ip6 *)ip6h);
         if (pull) {
             ip_proto = ip6h->nexthdr;
+            if (ip_proto == VR_IP6_PROTO_FRAG) {
+                offset += sizeof(struct vr_ip6_frag);
+                if (!pskb_may_pull(skb, offset))
+                    goto pull_fail;
+                ip_hdr_len += sizeof(struct vr_ip6_frag);
+                ip6h = ipv6_hdr(skb);
+                thdr = vr_ip6_transport_header_valid((struct vr_ip6 *)ip6h);
+                v6_frag = (struct vr_ip6_frag *)(ip6h + 1);
+                ip_proto = v6_frag->ip6_frag_nxt;
+            }
         }
     } else if (proto == htons(ETH_P_ARP)) {
         offset += sizeof(struct vr_arp);
@@ -1026,7 +1079,7 @@ linux_pull_outer_headers(struct sk_buff *skb)
 
         if (ip_proto == VR_IP_PROTO_ICMP) {
             if (vr_icmp_error((struct vr_icmp *)((unsigned char *)iph +
-                            (iph->ihl * 4)))) {
+                            ip_hdr_len))) {
                 iph = (struct iphdr *)(skb->data + offset);
                 offset += sizeof(struct iphdr);
                 if (!pskb_may_pull(skb, offset))
@@ -1042,10 +1095,19 @@ linux_pull_outer_headers(struct sk_buff *skb)
                 }
             }
         } else if (ip_proto == VR_IP_PROTO_ICMP6) {
-            icmph = (struct vr_icmp *) ((char *)ip6h + sizeof(struct ipv6hdr));
+            icmph = (struct vr_icmp *) ((char *)ip6h + ip_hdr_len);
             if (icmph->icmp_type == VR_ICMP6_TYPE_NEIGH_SOL) {
-                /* ICMP options size for neighbor solicit is 24 bytes */
-                offset += 24;
+                /*
+                 * ICMPV6 header contain Target address which is mandatory
+                 * and is 16 byte long. Possibly it can only contain an option
+                 * which is MAC address length long
+                 */
+                offset += VR_IP6_ADDRESS_LEN;
+                if (skb->len >= (offset + sizeof(struct vr_neighbor_option) +
+                                          VR_ETHER_ALEN)) {
+                    offset += VR_ETHER_ALEN +
+                              sizeof(struct vr_neighbor_option);
+                }
 
                 if (!pskb_may_pull(skb, offset))
                     goto pull_fail;
@@ -1055,6 +1117,15 @@ linux_pull_outer_headers(struct sk_buff *skb)
                     goto pull_fail;
                 ip6h = (struct ipv6hdr *)(skb->data + offset -
                         sizeof(struct ipv6hdr));
+                if (ip6h->nexthdr == VR_IP6_PROTO_FRAG) {
+                    offset += sizeof(struct vr_ip6_frag) +
+                                    sizeof(struct vr_icmp);
+                    if (!pskb_may_pull(skb, offset))
+                        goto pull_fail;
+
+                    return 0;
+                }
+
                 if (vr_ip6_proto_pull((struct vr_ip6 *)ip6h)) {
                     offset += sizeof(struct vr_icmp);
                     if (!pskb_may_pull(skb, offset))
@@ -1147,7 +1218,7 @@ linux_rx_handler(struct sk_buff **pskb)
     if (dev->type == ARPHRD_ETHER) {
         skb_push(skb, skb->mac_len);
         if (skb->vlan_tci & VLAN_TAG_PRESENT) {
-            if (!(skb = linux_skb_vlan_insert(skb,
+            if (!(skb = linux_skb_vlan_insert(vif, skb,
                             skb->vlan_tci & 0xEFFF)))
                 return RX_HANDLER_CONSUMED;
 
@@ -1622,8 +1693,8 @@ linux_if_get_encap(struct vr_interface *vif)
 /*
  * linux_if_tx_csum_offload - returns 1 if the device supports checksum offload
  * on transmit for tunneled packets. Devices which have NETIF_F_HW_CSUM set
- * are capable of doing this, but there are some devices (such as ixgbe) which
- * support it even though they don't set NETIF_F_HW_CSUM.
+ * are capable of doing this, but there are some devices (such as ixgbe, i40e)
+ * which support it even though they don't set NETIF_F_HW_CSUM.
  */
 static int
 linux_if_tx_csum_offload(struct net_device *dev)
@@ -1637,7 +1708,8 @@ linux_if_tx_csum_offload(struct net_device *dev)
 #ifndef RHEL_MAJOR
     if (dev->dev.parent) {
         driver_name = dev_driver_string(dev->dev.parent);
-        if (driver_name && (!strncmp(driver_name, "ixgbe", 6))) {
+        if (driver_name && ((!strncmp(driver_name, "ixgbe", 6)) ||
+                            (!strncmp(driver_name, "i40e", 5)))) {
             return 1;
         }
     }
@@ -1971,12 +2043,16 @@ int
 lh_gro_process(struct vr_packet *pkt, struct vr_interface *vif, bool l2_pkt)
 {
     int handled = 1;
+
     struct sk_buff *skb = vp_os_packet(pkt);
 #ifdef XEN_HYPERVISOR
     unsigned char *data;
     if (l2_pkt)
         return !handled;
 #endif
+
+    if (skb_cloned(skb))
+        return !handled;
 
     skb->data = pkt_data(pkt);
     skb->len = pkt_len(pkt);
@@ -2047,6 +2123,7 @@ pkt_gro_dev_rx_handler(struct sk_buff **pskb)
     nh_id = *((unsigned short *)(skb_mac_header(skb) + sizeof(vif_id)));
 #endif
 
+    gro_vif = skb->dev->ml_priv;
 
     nh = __vrouter_get_nexthop(router, nh_id);
     if (!nh) {
@@ -2106,7 +2183,6 @@ pkt_gro_dev_rx_handler(struct sk_buff **pskb)
     }
 
 
-    gro_vif = skb->dev->ml_priv;
     if (gro_vif) {
         gro_vif_stats = vif_get_stats(gro_vif, pkt->vp_cpu);
         if (gro_vif_stats) {
@@ -2120,7 +2196,7 @@ pkt_gro_dev_rx_handler(struct sk_buff **pskb)
     return RX_HANDLER_CONSUMED;
 
 drop:
-    lh_pfree_skb(skb, drop_reason);
+    lh_pfree_skb(skb, gro_vif, drop_reason);
     return RX_HANDLER_CONSUMED;
 }
 

@@ -37,6 +37,29 @@ pkt_copy(struct vr_packet *pkt, unsigned short off, unsigned short len)
     return pkt_c;
 }
 
+struct vr_packet *
+pkt_cow(struct vr_packet *pkt, unsigned short head_room)
+{
+    struct vr_packet *clone_pkt;
+
+    /* Clone the packet */
+    clone_pkt = vr_pclone(pkt);
+    if (!clone_pkt) {
+        return NULL;
+    }
+
+    /* Increase the head space by the head_room */
+    if (vr_pcow(&clone_pkt, head_room)) {
+        vr_pfree(clone_pkt, VP_DROP_PCOW_FAIL);
+        return NULL;
+    }
+
+    /* Copy the ttl from old packet */
+    clone_pkt->vp_ttl = pkt->vp_ttl;
+
+    return clone_pkt;
+}
+
 bool
 vr_ip_proto_pull(struct vr_ip *iph)
 {
@@ -56,7 +79,8 @@ vr_ip6_proto_pull(struct vr_ip6 *ip6h)
     unsigned char proto = ip6h->ip6_nxt;
 
    if ((proto == VR_IP_PROTO_TCP) || (proto == VR_IP_PROTO_UDP) ||
-       (proto == VR_IP_PROTO_ICMP6) || (proto == VR_IP_PROTO_SCTP)) {
+       (proto == VR_IP_PROTO_ICMP6) || (proto == VR_IP_PROTO_SCTP) ||
+       (proto == VR_IP6_PROTO_FRAG)) {
         return true;
     }
 
@@ -76,8 +100,9 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
                       unsigned int *tcph_pull_lenp,
                       unsigned int *pull_lenp)
 {
+    unsigned char *thdr;
     unsigned short ip_proto;
-    bool thdr_valid = false;
+    bool thdr_valid = false, icmp_pl_frag_hdr = false;
     unsigned int hlen = 0, tcph_pull_len = 0;
     unsigned int pull_len = *pull_lenp;
     struct vr_tcp *tcph = NULL;
@@ -85,6 +110,7 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
     struct vr_icmp *icmph = NULL;
     struct vr_ip *icmp_pl_iph = NULL;
     struct vr_ip6 *icmp_pl_ip6h = NULL;
+    struct vr_ip6_frag *v6_frag;
 
 
     /* Note: iph is set for both ipv4 and ipv6 cases */
@@ -93,7 +119,17 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
             if (ip6h) {
                 ip_proto = ip6h->ip6_nxt;
                 hlen = sizeof(struct vr_ip6);
-                thdr_valid = true;
+                if (ip_proto == VR_IP6_PROTO_FRAG) {
+                    pull_len += sizeof(struct vr_ip6_frag);
+                    if (frag_size < pull_len) {
+                        return PKT_RET_SLOW_PATH;
+                    }
+
+                    v6_frag = (struct vr_ip6_frag *)((char *)ip6h + hlen);
+                    ip_proto = v6_frag->ip6_frag_nxt;
+                    hlen += sizeof(struct vr_ip6_frag);
+                }
+                thdr_valid = vr_ip6_transport_header_valid(ip6h);
             } else {
                 return PKT_RET_UNHANDLED;
             }
@@ -130,6 +166,7 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
             if (frag_size < pull_len) {
                 return PKT_RET_SLOW_PATH;
             }
+
 
             if (ip_proto == VR_IP_PROTO_TCP) {
                 /*
@@ -207,8 +244,16 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
             } else if ((ip_proto == VR_IP_PROTO_ICMP6) && ip6h) {
                 icmph = (struct vr_icmp *)((unsigned char *)ip6h + hlen);
                 if (icmph->icmp_type == VR_ICMP6_TYPE_NEIGH_SOL) {
-                    /* ICMP options size for neighbor solicit is 24 bytes */
-                    pull_len += 24;
+                    /*
+                     * We do not know if neighbour option of length
+                     * VR_ETHER_ALEN is not at all there or not in this
+                     * frag. So we will calculate the length to
+                     * be inclusive of both Target address and neighbour
+                     * option. If option is not preset, slow path would
+                     * take care of it
+                     */
+                    pull_len += sizeof(struct vr_neighbor_option) +
+                                VR_IP6_ADDRESS_LEN + VR_ETHER_ALEN;
                 } else if (icmph->icmp_type == VR_ICMP6_TYPE_ROUTER_SOL) {
                     pull_len += 8;
                 } else if (vr_icmp6_error(icmph)) {
@@ -216,6 +261,7 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
                     if (frag_size < pull_len)
                         return PKT_RET_SLOW_PATH;
                     icmp_pl_ip6h = (struct vr_ip6 *)(icmph + 1);
+                    ip_proto = icmp_pl_ip6h->ip6_nxt;
                     if (vr_ip6_proto_pull(icmp_pl_ip6h)) {
                         if (icmp_pl_ip6h->ip6_nxt == VR_IP_PROTO_TCP)
                             pull_len += sizeof(struct vr_tcp);
@@ -223,24 +269,42 @@ vr_ip_transport_parse(struct vr_ip *iph, struct vr_ip6 *ip6h,
                             pull_len += sizeof(struct vr_udp);
                         else if (icmp_pl_ip6h->ip6_nxt == VR_IP_PROTO_SCTP)
                             pull_len += sizeof(struct vr_sctp);
-                        else
+                        else if (icmp_pl_ip6h->ip6_nxt == VR_IP6_PROTO_FRAG) {
+                            pull_len += sizeof(struct vr_ip6_frag);
+                            icmp_pl_frag_hdr = true;
+                        } else
                             pull_len += sizeof(struct vr_icmp);
 
                         if (frag_size < pull_len)
                             return PKT_RET_SLOW_PATH;
 
-                        if (icmp_pl_ip6h->ip6_nxt == VR_IP_PROTO_TCP) {
-                            th_csum = ((struct vr_tcp *)
-                                        ((unsigned char *)icmp_pl_ip6h +
-                                        sizeof(struct vr_ip6)))->tcp_csum;
-                        } else if (icmp_pl_ip6h->ip6_nxt == VR_IP_PROTO_UDP) {
-                            th_csum = ((struct vr_udp *)
-                                        ((unsigned char *)icmp_pl_ip6h +
-                                        sizeof(struct vr_ip6)))->udp_csum;
-                        } else if (icmp_pl_ip6h->ip6_nxt == VR_IP_PROTO_ICMP6) {
-                            th_csum = ((struct vr_icmp *)
-                                        ((unsigned char *)icmp_pl_ip6h +
-                                        sizeof(struct vr_ip6)))->icmp_csum;
+                        if (icmp_pl_frag_hdr) {
+                            v6_frag = (struct vr_ip6_frag *)
+                                ((unsigned char *)icmp_pl_ip6h +
+                                 sizeof(struct vr_ip6));
+                            ip_proto = v6_frag->ip6_frag_nxt;
+                            thdr = (unsigned char *)v6_frag +
+                                        sizeof(struct vr_ip6_frag);
+                        } else {
+                            thdr = (unsigned char *)icmp_pl_ip6h +
+                                sizeof(struct vr_ip6);
+                        }
+
+                        if (ip_proto == VR_IP_PROTO_TCP) {
+                            th_csum = ((struct vr_tcp *)thdr)->tcp_csum;
+                            if (icmp_pl_frag_hdr)
+                                pull_len += sizeof(struct vr_tcp);
+                        } else if (ip_proto == VR_IP_PROTO_UDP) {
+                            th_csum = ((struct vr_udp *)thdr)->udp_csum;
+                            if (icmp_pl_frag_hdr)
+                                pull_len += sizeof(struct vr_udp);
+                        } else if (ip_proto == VR_IP_PROTO_ICMP6) {
+                            th_csum = ((struct vr_icmp *)thdr)->icmp_csum;
+                            if (icmp_pl_frag_hdr)
+                                pull_len += sizeof(struct vr_icmp);
+                        } else if (ip_proto == VR_IP_PROTO_SCTP) {
+                            if (icmp_pl_frag_hdr)
+                                pull_len += sizeof(struct vr_sctp);
                         }
                     }
                 }
@@ -275,13 +339,13 @@ vr_inner_pkt_parse(unsigned char *va, int (*tunnel_type_cb)(unsigned int,
                 struct vr_ip6 **ip6hp, unsigned short gre_udp_encap,
                 unsigned char ip_proto)
 {
+    unsigned short eth_proto;
     unsigned int pull_len = *pull_lenp;
     unsigned int label, control_data;
     int pkt_type = 0;
     struct vr_ip6 *ip6h = NULL;
     struct vr_ip *iph = NULL;
     struct vr_eth *eth = NULL;
-    unsigned short eth_proto;
 
     if ((ip_proto == VR_IP_PROTO_GRE && gre_udp_encap == VR_GRE_PROTO_MPLS_NO) ||
         (ip_proto == VR_IP_PROTO_UDP && vr_mpls_udp_port(ntohs(gre_udp_encap)))) {
@@ -290,7 +354,7 @@ vr_inner_pkt_parse(unsigned char *va, int (*tunnel_type_cb)(unsigned int,
         /* Take into consideration, the MPLS header and 4 bytes of
          * control information that might exist for L2 packet */
         if (frag_size < (pull_len + VR_MPLS_HDR_LEN +
-                                VR_L2_MCAST_CTRL_DATA_LEN)) {
+                                VR_L2_CTRL_DATA_LEN)) {
             return PKT_RET_SLOW_PATH;
         }
 
@@ -318,11 +382,16 @@ vr_inner_pkt_parse(unsigned char *va, int (*tunnel_type_cb)(unsigned int,
             /* L2 Multicast packet with control information and
              * Vxlan header. Vxlan header contains IP + UDP + Vxlan */
             eth = (struct vr_eth *)(va + pull_len + VR_MPLS_HDR_LEN +
-                    VR_L2_MCAST_CTRL_DATA_LEN + VR_VXLAN_HDR_LEN);
-            pull_len += VR_MPLS_HDR_LEN + VR_L2_MCAST_CTRL_DATA_LEN +
+                    VR_L2_CTRL_DATA_LEN + VR_VXLAN_HDR_LEN);
+            pull_len += VR_MPLS_HDR_LEN + VR_L2_CTRL_DATA_LEN +
                             VR_VXLAN_HDR_LEN + sizeof(struct vr_eth);
-        } else if ((pkt_type == PKT_MPLS_TUNNEL_L2_UCAST) ||
-                    (pkt_type == PKT_MPLS_TUNNEL_L2_MCAST_EVPN)) {
+        } else if (pkt_type == PKT_MPLS_TUNNEL_L2_CONTROL_DATA) {
+            /* L2 packet with control information */
+            eth = (struct vr_eth *)(va + pull_len + VR_MPLS_HDR_LEN +
+                    VR_L2_CTRL_DATA_LEN);
+            pull_len += VR_MPLS_HDR_LEN + VR_L2_CTRL_DATA_LEN +
+                                            sizeof(struct vr_eth);
+        } else if (pkt_type == PKT_MPLS_TUNNEL_L2_UCAST) {
             /* L2 packet with no control information */
             eth = (struct vr_eth *)(va + pull_len + VR_MPLS_HDR_LEN);
             pull_len += VR_MPLS_HDR_LEN + sizeof(struct vr_eth);
@@ -352,6 +421,18 @@ vr_inner_pkt_parse(unsigned char *va, int (*tunnel_type_cb)(unsigned int,
     if (eth) {
 
         eth_proto = eth->eth_proto;
+        if (ntohs(eth_proto) == VR_ETH_PROTO_PBB) {
+            pull_len += sizeof(struct vr_pbb_itag);
+            if (frag_size < pull_len)
+                return PKT_RET_SLOW_PATH;
+
+            eth = (struct vr_eth *)(va + pull_len);
+            pull_len += VR_ETHER_HLEN;
+            if (frag_size < pull_len)
+                return PKT_RET_SLOW_PATH;
+            eth_proto = eth->eth_proto;
+        }
+
         while (ntohs(eth_proto) == VR_ETH_PROTO_VLAN) {
             eth_proto = ((struct vr_vlan_hdr *)(va + pull_len))->vlan_proto;
             pull_len += sizeof(struct vr_vlan_hdr);
@@ -385,4 +466,3 @@ vr_inner_pkt_parse(unsigned char *va, int (*tunnel_type_cb)(unsigned int,
 
     return 0;
 }
-

@@ -12,8 +12,10 @@ extern "C" {
 
 #include "sandesh.h"
 #include "vr_types.h"
+#include "vr_interface.h"
 #include "vr_qos.h"
 #include "vr_flow.h"
+#include "vr_bridge.h"
 #include "vr_interface.h"
 #include "vr_nexthop.h"
 #include "vr_route.h"
@@ -45,6 +47,7 @@ extern unsigned int vr_num_cpus;
 enum vr_malloc_objects_t {
     VR_ASSEMBLER_TABLE_OBJECT,
     VR_BRIDGE_MAC_OBJECT,
+    VR_BRIDGE_TABLE_DATA_OBJECT,
     VR_BTABLE_OBJECT,
     VR_BUILD_INFO_OBJECT,
     VR_DEFER_OBJECT,
@@ -56,8 +59,9 @@ enum vr_malloc_objects_t {
     VR_FLOW_HOLD_STAT_OBJECT,
     VR_FLOW_LINK_LOCAL_OBJECT,
     VR_FLOW_METADATA_OBJECT,
-    VR_FLOW_TABLE_INFO_OBJECT,
     VR_FLOW_DEFER_DATA_OBJECT,
+    VR_FLOW_TABLE_DATA_OBJECT,
+    VR_FLOW_TABLE_INFO_OBJECT,
     VR_FRAGMENT_OBJECT,
     VR_FRAGMENT_QUEUE_OBJECT,
     VR_FRAGMENT_QUEUE_ELEMENT_OBJECT,
@@ -65,22 +69,29 @@ enum vr_malloc_objects_t {
     VR_HPACKET_POOL_OBJECT,
     VR_HTABLE_OBJECT,
     VR_INTERFACE_OBJECT,
+    VR_INTERFACE_BRIDGE_LOCK_OBJECT,
     VR_INTERFACE_FAT_FLOW_CONFIG_OBJECT,
     VR_INTERFACE_MAC_OBJECT,
+    VR_INTERFACE_MIRROR_META_OBJECT,
     VR_INTERFACE_REQ_OBJECT,
+    VR_INTERFACE_REQ_BRIDGE_ID_OBJECT,
     VR_INTERFACE_REQ_MAC_OBJECT,
+    VR_INTERFACE_REQ_MIRROR_META_OBJECT,
     VR_INTERFACE_REQ_NAME_OBJECT,
+    VR_INTERFACE_REQ_PBB_MAC_OBJECT,
     VR_INTERFACE_REQ_TO_LCORE_ERRORS_OBJECT,
     VR_INTERFACE_STATS_OBJECT,
     VR_INTERFACE_TABLE_OBJECT,
     VR_INTERFACE_TO_LCORE_ERRORS_OBJECT,
     VR_INTERFACE_VRF_TABLE_OBJECT,
+    VR_INTERFACE_QUEUE_OBJECT,
     VR_ITABLE_OBJECT,
     VR_LOG_TYPES_OBJECT,
     VR_MALLOC_OBJECT,
     VR_MESSAGE_OBJECT,
     VR_MESSAGE_RESPONSE_OBJECT,
     VR_MESSAGE_DUMP_OBJECT,
+    VR_MEM_OBJECT,
     VR_MEM_STATS_REQ_OBJECT,
     VR_MIRROR_OBJECT,
     VR_MIRROR_TABLE_OBJECT,
@@ -92,6 +103,7 @@ enum vr_malloc_objects_t {
     VR_NETWORK_ADDRESS_OBJECT,
     VR_NEXTHOP_OBJECT,
     VR_NEXTHOP_COMPONENT_OBJECT,
+    VR_NEXTHOP_REQ_BMAC_OBJECT,
     VR_NEXTHOP_REQ_LIST_OBJECT,
     VR_NEXTHOP_REQ_ENCAP_OBJECT,
     VR_NEXTHOP_REQ_OBJECT,
@@ -122,6 +134,7 @@ extern unsigned int vr_flow_hold_limit;
 extern int vr_use_linux_br;
 extern int hashrnd_inited;
 extern uint32_t vr_hashrnd;
+extern unsigned int vr_priority_tagging;
 
 #define CONTAINER_OF(member, struct_type, pointer) \
     ((struct_type *)((uintptr_t)pointer - \
@@ -136,6 +149,7 @@ struct vr_timer {
     void (*vt_timer)(void *);
     void *vt_vr_arg;
     void *vt_os_arg;
+    unsigned int vt_stop_timer;
     unsigned int vt_msecs;
 };
 
@@ -169,8 +183,9 @@ struct host_os {
     void *(*hos_get_defer_data)(unsigned int);
     void (*hos_put_defer_data)(void *);
     void (*hos_get_time)(uint64_t *, uint64_t *);
-    void (*hos_get_mono_time)(unsigned int*, unsigned int *);
+    void (*hos_get_mono_time)(uint64_t *, uint64_t *);
     int (*hos_create_timer)(struct vr_timer *);
+    int (*hos_restart_timer)(struct vr_timer *);
     void (*hos_delete_timer)(struct vr_timer *);
 
     void *(*hos_network_header)(struct vr_packet *);
@@ -182,7 +197,7 @@ struct host_os {
                                    unsigned short, unsigned short *,
                                    int (*is_label_l2)(unsigned int,
                                        unsigned int, unsigned short *));
-    int  (*hos_pcow)(struct vr_packet *, unsigned short);
+    int  (*hos_pcow)(struct vr_packet **, unsigned short);
     uint16_t (*hos_get_udp_src_port)(struct vr_packet *,
                                      struct vr_forwarding_md *,
                                      unsigned short);
@@ -205,6 +220,7 @@ struct host_os {
     void (*hos_soft_reset)(struct vrouter *);
     int (*hos_is_frag_limit_exceeded)(void);
     void (*hos_register_nic)(struct vr_interface* vif, vr_interface_req* vifr);
+    bool hos_nl_broadcast_supported;
 };
 
 #define vr_printf                       vrouter_host->hos_printf
@@ -234,6 +250,7 @@ struct host_os {
 #define vr_get_time                     vrouter_host->hos_get_time
 #define vr_get_mono_time                vrouter_host->hos_get_mono_time
 #define vr_create_timer                 vrouter_host->hos_create_timer
+#define vr_restart_timer                vrouter_host->hos_restart_timer
 #define vr_delete_timer                 vrouter_host->hos_delete_timer
 #define vr_network_header               vrouter_host->hos_network_header
 #define vr_inner_network_header         vrouter_host->hos_inner_network_header
@@ -253,12 +270,65 @@ struct host_os {
 #define vr_get_enabled_log_types        vrouter_host->hos_get_enabled_log_types
 #define vr_soft_reset                   vrouter_host->hos_soft_reset
 #define vr_register_nic                 vrouter_host->hos_register_nic
+#define vr_nl_broadcast_supported       vrouter_host->hos_nl_broadcast_supported
+
+extern struct host_os *vrouter_host;
 
 struct vr_malloc_stats {
     int64_t ms_size;
     int64_t ms_alloc;
     int64_t ms_free;
 };
+
+#define VMM_STATE_ALLOCED   1
+
+extern unsigned int vr_memory_alloc_checks;
+
+__attribute__packed__open__
+struct vr_malloc_md {
+    char vmm_magic[3];
+    uint8_t vmm_state;
+    unsigned int vmm_object;
+} __attribute__packed__close__;
+
+static inline void
+vr_malloc_md_set(void *mem, unsigned int object)
+{
+    struct vr_malloc_md *vmm;
+
+    vmm = (struct vr_malloc_md *)mem;
+    strncpy(vmm->vmm_magic, "MEM", sizeof(vmm->vmm_magic));
+    vmm->vmm_state = VMM_STATE_ALLOCED;
+    vmm->vmm_object = object;
+
+    return;
+}
+
+static inline void
+vr_malloc_md_check(void *mem, unsigned int object)
+{
+    struct vr_malloc_md *vmm;
+
+    vmm = (struct vr_malloc_md *)((uint8_t *)mem - sizeof(*vmm));
+    if (vmm->vmm_state != VMM_STATE_ALLOCED)
+        goto bug;
+    if (strncmp(vmm->vmm_magic, "MEM", sizeof(vmm->vmm_magic)))
+        goto bug;
+    if (vmm->vmm_object != object)
+        goto bug;
+
+    memset(vmm, 0, sizeof(*vmm));
+
+    return;
+bug:
+    vr_printf("vrouter BUG: Inconsistent state of memory %p\n", mem);
+    vr_printf("vrouter BUG: state %u object %u expected %u\n",
+            vmm->vmm_state, vmm->vmm_object, object);
+    vr_printf("vrouter BUG: MAGIC %c%c%c\n",
+            vmm->vmm_magic[0], vmm->vmm_magic[1], vmm->vmm_magic[2]);
+    memset(vmm, 0, sizeof(*vmm));
+    return;
+}
 
 struct vrouter {
     unsigned char vr_vrrp_mac[VR_ETHER_ALEN];
@@ -286,12 +356,11 @@ struct vrouter {
     unsigned int vr_max_vrfs;
     unsigned int vr_max_mirror_indices;
     struct vr_mirror_entry **vr_mirrors;
+    vr_itable_t vr_mirror_md;
     vr_itable_t vr_vxlan_table;
 
-    struct vr_btable *vr_fragment_table;
-    struct vr_btable *vr_fragment_otable;
+    vr_htable_t vr_fragment_table;
     struct vr_timer *vr_fragment_table_scanner;
-    struct vr_timer *vr_fragment_otable_scanner;
 
     uint64_t **vr_pdrop_stats;
     struct vr_malloc_stats **vr_malloc_stats;
@@ -312,8 +381,6 @@ struct vr_defer_data {
 };
 
 extern volatile bool vr_not_ready;
-
-extern struct host_os *vrouter_host;
 
 extern struct vrouter *vrouter_get(unsigned int);
 extern unsigned int vrouter_generation_num_get(struct vrouter *router);

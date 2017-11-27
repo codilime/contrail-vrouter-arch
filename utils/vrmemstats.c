@@ -63,6 +63,8 @@ mem_stats_req_process(void *s_req)
             stats->vms_flow_link_local_object);
     printf("Flow Metadata                   %" PRIu64 "\n",
             stats->vms_flow_metadata_object);
+    printf("Flow Table Data                 %" PRIu64 "\n",
+            stats->vms_flow_table_data_object);
     printf("Flow Table Info                 %" PRIu64 "\n",
             stats->vms_flow_table_info_object);
     printf("Fragment                        %" PRIu64 "\n",
@@ -79,14 +81,26 @@ mem_stats_req_process(void *s_req)
             stats->vms_htable_object);
     printf("Interface                       %" PRIu64 "\n",
             stats->vms_interface_object);
+    printf("Interface Req Bridge ID         %" PRIu64 "\n",
+            stats->vms_interface_req_bridge_id_object);
+    printf("Interface Bridge Lock           %" PRIu64 "\n",
+            stats->vms_interface_bridge_lock_object);
     printf("Interface Fat Flow Config       %" PRIu64 "\n",
             stats->vms_interface_fat_flow_config_object);
     printf("Interface MAC                   %" PRIu64 "\n",
             stats->vms_interface_mac_object);
+    printf("Interface Mirror Meta Objects   %" PRIu64 "\n",
+            stats->vms_interface_mirror_meta_object);
     printf("Interface Request               %" PRIu64 "\n",
             stats->vms_interface_req_object);
     printf("Interface Request MAC           %" PRIu64 "\n",
             stats->vms_interface_req_mac_object);
+    printf("Interface Request PBB MAC       %" PRIu64 "\n",
+            stats->vms_interface_req_pbb_mac_object);
+    printf("Interface Mirror Req Meta Objects   %" PRIu64 "\n",
+            stats->vms_interface_req_mirror_meta_object);
+    printf("Interface Queue                 %" PRIu64 "\n",
+            stats->vms_interface_queue_object);
     printf("Interface Request Name          %" PRIu64 "\n",
             stats->vms_interface_req_name_object);
     printf("Interface Stats                 %" PRIu64 "\n",
@@ -131,6 +145,8 @@ mem_stats_req_process(void *s_req)
             stats->vms_nexthop_req_list_object);
     printf("NextHop Request Encap           %" PRIu64 "\n",
             stats->vms_nexthop_req_encap_object);
+    printf("NextHop Request PBB BMAC        %" PRIu64 "\n",
+            stats->vms_nexthop_req_bmac_object);
     printf("NextHop Request                 %" PRIu64 "\n",
             stats->vms_nexthop_req_object);
     printf("Route Table                     %" PRIu64 "\n",
@@ -190,7 +206,7 @@ enum opt_index {
 
 static struct option long_options[] = {
     [HELP_OPT_INDEX]    =   {"help",    no_argument,        &help_set,      1},
-    [MAX_OPT_INDEX]     =   {"NULL",    0,                  0,              0},
+    [MAX_OPT_INDEX]     =   {NULL,    0,                  0,              0},
 };
 
 static void

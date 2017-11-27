@@ -40,6 +40,8 @@ extern const char *ContrailBuildInfo;
 void vrouter_exit(bool);
 
 volatile bool vr_not_ready = true;
+unsigned int vr_memory_alloc_checks = 0;
+unsigned int vr_priority_tagging = 0;
 
 struct vr_module {
     char *mod_name;
@@ -293,7 +295,7 @@ vrouter_ops_get(void)
     if (!req)
         return NULL;
 
-    req->vo_build_info = vr_zalloc(strlen(ContrailBuildInfo),
+    req->vo_build_info = vr_zalloc(strlen(ContrailBuildInfo) + 1,
             VR_BUILD_INFO_OBJECT);
     if (!req->vo_build_info) {
         vr_free(req, VR_VROUTER_REQ_OBJECT);
@@ -357,7 +359,7 @@ vrouter_ops_get_process(void *s_req)
 
     /* Build info */
     strncpy(resp->vo_build_info, ContrailBuildInfo,
-            strlen(ContrailBuildInfo));
+            strlen(ContrailBuildInfo) + 1);
 
     /* Logging entries */
     resp->vo_log_level = vr_get_log_level();
@@ -376,12 +378,18 @@ vrouter_ops_get_process(void *s_req)
     resp->vo_bridge_used_oentries =
         vr_bridge_table_used_oflow_entries(router);
 
+    vr_flow_get_burst_params(router, &resp->vo_burst_tokens,
+            &resp->vo_burst_interval, &resp->vo_burst_step);
+
+    resp->vo_memory_alloc_checks = vr_memory_alloc_checks;
+    resp->vo_priority_tagging = vr_priority_tagging;
+
     req = resp;
 generate_response:
     if (ret)
         req = NULL;
 
-    vr_message_response(VR_VROUTER_OPS_OBJECT_ID, req, ret);
+    vr_message_response(VR_VROUTER_OPS_OBJECT_ID, req, ret, false);
     if (resp)
         vrouter_ops_destroy(resp);
 
@@ -444,6 +452,10 @@ vrouter_ops_add_process(void *s_req)
         vr_flow_hold_limit = (unsigned int)req->vo_flow_hold_limit;
     if (req->vo_mudp != -1)
         vr_mudp = req->vo_mudp;
+    vr_flow_set_burst_params(vrouter_get(req->vo_rid), req->vo_burst_tokens,
+            req->vo_burst_interval, req->vo_burst_step);
+
+    vr_priority_tagging = req->vo_priority_tagging;
 
     /* Neither of currently called functions signals an error. Just send OK
      * response here for now. */

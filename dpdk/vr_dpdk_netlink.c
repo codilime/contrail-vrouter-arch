@@ -5,18 +5,19 @@
  * All rights reserved
  */
 
+#include <stdint.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <linux/genetlink.h>
+
+#include <rte_errno.h>
+#include "nl_util.h"
 #include "vr_dpdk.h"
 #include "vr_dpdk_usocket.h"
 #include "vr_message.h"
 #include "vr_genetlink.h"
 #include "vr_uvhost.h"
 #include "vr_uvhost_msg.h"
-
-#include <sys/stat.h>
-#include <sys/un.h>
-#include <linux/genetlink.h>
-
-#include <rte_errno.h>
 
 #define HDR_LEN (NLMSG_HDRLEN + GENL_HDRLEN + sizeof(struct nlattr))
 
@@ -187,7 +188,8 @@ vr_netlink_uvhost_vif_del(unsigned int vif_idx)
 int
 vr_netlink_uvhost_vif_add(char *vif_name, unsigned int vif_idx,
                           unsigned int vif_gen, unsigned int vif_nrxqs,
-                          unsigned int vif_ntxqs)
+                          unsigned int vif_ntxqs,
+                          unsigned char vif_vhostuser_mode)
 {
     vrnu_msg_t msg;
 
@@ -199,6 +201,7 @@ vr_netlink_uvhost_vif_add(char *vif_name, unsigned int vif_idx,
     msg.vrnum_vif_add.vrnu_vif_nrxqs = vif_nrxqs;
     msg.vrnum_vif_add.vrnu_vif_ntxqs = vif_ntxqs;
     msg.vrnum_vif_add.vrnu_vif_gen = vif_gen;
+    msg.vrnum_vif_add.vrnu_vif_vhostuser_mode = vif_vhostuser_mode;
 
     /*
      * This is a blocking send.
@@ -246,9 +249,11 @@ vr_nl_uvhost_connect(void)
 
     memset(&nl_sun, 0, sizeof(nl_sun));
     nl_sun.sun_family = AF_UNIX;
-    strncpy(nl_sun.sun_path, VR_NL_UVH_SOCK, sizeof(nl_sun.sun_path) - 1);
+    strncpy(nl_sun.sun_path, vr_socket_dir, sizeof(nl_sun.sun_path) - 1);
+    strncat(nl_sun.sun_path, "/"VR_NL_UVH_SOCK_NAME, sizeof(nl_sun.sun_path)
+        - strlen(nl_sun.sun_path) - 1);
 
-    mkdir(VR_SOCKET_DIR, VR_SOCKET_DIR_MODE);
+    mkdir(vr_socket_dir, VR_DEF_SOCKET_DIR_MODE);
     unlink(nl_sun.sun_path);
     ret = bind(s, (struct sockaddr *) &nl_sun, sizeof(nl_sun));
     if (ret == -1) {
@@ -263,7 +268,10 @@ vr_nl_uvhost_connect(void)
      */
     memset(&uvh_sun, 0, sizeof(uvh_sun));
     uvh_sun.sun_family = AF_UNIX;
-    strncpy(uvh_sun.sun_path, VR_UVH_NL_SOCK, sizeof(uvh_sun.sun_path) - 1);
+    strncpy(uvh_sun.sun_path, vr_socket_dir, sizeof(uvh_sun.sun_path) - 1);
+    strncat(uvh_sun.sun_path, "/"VR_UVH_NL_SOCK_NAME, sizeof(uvh_sun.sun_path)
+        - strlen(uvh_sun.sun_path) - 1);
+
     ret = vr_dpdk_retry_connect(s, (struct sockaddr *) &uvh_sun, sizeof(uvh_sun));
     if (ret == -1) {
         RTE_LOG(ERR, VROUTER, "    error connecting uvhost socket FD %d to %s:"

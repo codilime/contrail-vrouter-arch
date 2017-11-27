@@ -19,12 +19,14 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/timerfd.h>
 
 #include <rte_errno.h>
 #include <rte_hexdump.h>
 
 typedef int (*vr_uvh_msg_handler_fn)(vr_uvh_client_t *vru_cl);
-#define uvhm_client_name(vru_cl) (vru_cl->vruc_path + strlen(VR_UVH_VIF_PREFIX))
+#define uvhm_client_name(vru_cl) (vru_cl->vruc_path + strlen(vr_socket_dir) \
+    + sizeof(VR_UVH_VIF_PFX) - 1)
 
 /*
  * Prototypes for user space vhost message handlers
@@ -41,6 +43,7 @@ static int vr_uvhm_get_vring_base(vr_uvh_client_t *vru_cl);
 static int vr_uvhm_set_vring_call(vr_uvh_client_t *vru_cl);
 static int vr_uvhm_get_queue_num(vr_uvh_client_t *vru_cl);
 static int vr_uvhm_set_vring_enable(vr_uvh_client_t *vru_cl);
+static int vr_uvh_cl_timer_setup(vr_uvh_client_t *vru_cl);
 
 static vr_uvh_msg_handler_fn vr_uvhost_cl_msg_handlers[] = {
     NULL,
@@ -223,6 +226,16 @@ vr_uvmh_get_features(vr_uvh_client_t *vru_cl)
                            (1ULL << VIRTIO_NET_F_MQ) |
                            (1ULL << VHOST_USER_F_PROTOCOL_FEATURES) |
                            (1ULL << VHOST_F_LOG_ALL);
+
+    if (dpdk_check_rx_mrgbuf_disable() == 0)
+        vru_cl->vruc_msg.u64 |= (1ULL << VIRTIO_NET_F_MRG_RXBUF); 
+
+    if (vr_perfs)
+        vru_cl->vruc_msg.u64 |= (1ULL << VIRTIO_NET_F_GUEST_TSO4)|
+                                (1ULL << VIRTIO_NET_F_HOST_TSO4) |
+                                (1ULL << VIRTIO_NET_F_GUEST_TSO6)|
+                                (1ULL << VIRTIO_NET_F_HOST_TSO6);
+
     vr_uvhost_log("    GET FEATURES: returns 0x%"PRIx64"\n",
                                             vru_cl->vruc_msg.u64);
 
@@ -240,9 +253,35 @@ vr_uvmh_get_features(vr_uvh_client_t *vru_cl)
 static int
 vr_uvmh_set_features(vr_uvh_client_t *vru_cl)
 {
+    struct vr_interface *vif;
+    uint8_t is_gso_vm = 1;
     vr_uvhost_log("    SET FEATURES: 0x%"PRIx64"\n",
                                             vru_cl->vruc_msg.u64);
 
+    vif = __vrouter_get_interface(vrouter_get(0), vru_cl->vruc_idx);
+    is_gso_vm =  (vru_cl->vruc_msg.u64 & (1ULL << VIRTIO_NET_F_GUEST_TSO4)) | 
+                 (vru_cl->vruc_msg.u64 & (1ULL << VIRTIO_NET_F_HOST_TSO4))  |
+                 (vru_cl->vruc_msg.u64 & (1ULL << VIRTIO_NET_F_GUEST_TSO6)) |
+                 (vru_cl->vruc_msg.u64 & (1ULL << VIRTIO_NET_F_HOST_TSO6));
+
+    /* TODO: For now, assume if a VM can't do GSO, it can't do GRO either
+     * as there is no virtio feature bit for GRO
+     */
+    if (vif) {
+        if (!!is_gso_vm) {
+            vif->vif_flags |= VIF_FLAG_GRO_NEEDED; 
+        } else {
+            vif->vif_flags &= ~VIF_FLAG_GRO_NEEDED; 
+        }
+    }
+
+    if (vru_cl->vruc_msg.u64 & (1ULL << VIRTIO_NET_F_MRG_RXBUF)) {
+        vif->vif_flags |= VIF_FLAG_MRG_RXBUF;
+        vr_dpdk_set_vhost_send_func(vru_cl->vruc_idx, 1);
+    } else {
+        vif->vif_flags &= ~VIF_FLAG_MRG_RXBUF; 
+        vr_dpdk_set_vhost_send_func(vru_cl->vruc_idx, 0);
+    }
     return 0;
 }
 
@@ -524,18 +563,27 @@ vr_uvhm_set_vring_call(vr_uvh_client_t *vru_cl)
     vr_uvhost_log("    SET VRING CALL: vring %u FD %d\n", vring_idx,
                                                 vru_cl->vruc_fds_sent[0]);
 
-    if (vring_idx >= VHOST_CLIENT_MAX_VRINGS) {
-        vr_uvhost_log("Client %s: error setting vring %u call: invalid vring index\n",
+    if (!(vring_idx & VHOST_USER_VRING_NOFD_MASK)) {
+        if (vring_idx >= VHOST_CLIENT_MAX_VRINGS) {
+            vr_uvhost_log(
+                "Client %s: error setting vring %u call: invalid vring index\n",
+                uvhm_client_name(vru_cl), vring_idx);
+            return -1;
+        }
+
+        if (vr_dpdk_set_ring_callfd(vru_cl->vruc_idx, vring_idx,
+                                    vru_cl->vruc_fds_sent[0])) {
+            vr_uvhost_log("Client %s: error setting vring %u call FD %d\n",
+                    uvhm_client_name(vru_cl), vring_idx, vru_cl->vruc_fds_sent[0]);
+            return -1;
+        }
+    } else {
+        vr_uvhost_log("Client %s: not setting call fd due to mask 0x%x\n",
                         uvhm_client_name(vru_cl), vring_idx);
-        return -1;
+
+        vring_idx &= (~VHOST_USER_VRING_NOFD_MASK);
     }
 
-    if (vr_dpdk_set_ring_callfd(vru_cl->vruc_idx, vring_idx,
-                                vru_cl->vruc_fds_sent[0])) {
-        vr_uvhost_log("Client %s: error setting vring %u call FD %d\n",
-                uvhm_client_name(vru_cl), vring_idx, vru_cl->vruc_fds_sent[0]);
-        return -1;
-    }
     /* set FD to -1, so we do not close it in vr_uvh_cl_msg_handler() */
     vru_cl->vruc_fds_sent[0] = -1;
 
@@ -565,12 +613,25 @@ vr_uvhm_set_vring_enable(vr_uvh_client_t *vru_cl)
         return -1;
     }
 
+    /*
+     * If the queue is higher than the number supported by vrouter, silently
+     * fail here (as there is no error message returned to qemu).
+     */
+    if ((vring_idx / 2) >= vr_dpdk.nb_fwd_lcores) {
+        RTE_LOG(ERR, UVHOST, "%s: Can not %s %s queue %d (only %d queues)\n",
+            __func__, enable ? "enable" : "disable",
+            (vring_idx & 1) ? "RX" : "TX", vring_idx / 2,
+            vr_dpdk.nb_fwd_lcores);
+        return 0;
+    }
+
     vr_uvhost_log("Client %s: setting vring %u ready state %d\n",
                   uvhm_client_name(vru_cl), vring_idx, enable);
 
     uvhm_check_vring_ready(vru_cl, vring_idx);
 
     queue_num = vring_idx / 2;
+
     if (vring_idx & 1) {
         /* RX queues */
         vr_dpdk_virtio_rx_queue_enable_disable(vru_cl->vruc_idx,
@@ -618,8 +679,14 @@ static int
 vr_uvhm_get_queue_num(vr_uvh_client_t *vru_cl)
 {
     /* We support up to number of forwarding lcores queues as they are the only
-     * lcores that handle rx queues. */
-    vru_cl->vruc_msg.u64 = vr_dpdk.nb_fwd_lcores;
+     * lcores that handle rx queues. However, this causes a failure when spawning
+     * the VM if the number of VCPUs in the VM is higher than the number of
+     * forwarding cores in vrouter. So, return VR_DPDK_VIRTIO_MAX_QUEUES here,
+     * but siliently fail the enable/disable of queues higher than the number
+     * of forwarding cores when the message is received from qemu later. The
+     * expectation is that the VM should not enable more queues that that.
+     */
+    vru_cl->vruc_msg.u64 = VR_DPDK_VIRTIO_MAX_QUEUES;
     vr_uvhost_log("    GET QUEUE NUM: returns 0x%"PRIx64"\n",
                   vru_cl->vruc_msg.u64);
 
@@ -785,13 +852,13 @@ vr_uvh_cl_msg_handler(int fd, void *arg)
                    read_len);
 #ifdef VR_DPDK_RX_PKT_DUMP
         if (ret > 0) {
-            RTE_LOG(DEBUG, UVHOST, "%s[%lx]: FD %d read %d bytes\n", __func__,
+            RTE_LOG_DP(DEBUG, UVHOST, "%s[%lx]: FD %d read %d bytes\n", __func__,
                 pthread_self(), fd, ret);
             rte_hexdump(stdout, "uvhost full message dump:",
                 (((char *)&vru_cl->vruc_msg)),
                     ret + vru_cl->vruc_msg_bytes_read);
         } else if (ret < 0) {
-            RTE_LOG(DEBUG, UVHOST, "%s[%lx]: FD %d read returned error %d: %s (%d)\n", __func__,
+            RTE_LOG_DP(DEBUG, UVHOST, "%s[%lx]: FD %d read returned error %d: %s (%d)\n", __func__,
                 pthread_self(), fd, ret, rte_strerror(errno), errno);
         }
 #endif
@@ -852,6 +919,17 @@ cleanup:
     if (ret == -1) {
         /* We set VQ_NOT_READY state and reset the queues in uvhm_client_munmap() */
         uvhm_client_munmap(vru_cl);
+        if (vru_cl->vruc_vhostuser_mode == VRNU_VIF_MODE_SERVER) {
+            /* existing FD (stored in local variable in caller to
+             * this funcition) will be closed after return from this function
+             * reset the value to -1, so that new fd will be created
+             */
+            vru_cl->vruc_fd = -1;
+            if (vr_uvh_cl_timer_setup(vru_cl)) {
+                vr_uvhost_log("Client %s: timer creation failed\n",
+                        uvhm_client_name(vru_cl));
+            }
+        }
     }
     /* clear state for next message from this client. */
     vru_cl->vruc_msg_bytes_read = 0;
@@ -924,6 +1002,97 @@ error:
 }
 
 /*
+ * vr_uvh_cl_timer_handler - handler for timer events for 
+ * clients when Qemu in server mode
+ *
+ * Returns 0 on success, -1 on error.
+ *
+ */
+static int
+vr_uvh_cl_timer_handler(int fd, void *arg)
+{
+    vr_uvh_client_t *vru_cl = (vr_uvh_client_t *) arg;
+    struct sockaddr_un sun;
+    int ret = 0;
+
+    memset(&sun, 0, sizeof(sun));
+    sun.sun_family = AF_UNIX;
+    strncpy(sun.sun_path, vru_cl->vruc_path, sizeof(sun.sun_path) - 1);
+
+    ret = connect(vru_cl->vruc_fd, (struct sockaddr *) &sun, sizeof(sun));
+    if (ret == -1) {
+        ret = vr_uvh_cl_timer_setup(vru_cl);
+    } else {
+        /*
+         * socket connected
+         * add to msg handler
+         */
+        ret = vr_uvhost_add_fd(vru_cl->vruc_fd, UVH_FD_READ, vru_cl,
+                                vr_uvh_cl_msg_handler);
+        if (ret == -1) {
+            vr_uvhost_log("    error adding vif %u socket FD %d\n",
+                            vru_cl->vruc_idx, vru_cl->vruc_fd);
+        }
+    }
+
+    return ret;
+}
+
+/*
+ * vr_uvh_cl_timer_setup - Setup timer to reconnect to the
+ * Qemu server.
+ *
+ * Returns 0 on success, -1 on error.
+ *
+ */
+static int
+vr_uvh_cl_timer_setup(vr_uvh_client_t *vru_cl)
+{
+    int ret = 0;
+    struct itimerspec cl_timer;
+
+    cl_timer.it_interval.tv_sec  = 0;
+    cl_timer.it_interval.tv_nsec = 0;
+    cl_timer.it_value.tv_sec  = 5;
+    cl_timer.it_value.tv_nsec = 0;
+
+    if (vru_cl->vruc_fd == -1) {
+        vru_cl->vruc_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (vru_cl->vruc_fd == -1) {
+            vr_uvhost_log("    error creating vif %u socket: %s (%d)\n",
+                            vru_cl->vruc_idx, rte_strerror(errno), errno);
+            ret = -1;
+            goto error;
+        }
+    }
+
+    if (vru_cl->vruc_timer_fd == -1)
+        vru_cl->vruc_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+
+    if (vru_cl->vruc_timer_fd == -1) {
+        ret = -1;
+    } else {
+        ret = timerfd_settime(vru_cl->vruc_timer_fd, 0, &cl_timer, NULL);
+        if (ret == -1) {
+            close(vru_cl->vruc_timer_fd);
+            vru_cl->vruc_timer_fd = -1;
+        } else {
+            if (vr_uvhost_add_fd(vru_cl->vruc_timer_fd, UVH_FD_READ, vru_cl,
+                        vr_uvh_cl_timer_handler)) {
+                ret = -1;
+                vr_uvhost_log("    error adding timer FD %d read handler\n",
+                      vru_cl->vruc_timer_fd);
+                close(vru_cl->vruc_timer_fd);
+                vru_cl->vruc_timer_fd = -1;
+            }
+        }
+    }
+
+error:
+    return ret;
+}
+
+/*
  * vr_uvh_nl_vif_del_handler - handle a message from the netlink thread
  * to delete a vif.
  *
@@ -968,7 +1137,7 @@ vr_uvh_nl_vif_del_handler(vrnu_vif_del_t *msg)
 static int
 vr_uvh_nl_vif_add_handler(vrnu_vif_add_t *msg)
 {
-    int s = 0, ret = -1, err;
+    int s = 0, ret = -1, err, sock_connected = 0;
     struct sockaddr_un sun;
     int flags;
     vr_uvh_client_t *vru_cl = NULL;
@@ -992,41 +1161,68 @@ vr_uvh_nl_vif_add_handler(vrnu_vif_add_t *msg)
                             msg->vrnu_vif_idx, msg->vrnu_vif_name, s);
 
     memset(&sun, 0, sizeof(sun));
-    strncpy(sun.sun_path, VR_UVH_VIF_PREFIX, sizeof(sun.sun_path) - 1);
+    sun.sun_family = AF_UNIX;
+    strncpy(sun.sun_path, vr_socket_dir, sizeof(sun.sun_path) - 1);
+    strncat(sun.sun_path, "/"VR_UVH_VIF_PFX, sizeof(sun.sun_path)
+        - strlen(sun.sun_path) - 1);
     strncat(sun.sun_path, msg->vrnu_vif_name,
         sizeof(sun.sun_path) - strlen(sun.sun_path) - 1);
-    sun.sun_family = AF_UNIX;
 
-    mkdir(VR_SOCKET_DIR, VR_SOCKET_DIR_MODE);
-    unlink(sun.sun_path);
-
-    /*
-     * Ensure RW permissions for the socket files such that QEMU process is
-     * able to connect.
-     */
-    umask_mode = umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
-            S_IWOTH));
-
-    ret = bind(s, (struct sockaddr *) &sun, sizeof(sun));
-    if (ret == -1) {
-        vr_uvhost_log("    error binding vif %u FD %d to %s: %s (%d)\n",
-            msg->vrnu_vif_idx, s, sun.sun_path, rte_strerror(errno), errno);
-        goto error;
-    }
-
-    umask(umask_mode);
+    mkdir(vr_socket_dir, VR_DEF_SOCKET_DIR_MODE);
+    /* qemu in server mode needs rw access */
+    chmod(vr_socket_dir, 0777);
 
     /*
-     * Set the socket to non-blocking
+     * Client mode Qemu
+     * vrouter-dpdk listens on the socket path
      */
-    flags = fcntl(s, F_GETFL, 0);
-    fcntl(s, flags | O_NONBLOCK);
+    if (msg->vrnu_vif_vhostuser_mode == VRNU_VIF_MODE_CLIENT) {
 
-    ret = listen(s, 1);
-    if (ret == -1) {
-        vr_uvhost_log("    error listening vif %u socket FD %d: %s (%d)\n",
-                        msg->vrnu_vif_idx, s, rte_strerror(errno), errno);
-        goto error;
+        unlink(sun.sun_path);
+
+        /*
+         * Ensure RW permissions for the socket files such that QEMU process is
+         * able to connect.
+         */
+        umask_mode = umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
+                S_IWOTH));
+
+        ret = bind(s, (struct sockaddr *) &sun, sizeof(sun));
+        if (ret == -1) {
+            vr_uvhost_log("    error binding vif %u FD %d to %s: %s (%d)\n",
+                msg->vrnu_vif_idx, s, sun.sun_path, rte_strerror(errno), errno);
+            goto error;
+        }
+
+        umask(umask_mode);
+
+        /*
+         * Set the socket to non-blocking
+         */
+        flags = fcntl(s, F_GETFL, 0);
+        fcntl(s, flags | O_NONBLOCK);
+
+        ret = listen(s, 1);
+        if (ret == -1) {
+            vr_uvhost_log("    error listening vif %u socket FD %d: %s (%d)\n",
+                            msg->vrnu_vif_idx, s, rte_strerror(errno), errno);
+            goto error;
+        }
+
+    } else {
+        /*
+         * Server mode Qemu
+         * Connect to the socket
+         */
+        ret = connect(s, (struct sockaddr *) &sun, sizeof(sun));
+        if (ret == -1) {
+            vr_uvhost_log("    error connecting uvhost socket FD %d to %s:"
+                " %s (%d)\n", s, sun.sun_path, rte_strerror(errno), errno);
+        } else {
+            vr_uvhost_log("connected to sock    vif %u socket %s FD is %d\n",
+                            msg->vrnu_vif_idx, msg->vrnu_vif_name, s);
+            sock_connected = 1;
+        }
     }
 
     vru_cl = vr_uvhost_new_client(s, sun.sun_path, msg->vrnu_vif_idx);
@@ -1040,12 +1236,40 @@ vr_uvh_nl_vif_add_handler(vrnu_vif_add_t *msg)
     vru_cl->vruc_nrxqs = msg->vrnu_vif_nrxqs;
     vru_cl->vruc_ntxqs = msg->vrnu_vif_ntxqs;
     vru_cl->vruc_vif_gen = msg->vrnu_vif_gen;
+    vru_cl->vruc_vhostuser_mode = msg->vrnu_vif_vhostuser_mode;
+    vru_cl->vruc_timer_fd = -1;
 
-    ret = vr_uvhost_add_fd(s, UVH_FD_READ, vru_cl, vr_uvh_cl_listen_handler);
-    if (ret == -1) {
-        vr_uvhost_log("    error adding vif %u socket FD %d\n",
-                        msg->vrnu_vif_idx, s);
-        goto error;
+    if (msg->vrnu_vif_vhostuser_mode == VRNU_VIF_MODE_CLIENT) {
+        /*
+         * Client mode Qemu
+         * add to listen handler
+         */
+        ret = vr_uvhost_add_fd(s, UVH_FD_READ, vru_cl, vr_uvh_cl_listen_handler);
+        if (ret == -1) {
+            vr_uvhost_log("    error adding vif %u socket FD %d\n",
+                            msg->vrnu_vif_idx, s);
+            goto error;
+        }
+    } else {
+        if (sock_connected) {
+            /*
+             * Server mode Qemu
+             * add to client handler
+             */
+            vr_uvhost_log("adding to msg handler    vif %u socket %s FD is %d\n",
+                                msg->vrnu_vif_idx, msg->vrnu_vif_name, s);
+            if (vr_uvhost_add_fd(s, UVH_FD_READ, vru_cl, vr_uvh_cl_msg_handler)) {
+                vr_uvhost_log("    error adding client %s FD %d read handler\n",
+                              sun.sun_path, s);
+                goto error;
+            }
+        } else {
+            if (vr_uvh_cl_timer_setup(vru_cl)) {
+                vr_uvhost_log("    error adding vif %u socket %s to timer\n",
+                            msg->vrnu_vif_idx, sun.sun_path);
+                goto error;
+            }
+        }
     }
 
     vr_dpdk_virtio_set_vif_client(msg->vrnu_vif_idx, vru_cl);

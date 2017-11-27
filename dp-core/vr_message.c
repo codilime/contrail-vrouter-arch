@@ -77,7 +77,7 @@ vr_message_request(struct vr_message *message)
 }
 
 static int
-vr_message_queue_response(char *buf, int len)
+vr_message_queue_response(char *buf, int len, bool broadcast)
 {
     struct vr_message *response;
 
@@ -87,6 +87,7 @@ vr_message_queue_response(char *buf, int len)
 
     response->vr_message_buf = buf;
     response->vr_message_len = len;
+    response->vr_message_broadcast = broadcast;
     vr_queue_enqueue(&message_h.vm_response_queue,
             &response->vr_message_queue);
 
@@ -183,7 +184,60 @@ vr_message_process_response(int (*cb)(void *, unsigned int, void *),
 }
 
 int
-vr_message_response(unsigned int object_type, void *object, int ret)
+vr_message_multi_response(struct vr_message_multi *objects)
+{
+    char *buf = NULL;
+    int ret = 0;
+    unsigned int i, buf_len = 0, len = 0;
+    struct vr_mproto *proto = NULL;
+    struct vr_mtransport *trans = NULL;
+
+    if ((!objects) ||
+            (objects->vr_mm_object_count >= VR_MESSAGE_MULTI_MAX_OBJECTS))
+        goto response_fail;
+
+    proto = message_h.vm_proto;
+    trans = message_h.vm_trans;
+    if (!proto || !trans)
+        goto response_fail;
+
+
+    for (i = 0; i < objects->vr_mm_object_count; i++) {
+        buf_len += proto->mproto_buf_len(objects->vr_mm_object_type[i],
+                objects->vr_mm_object[i]);
+    }
+
+    if (!buf_len)
+        goto response_fail;
+
+    buf = trans->mtrans_alloc(buf_len);
+    if (!buf) {
+        ret = -ENOMEM;
+        goto response_fail;
+    }
+
+    for (i = 0; i < objects->vr_mm_object_count; i++) {
+        ret = proto->mproto_encode(buf + len, buf_len - len, objects->vr_mm_object_type[i],
+                            objects->vr_mm_object[i], VR_MESSAGE_TYPE_RESPONSE);
+        if (ret < 0)
+            goto response_fail;
+
+        len += ret;
+    }
+
+    return vr_message_queue_response(buf, len, false);
+
+response_fail:
+    if (trans && buf)
+        trans->mtrans_free(buf);
+    vr_send_response(ret);
+
+    return ret;
+
+}
+
+int
+vr_message_response(unsigned int object_type, void *object, int ret, bool broadcast)
 {
     char *buf = NULL;
     unsigned int len = 0;
@@ -208,7 +262,7 @@ vr_message_response(unsigned int object_type, void *object, int ret)
     if (ret < 0)
         goto response_fail;
 
-    return vr_message_queue_response(buf, ret);
+    return vr_message_queue_response(buf, ret, broadcast);
 
 response_fail:
     if (buf)
@@ -221,7 +275,18 @@ response_fail:
 int
 vr_send_response(int code)
 {
-    return vr_message_response(VR_NULL_OBJECT_ID, NULL, code);
+    return vr_message_response(VR_NULL_OBJECT_ID, NULL, code, false);
+}
+
+int
+vr_send_broadcast(unsigned int object_type, void *object, unsigned int sandesh_op, int code)
+{
+    if (!vr_nl_broadcast_supported)
+      return 0;
+    // We only broadcast requests that have succeeded
+    if (code >= 0)
+        return vr_message_response(object_type, object, code, true);
+    return code;
 }
 
 int
@@ -274,7 +339,7 @@ vr_message_dump_exit(void *context, int ret)
                 trans->mtrans_free(dumper->dump_buffer);
         } else
             vr_message_queue_response(dumper->dump_buffer,
-                    dumper->dump_offset);
+              dumper->dump_offset, false);
 
         vr_free(dumper, VR_MESSAGE_DUMP_OBJECT);
     }

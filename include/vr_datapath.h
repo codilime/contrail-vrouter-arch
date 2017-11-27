@@ -21,9 +21,10 @@ well_known_mac(unsigned char *dmac)
 }
 
 unsigned int vr_virtual_input(unsigned short, struct vr_interface *,
-                              struct vr_packet *, unsigned short);
+                              struct vr_packet *, struct vr_forwarding_md *,
+                              unsigned short);
 unsigned int vr_fabric_input(struct vr_interface *, struct vr_packet *,
-                             unsigned short);
+                             struct vr_forwarding_md *, unsigned short);
 
 int vr_l3_input(struct vr_packet *, struct vr_forwarding_md *);
 int vr_l2_input(struct vr_packet *, struct vr_forwarding_md *);
@@ -38,7 +39,7 @@ extern void vr_ip_update_csum(struct vr_packet *, unsigned int, unsigned int);
 extern uint16_t vr_icmp6_checksum(struct vr_ip6 *, struct vr_icmp *);
 
 int vr_untag_pkt(struct vr_packet *);
-int vr_tag_pkt(struct vr_packet *, unsigned short);
+int vr_tag_pkt(struct vr_packet *, unsigned short, bool);
 void vr_vlan_set_priority(struct vr_packet *);
 int vr_pkt_type(struct vr_packet *, unsigned short, struct vr_forwarding_md *);
 
@@ -62,6 +63,8 @@ extern int vif_plug_mac_request(struct vr_interface *, struct vr_packet *,
         struct vr_forwarding_md *);
 int vr_gro_input(struct vr_packet *, struct vr_nexthop *);
 void vr_mac_reply_send(struct vr_packet *, struct vr_forwarding_md *);
+int __vr_pbb_decode(struct vr_eth *, int , struct vr_forwarding_md *);
+int vr_pbb_decode(struct vr_packet *, struct vr_forwarding_md *);
 
 
 

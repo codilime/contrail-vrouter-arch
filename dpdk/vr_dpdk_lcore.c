@@ -20,6 +20,7 @@
 #include "vr_dpdk_usocket.h"
 #include "vr_dpdk_virtio.h"
 #include "vr_uvhost.h"
+#include "vr_dpdk_gro.h"
 
 #include <signal.h>
 
@@ -171,7 +172,9 @@ int
 vr_dpdk_lcore_mpls_schedule(struct vr_interface *vif, unsigned dst_ip,
     unsigned mpls_label)
 {
+#if VR_DPDK_USE_HW_FILTERING
     int ret;
+#endif
     uint16_t queue_id;
     struct vr_dpdk_queue *rx_queue;
     unsigned least_used_id = vr_dpdk_lcore_least_used_get();
@@ -185,10 +188,12 @@ vr_dpdk_lcore_mpls_schedule(struct vr_interface *vif, unsigned dst_ip,
     if (queue_id == VR_DPDK_INVALID_QUEUE_ID)
         return -ENOMEM;
 
+#if VR_DPDK_USE_HW_FILTERING
     /* add hardware filter */
     ret = vr_dpdk_ethdev_filter_add(vif, queue_id, dst_ip, mpls_label);
     if (ret < 0)
         return ret;
+#endif
 
     /* init RX queue */
     RTE_LOG(INFO, VROUTER, "    lcore %u RX from filtering queue %" PRIu16
@@ -204,16 +209,171 @@ vr_dpdk_lcore_mpls_schedule(struct vr_interface *vif, unsigned dst_ip,
     return 0;
 }
 
+static int
+vr_dpdk_init_hw_tx_queues(struct vr_interface *vif, unsigned int least_used_id,
+        uint16_t nb_tx_queues, vr_dpdk_queue_init_op tx_queue_init_op)
+{
+
+    bool use_packet_lcore = false;
+    unsigned int lcore_id, queue, queue_index, num_fwd_cores;
+
+    struct vr_dpdk_queue *tx_queue;
+    struct vr_dpdk_lcore *lcore;
+    struct vif_queue_dpdk_data *q_data = NULL;
+
+    num_fwd_cores = vr_dpdk.nb_fwd_lcores + VR_DPDK_FWD_LCORE_ID -
+        VR_DPDK_PACKET_LCORE_ID;
+
+    if (vif->vif_num_hw_queues) {
+        if (vif->vif_num_hw_queues > VR_DPDK_MAX_NB_TX_QUEUES) {
+            return -EINVAL;
+        }
+
+        nb_tx_queues = vif->vif_num_hw_queues;
+        q_data = (struct vif_queue_dpdk_data *)vif->vif_queue_host_data;
+    } else {
+        if (nb_tx_queues > num_fwd_cores) {
+            nb_tx_queues = num_fwd_cores;
+        }
+    }
+
+    if (nb_tx_queues >= num_fwd_cores) {
+        use_packet_lcore = true;
+    }
+
+    lcore_id = least_used_id;
+    for (queue_index = 0; queue_index < nb_tx_queues; queue_index++) {
+        if (lcore_id >= VR_DPDK_PACKET_LCORE_ID) {
+            if (!use_packet_lcore) {
+                while (lcore_id < VR_DPDK_FWD_LCORE_ID) {
+                    lcore_id = rte_get_next_lcore(lcore_id, 1, 1);
+                }
+            }
+
+            if (vif->vif_num_hw_queues) {
+                queue = vif->vif_hw_queues[queue_index];
+            } else {
+                queue = queue_index;
+            }
+
+            RTE_LOG(INFO, VROUTER, "    lcore %2u TX to HW queue %" PRIu16 "\n",
+                    lcore_id, queue);
+
+            lcore = vr_dpdk.lcores[lcore_id];
+            if (lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx]) {
+                lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx][queue] =
+                    queue_index;
+            }
+
+            tx_queue = (*tx_queue_init_op)(lcore_id, vif, queue);
+            if (tx_queue == NULL)
+                return -EFAULT;
+
+            if (q_data) {
+                q_data->vqdd_queue_to_lcore[queue] = lcore_id;
+            }
+
+            dpdk_lcore_queue_add(lcore_id, &lcore->lcore_tx_head, tx_queue);
+
+            if (lcore->lcore_hw_queue[vif->vif_idx] < 0) {
+                lcore->lcore_hw_queue[vif->vif_idx] = queue;
+            }
+        }
+
+        lcore_id = rte_get_next_lcore(lcore_id, 1, 1);
+        while (lcore_id < VR_DPDK_PACKET_LCORE_ID) {
+            lcore_id = rte_get_next_lcore(lcore_id, 1, 1);
+        }
+
+        if ((lcore_id == least_used_id) &&
+                (nb_tx_queues == VR_DPDK_ONE_QUEUE_PER_CORE)) {
+            break;
+        }
+    }
+
+
+    return queue_index;
+}
+
+static int
+vr_dpdk_init_sw_tx_rings(struct vr_interface *vif, unsigned int least_used_id)
+{
+    unsigned int queue, queue_index, num_queues_per_lcore = 1;
+    unsigned int lcore_id, host_lcore_id;
+
+    struct vr_dpdk_queue *tx_queue;
+    struct vif_queue_dpdk_data *q_data = NULL;
+    struct vr_dpdk_lcore *lcore;
+
+    if (vif->vif_num_hw_queues) {
+        num_queues_per_lcore = vif->vif_num_hw_queues;
+        q_data = (struct vif_queue_dpdk_data *)vif->vif_queue_host_data;
+    }
+
+    /* init TX queues starting with the least used lcore */
+    lcore_id = least_used_id;
+    /* for all lcores */
+    do {
+        if (lcore_id >= VR_DPDK_PACKET_LCORE_ID) {
+            lcore = vr_dpdk.lcores[lcore_id];
+
+            if ((num_queues_per_lcore == 1) &&
+                    (lcore->lcore_hw_queue[vif->vif_idx] >= 0)) {
+                goto get_next_lcore;
+            }
+
+            for (queue_index = 0; queue_index < num_queues_per_lcore;
+                    queue_index++) {
+                if (vif->vif_hw_queues) {
+                    queue = vif->vif_hw_queues[queue_index];
+                    host_lcore_id = q_data->vqdd_queue_to_lcore[queue];
+                } else {
+                    queue = queue_index;
+                    host_lcore_id = least_used_id;
+                }
+
+                if (host_lcore_id == lcore_id) {
+                    continue;
+                }
+
+                RTE_LOG(INFO, VROUTER,
+                        "    lcore %2u TX queue %u to SW ring in lcore %u\n",
+                        lcore_id, queue, host_lcore_id);
+                if (lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx]) {
+                    lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx][queue] =
+                        queue_index;
+                }
+                tx_queue = vr_dpdk_ring_tx_queue_init(lcore_id, vif,
+                        queue, host_lcore_id);
+                if (tx_queue == NULL) {
+                    lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx][queue] = -1;
+                    return -EFAULT;
+                }
+
+                /* add the queue to the lcore */
+                dpdk_lcore_queue_add(lcore_id, &lcore->lcore_tx_head,
+                        tx_queue);
+            }
+        }
+
+get_next_lcore:
+        /* skip master lcore and wrap */
+        lcore_id = rte_get_next_lcore(lcore_id, 1, 1);
+    } while (lcore_id != least_used_id);
+
+    return 0;
+}
+
 /* Schedule an interface */
 int
 vr_dpdk_lcore_if_schedule(struct vr_interface *vif, unsigned least_used_id,
     uint16_t nb_rx_queues, vr_dpdk_queue_init_op rx_queue_init_op,
     uint16_t nb_tx_queues, vr_dpdk_queue_init_op tx_queue_init_op)
 {
-    unsigned lcore_id;
-    uint16_t queue_id;
+    int16_t queue_id;
+    unsigned int lcore_id, usable_queues;
+
     struct vr_dpdk_queue *rx_queue;
-    struct vr_dpdk_queue *tx_queue;
     struct vr_dpdk_lcore *lcore;
 
     if (least_used_id == VR_MAX_CPUS) {
@@ -225,45 +385,14 @@ vr_dpdk_lcore_if_schedule(struct vr_interface *vif, unsigned least_used_id,
     if (vif_is_fabric(vif) && vr_dpdk.vf_lcore_id)
         least_used_id = vr_dpdk.vf_lcore_id;
 
-    /* init TX queues starting with the least used lcore */
-    lcore_id = least_used_id;
-    queue_id = 0;
-    /* for all lcores */
-    do {
-        /* PACKET_LCORE_ID and up have TX queues */
-        if (lcore_id >= VR_DPDK_PACKET_LCORE_ID) {
-            /*
-             * do not schedule hardware TX queue on service lcores if
-             * there are no enough queues for all the forwarding lcores
-             */
-            if (((lcore_id >= VR_DPDK_FWD_LCORE_ID)
-                    || (nb_tx_queues >= vr_dpdk.nb_fwd_lcores
-                            + (VR_DPDK_FWD_LCORE_ID - VR_DPDK_PACKET_LCORE_ID)))
-                && (queue_id < nb_tx_queues)) {
-                /* there is a hardware queue available */
-                RTE_LOG(INFO, VROUTER, "    lcore %2u TX to HW queue %" PRIu16 "\n",
-                    lcore_id, queue_id);
-                tx_queue = (*tx_queue_init_op)(lcore_id, vif, queue_id);
-                if (tx_queue == NULL)
-                    return -EFAULT;
-                /* next queue */
-                queue_id++;
-            } else {
-                /* no more hardware queues left, so we use rings instead */
-                RTE_LOG(INFO, VROUTER, "    lcore %2u TX to SW ring\n", lcore_id);
-                tx_queue = vr_dpdk_ring_tx_queue_init(lcore_id, vif, least_used_id);
-                if (tx_queue == NULL)
-                    return -EFAULT;
-            }
+    usable_queues = vr_dpdk_init_hw_tx_queues(vif, least_used_id,
+            nb_tx_queues, tx_queue_init_op);
+    if (usable_queues < 0)
+        return usable_queues;
 
-            /* add the queue to the lcore */
-            lcore = vr_dpdk.lcores[lcore_id];
-            dpdk_lcore_queue_add(lcore_id, &lcore->lcore_tx_head, tx_queue);
-        }
-
-        /* skip master lcore and wrap */
-        lcore_id = rte_get_next_lcore(lcore_id, 1, 1);
-    } while (lcore_id != least_used_id);
+    usable_queues = vr_dpdk_init_sw_tx_rings(vif, least_used_id);
+    if (usable_queues < 0)
+        return usable_queues;
 
     if (VR_DPDK_USE_IO_LCORES && nb_rx_queues == 1
         && vif_is_virtual(vif)) {
@@ -408,7 +537,7 @@ vr_dpdk_lcore_cmd_post_all(uint16_t cmd, uint64_t cmd_arg)
 void
 dpdk_lcore_rxtx_release_all(struct vr_interface *vif)
 {
-    unsigned lcore_id;
+    unsigned lcore_id, i;
     struct vr_dpdk_lcore *lcore;
     struct vr_dpdk_queue_params *rx_queue_params;
     struct vr_dpdk_queue_params *tx_queue_params;
@@ -422,13 +551,16 @@ dpdk_lcore_rxtx_release_all(struct vr_interface *vif)
         rx_queue_params = &lcore->lcore_rx_queue_params[vif->vif_idx];
         if (rx_queue_params->qp_release_op) {
             RTE_LOG(INFO, VROUTER, "    releasing lcore %u RX queue\n", lcore_id);
-            rx_queue_params->qp_release_op(lcore_id, vif);
+            rx_queue_params->qp_release_op(lcore_id, 0, vif);
         }
 
-        tx_queue_params = &lcore->lcore_tx_queue_params[vif->vif_idx];
-        if (tx_queue_params->qp_release_op) {
-            RTE_LOG(INFO, VROUTER, "    releasing lcore %u TX queue\n", lcore_id);
-            tx_queue_params->qp_release_op(lcore_id, vif);
+        for (i = 0; i < lcore->num_tx_queues_per_lcore[vif->vif_idx]; i++) {
+            tx_queue_params = &lcore->lcore_tx_queue_params[vif->vif_idx][i];
+            if (tx_queue_params->qp_release_op) {
+                RTE_LOG(INFO, VROUTER, "    releasing lcore %u TX queue %u\n",
+                        lcore_id, i);
+                tx_queue_params->qp_release_op(lcore_id, i, vif);
+            }
         }
     }
 }
@@ -501,7 +633,7 @@ vr_dpdk_lcore_distribute(struct vr_dpdk_lcore *lcore, const bool io_lcore,
     struct vr_interface_stats *stats;
     unsigned retry_lcores[nb_dst_lcores];
 
-    RTE_LOG(DEBUG, VROUTER, "%s: distributing %" PRIu32 " packet(s) from interface %s\n",
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: distributing %" PRIu32 " packet(s) from interface %s\n",
          __func__, nb_pkts, vif->vif_name);
 
     /* init the headers */
@@ -536,7 +668,7 @@ vr_dpdk_lcore_distribute(struct vr_dpdk_lcore *lcore, const bool io_lcore,
         /* put the mbuf to the burst */
         lcore_nb_pkts = (uintptr_t)lcore_pkts[dst_lcore_idx][0]
                                                  & LCORE_RX_RING_NB_PKTS_MASK;
-        RTE_LOG(DEBUG, VROUTER, "%s: lcore %u RSS hash 0x%x packet %u dst lcore %u\n",
+        RTE_LOG_DP(DEBUG, VROUTER, "%s: lcore %u RSS hash 0x%x packet %u dst lcore %u\n",
              __func__, lcore_id, hashval, lcore_nb_pkts, dst_fwd_lcore_idx);
         lcore_pkts[dst_lcore_idx][lcore_nb_pkts] = mbuf;
 
@@ -560,7 +692,7 @@ vr_dpdk_lcore_distribute(struct vr_dpdk_lcore *lcore, const bool io_lcore,
             lcore_nb_pkts = (uintptr_t)lcore_pkts[dst_lcore_idx][0]
                                                   & LCORE_RX_RING_NB_PKTS_MASK;
             if (likely(lcore_nb_pkts > 1)) {
-                RTE_LOG(DEBUG, VROUTER, "%s: enqueueing %u packet(s) to lcore %u\n",
+                RTE_LOG_DP(DEBUG, VROUTER, "%s: enqueueing %u packet(s) to lcore %u\n",
                      __func__, lcore_nb_pkts - 1, dst_fwd_lcore_idx);
 
                 /* round up the number of packets to the chunk size */
@@ -588,13 +720,13 @@ vr_dpdk_lcore_distribute(struct vr_dpdk_lcore *lcore, const bool io_lcore,
                                                           += lcore_nb_pkts - 1;
 
                         if (io_lcore) {
-                            RTE_LOG(DEBUG, VROUTER, "%s: lcore %u IO ring is full, dropping %u packets: %d/%d\n",
+                            RTE_LOG_DP(DEBUG, VROUTER, "%s: lcore %u IO ring is full, dropping %u packets: %d/%d\n",
                                     __func__, dst_fwd_lcore_idx,
                                     lcore_nb_pkts,
                                     rte_ring_count(vr_dpdk.lcores[dst_fwd_lcore_idx]->lcore_io_rx_ring),
                                     rte_ring_free_count(vr_dpdk.lcores[dst_fwd_lcore_idx]->lcore_io_rx_ring));
                         } else {
-                            RTE_LOG(DEBUG, VROUTER, "%s: lcore %u ring is full, dropping %u packets: %d/%d\n",
+                            RTE_LOG_DP(DEBUG, VROUTER, "%s: lcore %u ring is full, dropping %u packets: %d/%d\n",
                                     __func__, dst_fwd_lcore_idx,
                                     lcore_nb_pkts,
                                     rte_ring_count(vr_dpdk.lcores[dst_fwd_lcore_idx]->lcore_rx_ring),
@@ -603,12 +735,12 @@ vr_dpdk_lcore_distribute(struct vr_dpdk_lcore *lcore, const bool io_lcore,
 
                         /* ring is full, drop the packets */
                         for (j = 1; j < lcore_nb_pkts; j++) {
-                            vr_dpdk_pfree(lcore_pkts[dst_lcore_idx][j], VP_DROP_INTERFACE_DROP);
+                            vr_dpdk_pfree(lcore_pkts[dst_lcore_idx][j], vif, VP_DROP_INTERFACE_DROP);
                         }
                     } else {
                         /* mark the lcore to retry */
                         retry_lcores[nb_retry_lcores++] = dst_lcore_idx;
-                        RTE_LOG(DEBUG, VROUTER, "%s: retrying %d lcore %u...\n",
+                        RTE_LOG_DP(DEBUG, VROUTER, "%s: retrying %d lcore %u...\n",
                             __func__, retry, dst_fwd_lcore_idx);
 
                     }
@@ -642,11 +774,12 @@ vr_dpdk_lcore_vroute(struct vr_dpdk_lcore *lcore, struct vr_interface *vif,
     struct rte_mbuf *p_copy;
     unsigned short vlan_id = VLAN_ID_INVALID;
 
-    RTE_LOG(DEBUG, VROUTER, "%s: RX %" PRIu32 " packet(s) from interface %s\n",
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: RX %" PRIu32 " packet(s) from interface %s\n",
          __func__, nb_pkts, vif->vif_name);
 
     if (unlikely(vif->vif_flags & VIF_FLAG_MONITORED)) {
-        monitoring_tx_queue = &lcore->lcore_tx_queues[vr_dpdk.monitorings[vif->vif_idx]];
+        monitoring_tx_queue =
+            &lcore->lcore_tx_queues[vr_dpdk.monitorings[vif->vif_idx]][0];
         if (likely(monitoring_tx_queue && monitoring_tx_queue->txq_ops.f_tx)) {
             for (i = 0; i < nb_pkts; i++) {
                 mbuf = pkts[i];
@@ -656,7 +789,7 @@ vr_dpdk_lcore_vroute(struct vr_dpdk_lcore *lcore, struct vr_interface *vif,
                  * dp-core changes the original packet, so clone does not work
                  * as expected here.
                  */
-                p_copy = vr_dpdk_pktmbuf_copy(mbuf, vr_dpdk.rss_mempool);
+                p_copy = vr_dpdk_pktmbuf_copy_mon(mbuf, vr_dpdk.rss_mempool);
                 if (likely(p_copy != NULL)) {
                     monitoring_tx_queue->txq_ops.f_tx(monitoring_tx_queue->q_queue_h,
                                                         p_copy);
@@ -679,12 +812,12 @@ vr_dpdk_lcore_vroute(struct vr_dpdk_lcore *lcore, struct vr_interface *vif,
                 vif_is_fabric(vif))) {
             if ((mbuf->vlan_tci & 0xFFF) != vr_dpdk.vlan_tag) {
                 if (vr_dpdk.vlan_ring == NULL || rte_vlan_insert(&mbuf)) {
-                    vr_dpdk_pfree(mbuf, VP_DROP_VLAN_FWD_ENQ);
+                    vr_dpdk_pfree(mbuf, vif, VP_DROP_VLAN_FWD_ENQ);
                     continue;
                 }
                 /* Packets will be dequeued in dpdk_lcore_fwd_io() */
                 if (rte_ring_mp_enqueue(vr_dpdk.vlan_ring, mbuf) != 0)
-                    vr_dpdk_pfree(mbuf, VP_DROP_VLAN_FWD_ENQ);
+                    vr_dpdk_pfree(mbuf, vif, VP_DROP_VLAN_FWD_ENQ);
                 /* Nothing to route, take the next packet. */
                 continue;
             } else {
@@ -905,7 +1038,7 @@ dpdk_lcore_rx_ring_vroute(struct vr_dpdk_lcore *lcore, struct rte_ring *ring)
         } else {
             /* the vif is no longer available, just drop the packets */
             for (i = 1; i < nb_pkts; i++)
-                vr_dpdk_pfree(pkts[i], VP_DROP_INTERFACE_DROP);
+                vr_dpdk_pfree(pkts[i], NULL, VP_DROP_INTERFACE_DROP);
         }
     }
 
@@ -955,7 +1088,7 @@ dpdk_lcore_tx_rings_push(struct vr_dpdk_lcore *lcore)
                 stats->vis_port_oerrors += nb_pkts;
                 for (i = 0; i < nb_pkts; i++)
                     /* TODO: a separate counter for this drop */
-                    vr_dpdk_pfree(pkts[i], VP_DROP_INTERFACE_DROP);
+                    vr_dpdk_pfree(pkts[i], NULL, VP_DROP_INTERFACE_DROP);
             }
         }
         rtp++;
@@ -967,9 +1100,9 @@ dpdk_lcore_tx_rings_push(struct vr_dpdk_lcore *lcore)
 static inline void
 dpdk_lcore_io_rxtx(struct vr_dpdk_lcore *lcore)
 {
-    uint64_t total_pkts = 0;
+    uint64_t total_pkts;
 
-    total_pkts += dpdk_lcore_rxqs_distribute(lcore, true);
+    total_pkts = dpdk_lcore_rxqs_distribute(lcore, true);
 
     /* make a short pause if no single packet received */
     if (unlikely(total_pkts == 0)) {
@@ -993,17 +1126,28 @@ dpdk_lcore_vlan_fwd(struct vr_dpdk_lcore* lcore)
     struct vr_dpdk_queue* tx_queue;
     struct vrouter* router = vrouter_get(0);
     struct rte_mbuf* pkts[VR_DPDK_RX_BURST_SZ];
+    struct vr_interface *eth_vif;
+    uint16_t hw_queue;
     unsigned nb_pkts, i;
 
     /*
      * Receive packets from VLAN interface and send them to the wire.
      * Those packets will not be seen in vifdump on the physical vif.
      */
-    if (router->vr_eth_if) {
-        tx_queue = &lcore->lcore_tx_queues[router->vr_eth_if->vif_idx];
-        if (tx_queue->txq_ops.f_tx) {
-            nb_pkts = rte_kni_rx_burst(vr_dpdk.vlan_kni, pkts,
-                    VR_DPDK_RX_BURST_SZ);
+    eth_vif = router->vr_eth_if;
+    if (eth_vif) {
+        hw_queue = lcore->lcore_hw_queue[eth_vif->vif_idx];
+        if (hw_queue < 0)
+            hw_queue = 0;
+
+        tx_queue = &lcore->lcore_tx_queues[eth_vif->vif_idx][hw_queue];
+        if (tx_queue && tx_queue->txq_ops.f_tx) {
+            if (vr_dpdk.kni_state > 0)
+                nb_pkts = rte_kni_rx_burst(vr_dpdk.vlan_dev, pkts,
+                        VR_DPDK_RX_BURST_SZ);
+            else
+                nb_pkts = vr_dpdk_tapdev_rx_burst(vr_dpdk.vlan_dev, pkts,
+                        VR_DPDK_RX_BURST_SZ);
             for (i = 0; i < nb_pkts; i++)
                 tx_queue->txq_ops.f_tx(tx_queue->q_queue_h, pkts[i]);
         }
@@ -1011,9 +1155,12 @@ dpdk_lcore_vlan_fwd(struct vr_dpdk_lcore* lcore)
     /* Get packets from VLAN ring and forward them to kernel. */
     nb_pkts = rte_ring_sc_dequeue_burst(vr_dpdk.vlan_ring, (void**) &pkts,
             VR_DPDK_RX_BURST_SZ);
-    i = rte_kni_tx_burst(vr_dpdk.vlan_kni, pkts, nb_pkts);
+    if (vr_dpdk.kni_state > 0)
+        i = rte_kni_tx_burst(vr_dpdk.vlan_dev, pkts, nb_pkts);
+    else
+        i = vr_dpdk_tapdev_tx_burst(vr_dpdk.vlan_dev, pkts, nb_pkts);
     for (; i < nb_pkts; i++)
-        vr_dpdk_pfree(pkts[i], VP_DROP_VLAN_FWD_TX);
+        vr_dpdk_pfree(pkts[i], NULL, VP_DROP_VLAN_FWD_TX);
 }
 
 /*
@@ -1106,7 +1253,7 @@ dpdk_lcore_signals_init(unsigned lcore_id)
     /* Due to the extra threads we cant block signals on, our only
      * option is to handle the signals on master (KNI) lcore */
     if (lcore_id == rte_get_master_lcore()) {
-        RTE_LOG(DEBUG, VROUTER, "Unblocking signals for lcore %u\n",
+        RTE_LOG_DP(DEBUG, VROUTER, "Unblocking signals for lcore %u\n",
                     lcore_id);
         sigfillset(&set);
         if (pthread_sigmask(SIG_UNBLOCK, &set, NULL) != 0) {
@@ -1226,6 +1373,10 @@ dpdk_lcore_fwd_init(unsigned lcore_id, struct vr_dpdk_lcore *lcore)
         }
     }
 
+    if (vr_dpdk_gro_init(lcore_id, lcore) < 0) {
+        RTE_LOG(CRIT, VROUTER, "Error initializing GRO tables on lcore %u\n", lcore_id);
+    }
+
     return 0;
 }
 
@@ -1326,7 +1477,7 @@ vr_dpdk_lcore_cmd_handle(struct vr_dpdk_lcore *lcore)
     uint16_t cmd = lcore->lcore_cmd;
     uint64_t cmd_arg = lcore->lcore_cmd_arg;
     int ret = 0;
-    unsigned vif_idx;
+    unsigned vif_idx, i;
     struct vr_dpdk_queue *rx_queue;
     struct vr_dpdk_queue *tx_queue;
     struct vr_dpdk_lcore_rx_queue_remove_arg *rxq_rm_arg;
@@ -1350,10 +1501,12 @@ vr_dpdk_lcore_cmd_handle(struct vr_dpdk_lcore *lcore)
         break;
     case VR_DPDK_LCORE_TX_RM_CMD:
         vif_idx = (unsigned)cmd_arg;
-        tx_queue = &lcore->lcore_tx_queues[vif_idx];
-        if (tx_queue->q_queue_h) {
-            /* remove the queue from the lcore */
-            dpdk_lcore_tx_queue_remove(lcore, tx_queue);
+        for (i = 0; i < lcore->num_tx_queues_per_lcore[vif_idx]; i++) {
+            tx_queue = &lcore->lcore_tx_queues[vif_idx][i];
+            if (tx_queue->q_queue_h) {
+                /* remove the queue from the lcore */
+                dpdk_lcore_tx_queue_remove(lcore, tx_queue);
+            }
         }
         lcore->lcore_cmd = VR_DPDK_LCORE_NO_CMD;
         break;
@@ -1411,7 +1564,7 @@ dpdk_lcore_io_loop(void)
     const uint64_t tx_flush_cycles = VR_DPDK_TX_FLUSH_LOOPS;
 #endif
 
-    RTE_LOG(DEBUG, VROUTER, "Hello from IO lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from IO lcore %u\n", lcore_id);
 
     while (1) {
         rte_prefetch0(lcore);
@@ -1445,7 +1598,7 @@ dpdk_lcore_io_loop(void)
         } /* flush TX queues */
     } /* lcore loop */
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from IO lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from IO lcore %u\n", lcore_id);
     return 0;
 }
 
@@ -1460,7 +1613,7 @@ dpdk_lcore_fwd_loop(void)
     uint64_t cur_bond_cycles = 0;
     uint64_t cur_assembler_cycles = 0;
     uint64_t diff_cycles;
-    uint64_t last_tx_cycles = 0;
+    uint64_t last_tx_cycles = 0, last_gro_flush_cycles = 0;
     uint64_t last_bond_tx_cycles = 0;
     uint64_t last_assembler_cycles = 0;
     /* always calculate bond TX timeout in CPU cycles */
@@ -1474,11 +1627,13 @@ dpdk_lcore_fwd_loop(void)
     /* calculate timeouts in CPU cycles */
     const uint64_t tx_flush_cycles = (rte_get_timer_hz() + US_PER_S - 1)
         * VR_DPDK_TX_FLUSH_US / US_PER_S;
+    const uint64_t gro_flush_cycles = 100 * tx_flush_cycles;
 #else
     const uint64_t tx_flush_cycles = VR_DPDK_TX_FLUSH_LOOPS;
+    const uint64_t gro_flush_cycles = 100 * tx_flush_cycles;
 #endif
 
-    RTE_LOG(DEBUG, VROUTER, "Hello from forwarding lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from forwarding lcore %u\n", lcore_id);
 
     while (1) {
         rte_prefetch0(lcore);
@@ -1510,7 +1665,12 @@ dpdk_lcore_fwd_loop(void)
             dpdk_fragment_assembler_table_scan(NULL);
         }
 
-        /* check if we need to flush TX queues */
+        /* check if we need to flush TX queues and timeout GRO flows */
+        diff_cycles = cur_cycles - last_gro_flush_cycles;
+        if (unlikely(gro_flush_cycles < diff_cycles)) {
+            last_gro_flush_cycles = cur_cycles;
+            dpdk_gro_flush_all_inactive(lcore);
+        }
         diff_cycles = cur_cycles - last_tx_cycles;
         if (unlikely(tx_flush_cycles < diff_cycles)) {
             /* update TX flush cycles */
@@ -1553,7 +1713,7 @@ dpdk_lcore_fwd_loop(void)
         } /* flush TX queues */
     } /* lcore loop */
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from forwarding lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from forwarding lcore %u\n", lcore_id);
     return 0;
 }
 
@@ -1562,10 +1722,10 @@ static int
 dpdk_lcore_netlink_loop(void)
 {
     unsigned lcore_id = rte_lcore_id();
-    RTE_LOG(DEBUG, VROUTER, "Hello from NetLink lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from NetLink lcore %u\n", lcore_id);
 
     while (1) {
-        RTE_LOG(DEBUG, VROUTER, "%s: NetLink IO on lcore %u\n",
+        RTE_LOG_DP(DEBUG, VROUTER, "%s: NetLink IO on lcore %u\n",
             __func__, lcore_id);
 
         /* init the communication socket with Agent */
@@ -1577,7 +1737,7 @@ dpdk_lcore_netlink_loop(void)
         usleep(VR_DPDK_SLEEP_SERVICE_US);
     } /* lcore loop */
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from NetLink lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from NetLink lcore %u\n", lcore_id);
     return 0;
 }
 
@@ -1586,10 +1746,10 @@ static int
 dpdk_lcore_packet_loop(void)
 {
     unsigned lcore_id = rte_lcore_id();
-    RTE_LOG(DEBUG, VROUTER, "Hello from packet lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from packet lcore %u\n", lcore_id);
 
     while (1) {
-        RTE_LOG(DEBUG, VROUTER, "%s: packet IO on lcore %u\n",
+        RTE_LOG_DP(DEBUG, VROUTER, "%s: packet IO on lcore %u\n",
             __func__, lcore_id);
 
         dpdk_packet_io();
@@ -1599,30 +1759,100 @@ dpdk_lcore_packet_loop(void)
         usleep(VR_DPDK_SLEEP_SERVICE_US);
     } /* lcore loop */
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from packet lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from packet lcore %u\n", lcore_id);
     return 0;
 }
 
-/* KNI handling loop */
+/*
+ * dpdk_lcore_knidev_loop - KNI handling loop.
+ */
 static int
-dpdk_lcore_kni_loop(void)
+dpdk_lcore_knidev_loop(void)
 {
     unsigned lcore_id = rte_lcore_id();
-    RTE_LOG(DEBUG, VROUTER, "Hello from KNI lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from KNI lcore %u\n", lcore_id);
 
     rcu_thread_offline();
 
     while (1) {
         vr_dpdk_knidev_all_handle();
 
-        /* check for the global stop flag */
+        /* Check for the global stop flag. */
         if (unlikely(vr_dpdk_is_stop_flag_set()))
             break;
 
         usleep(VR_DPDK_SLEEP_KNI_US);
     };
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from KNI lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from KNI lcore %u\n", lcore_id);
+    return 0;
+}
+
+/*
+ * dpdk_lcore_tapdev_loop - TAP device handling loop.
+ */
+static int
+dpdk_lcore_tapdev_loop(void)
+{
+    uint64_t total_pkts;
+    unsigned lcore_id = rte_lcore_id();
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from TAP lcore %u\n", lcore_id);
+
+    while (1) {
+        /* Handle link up/down/mtu change */
+        vr_dpdk_tapdev_handle_notifications();
+
+        total_pkts = vr_dpdk_tapdev_rxtx();
+
+        /* make a short pause if no single packet received */
+        if (unlikely(total_pkts == 0)) {
+            rcu_thread_offline();
+#if VR_DPDK_TAPDEV_SLEEP_NO_PACKETS_US > 0
+            usleep(VR_DPDK_TAPDEV_SLEEP_NO_PACKETS_US);
+#endif
+            rcu_thread_online();
+        } else {
+            rcu_quiescent_state();
+        }
+
+        /* Check for the global stop flag. */
+        if (unlikely(vr_dpdk_is_stop_flag_set()))
+            break;
+    };
+
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from TAP lcore %u\n", lcore_id);
+    return 0;
+}
+
+/*
+ * dpdk_lcore_knitap_loop - KNI or TAP handling loop.
+ *
+ * Once KNI is enabled, run KNI handling loop. In case KNI is not
+ * available on the host, run TAP handling loop.
+ */
+static int
+dpdk_lcore_knitap_loop(void)
+{
+    unsigned lcore_id = rte_lcore_id();
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from KNI and TAP lcore %u\n", lcore_id);
+
+    rcu_thread_offline();
+    while (vr_dpdk.kni_state == 0) {
+        /* Check for the global stop flag. */
+        if (unlikely(vr_dpdk_is_stop_flag_set()))
+            break;
+
+        usleep(VR_DPDK_SLEEP_KNI_US);
+    };
+    rcu_thread_online();
+
+    if (vr_dpdk.kni_state > 0) {
+        dpdk_lcore_knidev_loop();
+    } else {
+        dpdk_lcore_tapdev_loop();
+    }
+
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from KNI and TAP lcore %u\n", lcore_id);
     return 0;
 }
 
@@ -1631,7 +1861,7 @@ static int
 dpdk_lcore_timer_loop(void)
 {
     unsigned lcore_id = rte_lcore_id();
-    RTE_LOG(DEBUG, VROUTER, "Hello from timer lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from timer lcore %u\n", lcore_id);
 
     rcu_thread_offline();
 
@@ -1645,7 +1875,7 @@ dpdk_lcore_timer_loop(void)
         usleep(VR_DPDK_SLEEP_TIMER_US);
     };
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from timer lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from timer lcore %u\n", lcore_id);
     return 0;
 }
 
@@ -1657,7 +1887,7 @@ static int
 dpdk_lcore_uvhost_loop(void)
 {
     unsigned lcore_id = rte_lcore_id();
-    RTE_LOG(DEBUG, VROUTER, "Hello from UVHost lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Hello from UVHost lcore %u\n", lcore_id);
 
     vr_uvhost_exit_fn = vr_dpdk_exit_trigger;
 
@@ -1669,7 +1899,7 @@ dpdk_lcore_uvhost_loop(void)
             break;
     };
 
-    RTE_LOG(DEBUG, VROUTER, "Bye-bye from UVHost lcore %u\n", lcore_id);
+    RTE_LOG_DP(DEBUG, VROUTER, "Bye-bye from UVHost lcore %u\n", lcore_id);
     return 0;
 }
 
@@ -1684,8 +1914,8 @@ vr_dpdk_lcore_launch(__attribute__((unused)) void *dummy)
         return -ENOMEM;
 
     switch (lcore_id) {
-    case VR_DPDK_KNI_LCORE_ID:
-        dpdk_lcore_kni_loop();
+    case VR_DPDK_KNITAP_LCORE_ID:
+        dpdk_lcore_knitap_loop();
         break;
     case VR_DPDK_TIMER_LCORE_ID:
         dpdk_lcore_timer_loop();

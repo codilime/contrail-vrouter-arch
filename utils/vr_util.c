@@ -4,18 +4,27 @@
  * Copyright (c) 2015, Juniper Networks, Inc.
  * All rights reserved
  */
+
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <ctype.h>
+#include <inttypes.h>
+#include <fcntl.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 #if defined(__linux__)
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
+#include <linux/dcbnl.h>
 #elif defined(__FreeBSD__)
 #include <net/ethernet.h>
 #endif
@@ -32,10 +41,13 @@
 #include "vr_nexthop.h"
 #include "vr_route.h"
 #include "vr_bridge.h"
+#include "vr_mem.h"
 #include "ini_parser.h"
 
 /* Suppress NetLink error messages */
 bool vr_ignore_nl_errors = false;
+char *vr_socket_dir = VR_DEF_SOCKET_DIR;
+uint16_t vr_netlink_port = VR_DEF_NETLINK_PORT;
 
 char *
 vr_extract_token(char *string, char token_separator)
@@ -255,10 +267,10 @@ vr_sendmsg(struct nl_client *cl, void *request,
 }
 
 struct nl_client *
-vr_get_nl_client(unsigned int proto)
+vr_get_nl_client(int proto)
 {
     int ret;
-    unsigned int sock_proto = proto;
+    int sock_proto = proto;
     struct nl_client *cl;
 
     cl = nl_register_client();
@@ -266,6 +278,19 @@ vr_get_nl_client(unsigned int proto)
         return NULL;
 
 #ifndef _WIN32
+    /* Do not use ini file if we are in a test mode. */
+    if (proto == VR_NETLINK_PROTO_TEST) {
+        ret = nl_socket(cl, AF_INET, SOCK_STREAM, 0);
+        if (ret <= 0)
+            goto fail;
+
+        ret = nl_connect(cl, get_ip(), vr_netlink_port);
+        if (ret < 0)
+            goto fail;
+
+        return cl;
+    }
+
     parse_ini_file();
 
     if (proto == VR_NETLINK_PROTO_DEFAULT)
@@ -302,6 +327,382 @@ fail:
     return NULL;
 }
 
+#ifndef _WIN32
+// TODO(Windows): Implement general memory mapping mechanism
+void *
+vr_table_map(int major, unsigned int table,
+        char *table_path, size_t size)
+{
+    int fd, ret;
+    uint16_t dev;
+
+    void *mem;
+    char *path;
+    const char *platform = read_string(DEFAULT_SECTION, PLATFORM_KEY);
+
+    if (major < 0)
+        return NULL;
+
+    if (platform && ((strcmp(platform, PLATFORM_DPDK) == 0) ||
+                (strcmp(platform, PLATFORM_NIC) == 0))) {
+        path = table_path;
+    } else {
+        switch (table) {
+        case VR_MEM_BRIDGE_TABLE_OBJECT:
+            path = BRIDGE_TABLE_DEV;
+            break;
+
+        case VR_MEM_FLOW_TABLE_OBJECT:
+            path = FLOW_TABLE_DEV;
+            break;
+
+        default:
+            return NULL;
+        }
+
+        ret = mknod(path, S_IFCHR | O_RDWR, makedev(major, table));
+        if (ret && errno != EEXIST) {
+            perror(path);
+            return NULL;
+        }
+    }
+
+    fd = open(path, O_RDONLY | O_SYNC);
+    if (fd <= 0) {
+        perror(path);
+        return NULL;
+    }
+
+    mem = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+
+    return mem;
+}
+#endif
+
+int
+vr_send_get_bridge_table_data(struct nl_client *cl)
+{
+    int ret;
+    vr_bridge_table_data req;
+
+    memset(&req, 0, sizeof(req));
+    req.btable_op = SANDESH_OP_GET;
+    req.btable_rid = 0;
+
+    return vr_sendmsg(cl, &req, "vr_bridge_table_data");
+}
+
+int
+vr_send_set_dcb_state(struct nl_client *cl, uint8_t *ifname, uint8_t state)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_set_dcb_state_msg(cl, ifname, state);
+    if (ret < 0)
+        return ret;
+
+    ret = nl_dcb_sendmsg(cl, DCB_CMD_SSTATE, NULL);
+    if (ret <= 0)
+        return ret;
+
+    if (ret != state) {
+        printf("vRouter: Set DCB State failed (Req/Resp: %u/%d)\n",
+                state, ret);
+        return -1;
+    }
+
+    return 0;
+#endif
+}
+
+int
+vr_send_get_dcb_state(struct nl_client *cl, uint8_t *ifname)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_get_dcb_state_msg(cl, ifname);
+    if (ret < 0)
+        return ret;
+
+    return nl_dcb_sendmsg(cl, DCB_CMD_GSTATE, NULL);
+#endif
+}
+
+int
+vr_send_set_dcbx(struct nl_client *cl, uint8_t *ifname, uint8_t dcbx)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_set_dcbx(cl, ifname, dcbx);
+    if (ret < 0)
+        return ret;
+
+    ret = nl_dcb_sendmsg(cl, DCB_CMD_SDCBX, NULL);
+    if (ret < 0)
+        return ret;
+
+    if (ret) {
+        printf("vRouter: Set DCBX failed (Req/Resp: %u/%d)\n",
+            dcbx, ret);
+        return -1;
+    }
+
+    return 0;
+#endif
+}
+
+int
+vr_send_get_dcbx(struct nl_client *cl, uint8_t *ifname)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_get_dcbx(cl, ifname);
+    if (ret < 0)
+        return ret;
+
+    return nl_dcb_sendmsg(cl, DCB_CMD_GDCBX, NULL);
+#endif
+}
+
+int
+vr_send_get_priority_config(struct nl_client *cl, uint8_t *ifname,
+        struct priority *p)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_get_priority_config_msg(cl, ifname);
+    if (ret < 0)
+        return ret;
+
+    ret = nl_dcb_sendmsg(cl, DCB_CMD_PGTX_GCFG, p);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+#endif
+}
+
+int
+vr_send_set_priority_config(struct nl_client *cl, uint8_t *ifname,
+        struct priority *p)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_set_priority_config_msg(cl, ifname, p);
+    if (ret < 0)
+        return ret;
+
+    ret = nl_dcb_sendmsg(cl, DCB_CMD_PGTX_SCFG, NULL);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+#endif
+}
+
+int
+vr_send_set_dcb_all(struct nl_client *cl, uint8_t *ifname)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_set_dcb_all(cl, ifname);
+    if (ret < 0)
+        return ret;
+
+    return nl_dcb_sendmsg(cl, DCB_CMD_SET_ALL, NULL);
+#endif
+}
+
+int
+vr_send_get_ieee_ets(struct nl_client *cl, uint8_t *ifname,
+        struct priority *p)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_get_ieee_ets(cl, ifname, p);
+    if (ret < 0)
+        return ret;
+
+    return nl_dcb_sendmsg(cl, DCB_CMD_IEEE_GET, p);
+#endif
+}
+
+int
+vr_send_set_ieee_ets(struct nl_client *cl, uint8_t *ifname,
+        struct priority *p)
+{
+#ifdef _WIN32
+    // TODO(Windows): Implement for windows
+    return -1;
+#else
+    int ret;
+
+    ret = nl_build_set_ieee_ets(cl, ifname, p);
+    if (ret < 0)
+        return ret;
+
+    return nl_dcb_sendmsg(cl, DCB_CMD_IEEE_SET, NULL);
+#endif
+}
+
+void
+vr_print_drop_stats(vr_drop_stats_req *stats, int core)
+{
+    int platform = get_platform();
+
+   if (core != (unsigned)-1)
+        printf("Statistics for core %u\n\n", core);
+
+   if (stats->vds_pcpu_stats_failure_status)
+       printf("Failed to maintain PerCPU stats for this interface\n\n");
+
+    printf("Invalid IF                    %" PRIu64 "\n",
+            stats->vds_invalid_if);
+    printf("Trap No IF                    %" PRIu64 "\n",
+            stats->vds_trap_no_if);
+    printf("IF TX Discard                 %" PRIu64 "\n",
+            stats->vds_interface_tx_discard);
+    printf("IF Drop                       %" PRIu64 "\n",
+            stats->vds_interface_drop);
+    printf("IF RX Discard                 %" PRIu64 "\n",
+            stats->vds_interface_rx_discard);
+    printf("\n");
+
+    printf("Flow Unusable                 %" PRIu64 "\n",
+            stats->vds_flow_unusable);
+    printf("Flow No Memory                %" PRIu64 "\n",
+            stats->vds_flow_no_memory);
+    printf("Flow Table Full               %" PRIu64 "\n",
+            stats->vds_flow_table_full);
+    printf("Flow NAT no rflow             %" PRIu64 "\n",
+            stats->vds_flow_nat_no_rflow);
+    printf("Flow Action Drop              %" PRIu64 "\n",
+            stats->vds_flow_action_drop);
+    printf("Flow Action Invalid           %" PRIu64 "\n",
+            stats->vds_flow_action_invalid);
+    printf("Flow Invalid Protocol         %" PRIu64 "\n",
+            stats->vds_flow_invalid_protocol);
+    printf("Flow Queue Limit Exceeded     %" PRIu64 "\n",
+            stats->vds_flow_queue_limit_exceeded);
+    printf("New Flow Drops                %" PRIu64 "\n",
+            stats->vds_drop_new_flow);
+    printf("Flow Unusable (Eviction)      %" PRIu64 "\n",
+            stats->vds_flow_evict);
+    printf("\n");
+
+    printf("Original Packet Trapped       %" PRIu64 "\n",
+            stats->vds_trap_original);
+    printf("\n");
+
+    printf("Discards                      %" PRIu64 "\n",
+            stats->vds_discard);
+    printf("TTL Exceeded                  %" PRIu64 "\n",
+            stats->vds_ttl_exceeded);
+    printf("Mcast Clone Fail              %" PRIu64 "\n",
+            stats->vds_mcast_clone_fail);
+    printf("Cloned Original               %" PRIu64 "\n",
+            stats->vds_cloned_original);
+    printf("\n");
+
+    printf("Invalid NH                    %" PRIu64 "\n",
+            stats->vds_invalid_nh);
+    printf("Invalid Label                 %" PRIu64 "\n",
+            stats->vds_invalid_label);
+    printf("Invalid Protocol              %" PRIu64 "\n",
+            stats->vds_invalid_protocol);
+    printf("Etree Leaf to Leaf            %" PRIu64 "\n",
+            stats->vds_leaf_to_leaf);
+    printf("Bmac/ISID Mismatch            %" PRIu64 "\n",
+            stats->vds_bmac_isid_mismatch);
+    printf("Rewrite Fail                  %" PRIu64 "\n",
+            stats->vds_rewrite_fail);
+    printf("Invalid Mcast Source          %" PRIu64 "\n",
+            stats->vds_invalid_mcast_source);
+    printf("Packet Loop                   %" PRIu64 "\n",
+            stats->vds_pkt_loop);
+    printf("\n");
+
+    printf("Push Fails                    %" PRIu64 "\n",
+            stats->vds_push);
+    printf("Pull Fails                    %" PRIu64 "\n",
+            stats->vds_pull);
+    printf("Duplicated                    %" PRIu64 "\n",
+            stats->vds_duplicated);
+    printf("Head Alloc Fails              %" PRIu64 "\n",
+            stats->vds_head_alloc_fail);
+    printf("PCOW fails                    %" PRIu64 "\n",
+            stats->vds_pcow_fail);
+    printf("Invalid Packets               %" PRIu64 "\n",
+            stats->vds_invalid_packet);
+    printf("\n");
+
+    printf("Misc                          %" PRIu64 "\n",
+            stats->vds_misc);
+    printf("Nowhere to go                 %" PRIu64 "\n",
+            stats->vds_nowhere_to_go);
+    printf("Checksum errors               %" PRIu64 "\n",
+            stats->vds_cksum_err);
+    printf("No Fmd                        %" PRIu64 "\n",
+            stats->vds_no_fmd);
+    printf("Invalid VNID                  %" PRIu64 "\n",
+            stats->vds_invalid_vnid);
+    printf("Fragment errors               %" PRIu64 "\n",
+            stats->vds_frag_err);
+    printf("Invalid Source                %" PRIu64 "\n",
+            stats->vds_invalid_source);
+    printf("Jumbo Mcast Pkt with DF Bit   %" PRIu64 "\n",
+            stats->vds_mcast_df_bit);
+    printf("No L2 Route                   %" PRIu64 "\n",
+            stats->vds_l2_no_route);
+
+    printf("Memory Failures               %" PRIu64 "\n",
+            stats->vds_no_memory);
+    printf("Fragment Queueing Failures    %" PRIu64 "\n",
+            stats->vds_fragment_queue_fail);
+
+    printf("\n");
+    if (platform == DPDK_PLATFORM) {
+        printf("VLAN fwd intf failed TX       %" PRIu64 "\n",
+                stats->vds_vlan_fwd_tx);
+        printf("VLAN fwd intf failed enq      %" PRIu64 "\n",
+                stats->vds_vlan_fwd_enq);
+    }
+    return;
+}
+
 int
 vr_response_common_process(vr_response *resp, bool *dump_pending)
 {
@@ -334,8 +735,6 @@ vr_sum_drop_stats(vr_drop_stats_req *req)
     sum += req->vds_discard;
     sum += req->vds_pull;
     sum += req->vds_invalid_if;
-    sum += req->vds_arp_no_where_to_go;
-    sum += req->vds_garp_from_vm;
     sum += req->vds_invalid_arp;
     sum += req->vds_trap_no_if;
     sum += req->vds_nowhere_to_go;
@@ -358,7 +757,6 @@ vr_sum_drop_stats(vr_drop_stats_req *req)
     sum += req->vds_interface_rx_discard;
     sum += req->vds_invalid_mcast_source;
     sum += req->vds_head_alloc_fail;
-    sum += req->vds_head_space_reserve_fail;
     sum += req->vds_pcow_fail;
     sum += req->vds_mcast_df_bit;
     sum += req->vds_mcast_clone_fail;
@@ -367,19 +765,18 @@ vr_sum_drop_stats(vr_drop_stats_req *req)
     sum += req->vds_misc;
     sum += req->vds_invalid_packet;
     sum += req->vds_cksum_err;
-    sum += req->vds_clone_fail;
     sum += req->vds_no_fmd;
     sum += req->vds_cloned_original;
     sum += req->vds_invalid_vnid;
     sum += req->vds_frag_err;
     sum += req->vds_invalid_source;
-    sum += req->vds_arp_no_route;
     sum += req->vds_l2_no_route;
     sum += req->vds_fragment_queue_fail;
     sum += req->vds_vlan_fwd_tx;
     sum += req->vds_vlan_fwd_enq;
     sum += req->vds_drop_new_flow;
     sum += req->vds_trap_original;
+    sum += req->vds_pkt_loop;
 
     return sum;
 }
@@ -412,7 +809,7 @@ vr_drop_stats_req_get_copy(vr_drop_stats_req *src)
 
 int
 vr_send_drop_stats_get(struct nl_client *cl, unsigned int router_id,
-        int core)
+        short core)
 {
     vr_drop_stats_req req;
 
@@ -567,7 +964,7 @@ vr_send_interface_dump(struct nl_client *cl, unsigned int router_id,
 
 int
 vr_send_interface_get(struct nl_client *cl, unsigned int router_id,
-        int vif_index, int os_index, int core)
+        int vif_index, int os_index, int core, int get_drops)
 {
     vr_interface_req req;
 
@@ -578,6 +975,8 @@ vr_send_interface_get(struct nl_client *cl, unsigned int router_id,
     req.vifr_os_idx = os_index;
     req.vifr_idx = vif_index;
     req.vifr_core = core;
+    if (get_drops)
+        req.vifr_flags |= VIF_FLAG_GET_DROP_STATS;
 
     return vr_sendmsg(cl, &req, "vr_interface_req");
 }
@@ -1037,6 +1436,64 @@ vr_send_nexthop_get(struct nl_client *cl, unsigned int router_id,
 }
 
 int
+vr_send_pbb_tunnel_add(struct nl_client *cl, unsigned int router_id, int
+        nh_index, unsigned int flags, int vrf_index, int8_t *bmac,
+        unsigned int direct_nh_id, unsigned int direct_label)
+{
+    int ret = 0;
+    unsigned int i;
+    vr_nexthop_req req;
+
+    memset(&req, 0, sizeof(req));
+    req.h_op = SANDESH_OP_ADD;
+    req.nhr_rid = router_id;
+    req.nhr_vrf = vrf_index;
+    req.nhr_id = nh_index;
+    req.nhr_flags = flags;
+    req.nhr_type = NH_TUNNEL;
+
+    req.nhr_nh_list_size = 1;
+    req.nhr_nh_list = calloc(1, sizeof(uint32_t));
+    if (!req.nhr_nh_list) {
+        ret = -ENOMEM;
+        goto fail;
+    }
+
+    req.nhr_label_list = calloc(1, sizeof(uint32_t));
+    if (!req.nhr_label_list) {
+        ret = -ENOMEM;
+        goto fail;
+    }
+
+    req.nhr_pbb_mac_size = VR_ETHER_ALEN;
+    req.nhr_pbb_mac = calloc(VR_ETHER_ALEN, sizeof(uint8_t));
+    if (!req.nhr_pbb_mac) {
+        ret = -ENOMEM;
+        goto fail;
+    }
+    VR_MAC_COPY(req.nhr_pbb_mac, bmac);
+
+    req.nhr_label_list_size = 1;
+    req.nhr_nh_list[0] = direct_nh_id;
+    req.nhr_label_list[0] = direct_label;
+    req.nhr_family = AF_BRIDGE;
+
+    ret = vr_sendmsg(cl, &req, "vr_nexthop_req");
+fail:
+    if (req.nhr_nh_list) {
+        free(req.nhr_nh_list);
+        req.nhr_nh_list = NULL;
+    }
+
+    if (req.nhr_label_list) {
+        free(req.nhr_label_list);
+        req.nhr_label_list = NULL;
+    }
+
+    return ret;
+}
+
+int
 vr_send_nexthop_composite_add(struct nl_client *cl, unsigned int router_id,
         int nh_index, unsigned int flags, int vrf_index,
         unsigned int num_components, unsigned int *component_nh_indices,
@@ -1254,7 +1711,7 @@ free_rtr_req:
 
 int
 vr_send_route_dump(struct nl_client *cl, unsigned int router_id, unsigned int vrf,
-        unsigned int family, uint8_t *marker, unsigned int marker_plen)
+        unsigned int family, uint8_t *marker)
 {
     vr_route_req req;
 
@@ -1265,8 +1722,6 @@ vr_send_route_dump(struct nl_client *cl, unsigned int router_id, unsigned int vr
     req.rtr_family = family;
 
     if (family == AF_BRIDGE) {
-        if (marker_plen != VR_ETHER_ALEN)
-            return -EINVAL;
         req.rtr_mac = marker;
         req.rtr_mac_size = VR_ETHER_ALEN;
     } else {
@@ -1274,7 +1729,6 @@ vr_send_route_dump(struct nl_client *cl, unsigned int router_id, unsigned int vr
         req.rtr_prefix_size = RT_IP_ADDR_SIZE(family);
         req.rtr_marker = marker;
         req.rtr_marker_size = RT_IP_ADDR_SIZE(family);
-        req.rtr_marker_plen = marker_plen;
     }
 
     return vr_sendmsg(cl, &req, "vr_route_req");
@@ -1474,7 +1928,8 @@ vr_send_vrouter_set_runtime_opts(struct nl_client *cl, unsigned int router_id,
         int perfr, int perfs, int from_vm_mss_adj, int to_vm_mss_adj,
         int perfr1, int perfr2, int perfr3, int perfp, int perfq1,
         int perfq2, int perfq3, int udp_coff, int flow_hold_limit,
-        int mudp)
+        int mudp, int btokens, int binterval, int bstep,
+        unsigned int priority_tagging)
 {
     vrouter_ops req;
 
@@ -1502,6 +1957,10 @@ vr_send_vrouter_set_runtime_opts(struct nl_client *cl, unsigned int router_id,
     req.vo_udp_coff = udp_coff;
     req.vo_flow_hold_limit = flow_hold_limit;
     req.vo_mudp = mudp;
+    req.vo_burst_tokens = btokens;
+    req.vo_burst_interval = binterval;
+    req.vo_burst_step = bstep;
+    req.vo_priority_tagging = priority_tagging;
 
     /*
      * We create request to change runtime (sysctl) options only. Log level

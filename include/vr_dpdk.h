@@ -29,7 +29,9 @@
 
 #include <rte_config.h>
 #include <rte_port.h>
+#include <rte_ip.h>
 #include <rte_port_ring.h>
+#include <rte_ethdev.h>
 
 extern struct vr_interface_stats *vif_get_stats(struct vr_interface *,
         unsigned short);
@@ -92,13 +94,22 @@ extern unsigned vr_packet_sz;
  * (limited by NIC and number of per queue TX/RX descriptors) */
 #define VR_DPDK_MAX_NB_RX_QUEUES    11
 /* Maximum number of hardware TX queues to use (limited by the number of lcores) */
-#define VR_DPDK_MAX_NB_TX_QUEUES    16
+#define VR_DPDK_MAX_NB_TX_QUEUES    64
+/* bnxt NIC only supports 8 TX queues */
+#define VR_DPDK_MAX_NB_TX_Q_BNXT    8
+/* bnxt and enic only support 9022 size jumbo frames */
+#define VT_DPDK_MAX_RX_PKT_LEN_9022 9022
+/*
+ * Special value for number of queues to indicate that each
+ * packet forwarding core should be assigned one queue
+ */
+#define VR_DPDK_ONE_QUEUE_PER_CORE  ((uint16_t)-1)
 /* Maximum number of hardware RX queues to use for RSS (limited by the number of lcores) */
 #define VR_DPDK_MAX_NB_RSS_QUEUES   16
 /* Maximum number of bond members per ethernet device */
 #define VR_DPDK_BOND_MAX_SLAVES     6
 /* Maximum RETA table size */
-#define VR_DPDK_MAX_RETA_SIZE       ETH_RSS_RETA_SIZE_128
+#define VR_DPDK_MAX_RETA_SIZE       ETH_RSS_RETA_SIZE_512
 #define VR_DPDK_MAX_RETA_ENTRIES    (VR_DPDK_MAX_RETA_SIZE/RTE_RETA_GROUP_SIZE)
 /* Number of hardware RX ring descriptors per queue */
 #define VR_DPDK_NB_RXD              128
@@ -122,7 +133,7 @@ extern unsigned vr_packet_sz;
  * the IP headers of the fragments and we have to prepend an outer (tunnel)
  * header. */
 #define VR_DPDK_FRAG_DIRECT_MBUF_SZ     (sizeof(struct rte_mbuf)    \
-                                         + RTE_PKTMBUF_HEADROOM)
+                                         + 2*RTE_PKTMBUF_HEADROOM)
 /* Size of indirect mbufs used for fragmentation. These mbufs holds only a
  * pointer to the data in other mbufs, thus they don't need any additional
  * buffer size. */
@@ -180,6 +191,8 @@ extern unsigned vr_packet_sz;
 /* Sleep (in US) or yield if no packets received (use 0 to disable) */
 #define VR_DPDK_SLEEP_NO_PACKETS_US 0
 #define VR_DPDK_YIELD_NO_PACKETS    1
+/* Sleep (in US) no packets received on any TAP devs (use 0 to disable) */
+#define VR_DPDK_TAPDEV_SLEEP_NO_PACKETS_US 500
 /* Timers handling periodicity in US */
 #define VR_DPDK_SLEEP_TIMER_US      100
 /* KNI handling periodicity in US */
@@ -193,7 +206,9 @@ extern unsigned vr_packet_sz;
 /* Socket connection retry timeout in seconds (use power of 2) */
 #define VR_DPDK_RETRY_CONNECT_SECS  64
 /* Maximum number of KNI devices (vhost0 + monitoring) */
-#define VR_DPDK_MAX_KNI_INTERFACES  5
+#define VR_DPDK_MAX_KNI_INTERFACES  16
+/* Maximum number of TAP devices (vhost0 + monitoring) */
+#define VR_DPDK_MAX_TAP_INTERFACES  16
 /* String buffer size (for logs and EAL arguments) */
 #define VR_DPDK_STR_BUF_SZ          512
 /* Log timestamp format */
@@ -202,6 +217,7 @@ extern unsigned vr_packet_sz;
  * allow for standard jumbo frame size (9000 / 1500 = 6) + 1 additional segment
  * for outer headers. */
 #define VR_DPDK_FRAG_MAX_IP_FRAGS   7
+#define VR_DPDK_FRAG_MAX_IP_SEGS    128
 #define VR_DPDK_VLAN_FWD_DEF_NAME   "vfw0"
 /*
  * Use IO lcores:
@@ -242,13 +258,17 @@ extern unsigned vr_packet_sz;
  * SR-IOV virtual function PMD name suffix.
  * Note: only rte_ixgbevf_pmd was tested.
  */
+#if (RTE_VERSION == RTE_VERSION_NUM(2, 1, 0, 0))
 #define VR_DPDK_VF_PMD_SFX "vf_pmd"
+#else
+#define VR_DPDK_VF_PMD_SFX "_vf"
+#endif
 
 /*
  * DPDK LCore IDs
  */
 enum {
-    VR_DPDK_KNI_LCORE_ID = 0,
+    VR_DPDK_KNITAP_LCORE_ID = 0,
     VR_DPDK_TIMER_LCORE_ID,
     VR_DPDK_UVHOST_LCORE_ID,
     /*
@@ -295,7 +315,8 @@ typedef struct vr_dpdk_queue *
         unsigned queue_or_lcore_id);
 /* Release queue operation */
 typedef void
-    (*vr_dpdk_queue_release_op)(unsigned lcore_id, struct vr_interface *vif);
+    (*vr_dpdk_queue_release_op)(unsigned lcore_id, unsigned queue_index,
+            struct vr_interface *vif);
 
 struct vr_dpdk_queue {
     SLIST_ENTRY(vr_dpdk_queue) q_next;
@@ -361,6 +382,18 @@ enum vr_dpdk_lcore_cmd {
     VR_DPDK_LCORE_RX_QUEUE_SET_CMD,
 };
 
+struct gro_ctrl {
+    int     gro_queued;
+    int     gro_flushed;
+    int     gro_bad_csum;
+    int     gro_cnt;
+    int     gro_flows;
+    int     gro_flush_inactive_flows;
+
+    struct rte_hash *gro_tbl_v4_handle;
+    struct rte_hash *gro_tbl_v6_handle;
+};
+
 struct vr_dpdk_lcore_rx_queue_remove_arg {
     unsigned int vif_id;
     bool clear_f_rx;
@@ -392,6 +425,8 @@ struct vr_dpdk_lcore {
     u_int64_t lcore_fwd_loops;
     /* Flag controlling the assembler work */
     bool do_fragment_assembly;
+    /* GRO ctrl structure */
+    struct gro_ctrl gro;
 
     /**********************************************************************/
     /* Big and less frequently used fields */
@@ -402,7 +437,7 @@ struct vr_dpdk_lcore {
     /* Table of RX queues */
     struct vr_dpdk_queue lcore_rx_queues[VR_MAX_INTERFACES];
     /* Table of TX queues */
-    struct vr_dpdk_queue lcore_tx_queues[VR_MAX_INTERFACES] __rte_cache_aligned;
+    struct vr_dpdk_queue *lcore_tx_queues[VR_MAX_INTERFACES] __rte_cache_aligned;
     /* List of rings to push */
     struct vr_dpdk_ring_to_push lcore_rings_to_push[VR_DPDK_MAX_RINGS] __rte_cache_aligned;
     /* List of bond queue params to TX LACP packets periodically */
@@ -410,7 +445,27 @@ struct vr_dpdk_lcore {
     /* Table of RX queue params */
     struct vr_dpdk_queue_params lcore_rx_queue_params[VR_MAX_INTERFACES] __rte_cache_aligned;
     /* Table of TX queue params */
-    struct vr_dpdk_queue_params lcore_tx_queue_params[VR_MAX_INTERFACES] __rte_cache_aligned;
+    struct vr_dpdk_queue_params *lcore_tx_queue_params[VR_MAX_INTERFACES] __rte_cache_aligned;
+    /*
+     * number of queues/lcore - basically one hardware queue + rings
+     * to other cores that hosts each hardware queue
+     *
+     * If hardware queueing is supported, num_tx_queues_per_lcore will
+     * be equal to the number of queues that the agent wants to use.
+     * The number of queues that the agent wants to use is set in the
+     * vr_interface structure (vif_num_hw_queues). agent will read its
+     * configuration file and tell vRouter the queue numbers it wants
+     * to use (and hence the number of queues) and set this information
+     * in vif_hw_queues
+     */
+    uint16_t num_tx_queues_per_lcore[VR_MAX_INTERFACES];
+    /* for each vif, the first hardware queue that is tied to this lcore */
+    int16_t lcore_hw_queue[VR_MAX_INTERFACES];
+    /*
+     * given a hardware queue, the index to the array of vr_dpdk_queue.
+     * Enables us to get the queue faster
+     */
+    int16_t *lcore_hw_queue_to_dpdk_index[VR_MAX_INTERFACES];
     void (*fragment_assembly_func)(void *arg);
     void *fragment_assembly_arg;
 };
@@ -425,6 +480,10 @@ enum vr_dpdk_queue_state {
     VR_DPDK_QUEUE_RSS_STATE,
     /* The queue is being used for filtering */
     VR_DPDK_QUEUE_FILTERING_STATE
+};
+
+struct vif_queue_dpdk_data {
+    int16_t vqdd_queue_to_lcore[VR_DPDK_MAX_NB_TX_QUEUES];
 };
 
 /* Ethdev configuration */
@@ -449,6 +508,18 @@ struct vr_dpdk_ethdev {
     uint8_t ethdev_queue_states[VR_DPDK_MAX_NB_RX_QUEUES];
     /* Pointers to memory pools */
     struct rte_mempool *ethdev_mempools[VR_DPDK_MAX_NB_RX_QUEUES];
+};
+
+/* Tapdev configuration. */
+struct vr_dpdk_tapdev {
+    /* Tapdev file descriptor. */
+    volatile int tapdev_fd;
+    /* RX ring. */
+    struct rte_ring *tapdev_rx_ring;
+    /* TX rings (single-producer single-consumer) */
+    struct rte_ring *tapdev_tx_rings[RTE_MAX_LCORE];
+    /* Pointer to vif. */
+    struct vr_interface *tapdev_vif;
 };
 
 struct vr_dpdk_global {
@@ -489,6 +560,7 @@ struct vr_dpdk_global {
     /* NetLink socket handler */
     void *netlink_sock;
     void *flow_table;
+    void *bridge_table;
     /* Packet socket */
     void *packet_transport;
     /* Interface configuration mutex
@@ -507,19 +579,31 @@ struct vr_dpdk_global {
     uint16_t monitorings[VR_MAX_INTERFACES] __rte_cache_aligned;
     /* Table of ethdevs */
     struct vr_dpdk_ethdev ethdevs[RTE_MAX_ETHPORTS] __rte_cache_aligned;
+    /* Table of tapdevs. */
+    struct vr_dpdk_tapdev tapdevs[VR_DPDK_MAX_TAP_INTERFACES] __rte_cache_aligned;
+    /* netlink socket to listen to link up/down and mtu change notifications */
+    volatile int tap_nl_fd;
     /* VLAN forwarding interface name */
     char vlan_name[VR_INTERFACE_NAME_LEN];
     /* VLAN forwarding interface ring */
     struct rte_ring *vlan_ring;
-    /* VLAN forwarding KNI handler */
-    struct rte_kni *vlan_kni;
+    /* VLAN forwarding device pointer. */
+    void *vlan_dev;
+    /* VLAN forwarding interface vif. */
+    struct vr_interface *vlan_vif;
     /* Dedicated IO lcore for SR-IOV VF. */
     unsigned vf_lcore_id;
-    /* KNI module inited global flag */
-    bool kni_inited;
+    /*
+     * KNI global state flag:
+     *  0 - initial state
+     *  1 - KNI is enabled
+     * -1 - KNI is not available, so TAP interfaces are used instead
+     */
+    int kni_state;
 };
 
 extern struct vr_dpdk_global vr_dpdk;
+extern struct rte_eth_conf ethdev_conf;
 
 /*
  * rte_mbuf <=> vr_packet conversion
@@ -597,16 +681,20 @@ struct vr_dpdk_queue *
 vr_dpdk_ethdev_tx_queue_init(unsigned lcore_id, struct vr_interface *vif,
     unsigned tx_queue_id);
 /* Init ethernet device */
-int vr_dpdk_ethdev_init(struct vr_dpdk_ethdev *);
+int vr_dpdk_ethdev_init(struct vr_dpdk_ethdev *, struct rte_eth_conf *);
 /* Release ethernet device */
 int vr_dpdk_ethdev_release(struct vr_dpdk_ethdev *);
 /* Get free queue ID */
 uint16_t vr_dpdk_ethdev_ready_queue_id_get(struct vr_interface *vif);
+
+#if VR_DPDK_USE_HW_FILTERING
 /* Add hardware filter */
 int vr_dpdk_ethdev_filter_add(struct vr_interface *vif, uint16_t queue_id,
     unsigned dst_ip, unsigned mpls_label);
 /* Init hardware filtering */
 int vr_dpdk_ethdev_filtering_init(struct vr_interface *vif, struct vr_dpdk_ethdev *ethdev);
+#endif
+
 /* Init RSS */
 int vr_dpdk_ethdev_rss_init(struct vr_dpdk_ethdev *ethdev);
 /*
@@ -622,11 +710,10 @@ uint64_t vr_dpdk_ethdev_rx_emulate(struct vr_interface *vif,
 /* Check if port_id is a bond slave. */
 bool vr_dpdk_ethdev_bond_port_match(uint8_t port_id, struct vr_dpdk_ethdev *ethdev);
 
-/*
- * vr_dpdk_flow_mem.c
- */
-int vr_dpdk_flow_mem_init(void);
+int vr_dpdk_table_mem_init(unsigned int, unsigned int, unsigned long,
+        unsigned int, unsigned long);
 int vr_dpdk_flow_init(void);
+int vr_dpdk_bridge_init(void);
 
 /*
  * vr_dpdk_host.c
@@ -635,7 +722,7 @@ int vr_dpdk_host_init(void);
 void vr_dpdk_host_exit(void);
 /* Convert internal packet fields */
 struct vr_packet * vr_dpdk_packet_get(struct rte_mbuf *m, struct vr_interface *vif);
-void vr_dpdk_pfree(struct rte_mbuf *mbuf, unsigned short reason);
+void vr_dpdk_pfree(struct rte_mbuf *mbuf, struct vr_interface *vif, unsigned short reason);
 /* Retry socket connection */
 int vr_dpdk_retry_connect(int sockfd, const struct sockaddr *addr,
                             socklen_t alen);
@@ -658,8 +745,10 @@ int vr_dpdk_ulog(uint32_t level, uint32_t logtype, uint32_t *last_hash,
 void dpdk_adjust_tcp_mss(struct tcphdr *tcph, unsigned short overlay_len,
                             unsigned char iph_len);
 /* Creates a copy of the given packet mbuf */
-inline struct rte_mbuf *
+struct rte_mbuf *
 vr_dpdk_pktmbuf_copy(struct rte_mbuf *md, struct rte_mempool *mp);
+struct rte_mbuf *
+vr_dpdk_pktmbuf_copy_mon(struct rte_mbuf *md, struct rte_mempool *mp);
 
 /*
  * vr_dpdk_interface.c
@@ -670,6 +759,38 @@ static inline int vr_dpdk_if_lock()
 /* Unlock interface operations */
 static inline int vr_dpdk_if_unlock()
 { return pthread_mutex_unlock(&vr_dpdk.if_lock); }
+uint16_t dpdk_get_ether_header_len(const void *data);
+
+/*
+ * vr_dpdk_tapdev.c
+ */
+/* Init TAP device. */
+int vr_dpdk_tapdev_init(struct vr_interface *vif);
+/* Release TAP device. */
+int vr_dpdk_tapdev_release(struct vr_interface *vif);
+/* Init TAP RX queue. */
+struct vr_dpdk_queue *
+vr_dpdk_tapdev_rx_queue_init(unsigned lcore_id, struct vr_interface *vif,
+    unsigned queue_id);
+/* Init TAP TX queue. */
+struct vr_dpdk_queue *
+vr_dpdk_tapdev_tx_queue_init(unsigned lcore_id, struct vr_interface *vif,
+    unsigned queue_id);
+/* RX/TX to/from all the TAP devices. */
+uint64_t vr_dpdk_tapdev_rxtx(void);
+/* RX a burst of packets from the TAP device. */
+unsigned vr_dpdk_tapdev_rx_burst(struct vr_dpdk_tapdev *, struct rte_mbuf **,
+        unsigned num);
+/* Dequeue a burst of packets from the TAP device. */
+unsigned vr_dpdk_tapdev_dequeue_burst(struct vr_dpdk_tapdev *, struct rte_mbuf **,
+        unsigned num);
+/* TX a burst of packets to the TAP device. */
+unsigned vr_dpdk_tapdev_tx_burst(struct vr_dpdk_tapdev *, struct rte_mbuf **,
+        unsigned num);
+/* Enqueue a burst of packets to the TAP device. */
+unsigned vr_dpdk_tapdev_enqueue_burst(struct vr_dpdk_tapdev *, struct rte_mbuf **,
+        unsigned num);
+void vr_dpdk_tapdev_handle_notifications(void);
 
 /*
  * vr_dpdk_knidev.c
@@ -774,7 +895,7 @@ vr_dpdk_ring_rx_queue_init(unsigned lcore_id, struct vr_interface *vif,
 /* Init ring TX queue */
 struct vr_dpdk_queue *
 vr_dpdk_ring_tx_queue_init(unsigned lcore_id, struct vr_interface *vif,
-    unsigned host_lcore_id);
+        unsigned int queue_id, unsigned host_lcore_id);
 void dpdk_ring_to_push_add(unsigned lcore_id, struct rte_ring *tx_ring,
     struct vr_dpdk_queue *tx_queue);
 
@@ -789,5 +910,23 @@ void dpdk_fragment_assembler_exit(void);
 int dpdk_fragment_assembler_enqueue(struct vrouter *router,
         struct vr_packet *pkt, struct vr_forwarding_md *fmd);
 void dpdk_fragment_assembler_table_scan(void *);
+void dpdk_gro_free_all_flows(struct vr_dpdk_lcore *lcore);
+void dpdk_gro_flush_all_inactive(struct vr_dpdk_lcore *lcore);
+int dpdk_gro_process(struct vr_packet *pkt, struct vr_interface *vif, bool l2_pkt);
+int dpdk_segment_packet(struct vr_packet *pkt, struct rte_mbuf *mbuf_in, 
+                struct rte_mbuf **mbuf_out, const unsigned short out_num, 
+                const unsigned short mss_size, bool do_outer_ip_csum);
+uint16_t dpdk_ipv4_udptcp_cksum(struct rte_mbuf *m, 
+                       const struct ipv4_hdr *ipv4_hdr, 
+                       uint8_t *l4_hdr);
+uint16_t dpdk_ipv6_udptcp_cksum(struct rte_mbuf *m, 
+                       const struct ipv6_hdr *ipv6_hdr,
+                       uint8_t *l4_hdr);
+int dpdk_check_rx_mrgbuf_disable(void);
+
+/*
+ * Get bond interface port id by drv_name
+ */
+uint8_t dpdk_find_port_id_by_drv_name(void);
 
 #endif /*_VR_DPDK_H_ */

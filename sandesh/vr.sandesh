@@ -46,11 +46,12 @@ buffer sandesh vr_nexthop_req {
     16: u32         nhr_flags;
     17: list<byte>  nhr_encap;
     18: list<i32>   nhr_nh_list;
-    19: i32         nhr_label;
-    20: list<i32>   nhr_label_list;
-    21: i16         nhr_nh_count;
-    22: list<byte>  nhr_tun_sip6;
-    23: list<byte>  nhr_tun_dip6;
+    19: list<i32>   nhr_label_list;
+    20: i16         nhr_nh_count;
+    21: list<byte>  nhr_tun_sip6;
+    22: list<byte>  nhr_tun_dip6;
+    23: byte        nhr_ecmp_config_hash;
+    24: list<byte>  nhr_pbb_mac;
 }
 
 buffer sandesh vr_interface_req {
@@ -93,21 +94,30 @@ buffer sandesh vr_interface_req {
     37: i32         vifr_marker;
     38: list<byte>  vifr_mac;
     39: u32         vifr_ip;
-    40: i32         vifr_context;
-    41: i16         vifr_mir_id;
-    42: i32         vifr_speed;
-    43: i32         vifr_duplex;
-    44: i16         vifr_vlan_id;
-    45: i32         vifr_parent_vif_idx;
-    46: i16         vifr_nh_id;
-    47: i32         vifr_cross_connect_idx;
-    48: list<byte>  vifr_src_mac;
-    49: i32         vifr_bridge_idx;
-    50: i16         vifr_ovlan_id;
-    51: byte        vifr_transport;
-    52: list<i32>   vifr_fat_flow_protocol_port;
-    53: i16         vifr_qos_map_index;
-    54: list<byte>  vifr_if_guid;
+    40: u64         vifr_ip6_u;
+    41: u64         vifr_ip6_l;
+    42: i32         vifr_context;
+    43: i16         vifr_mir_id;
+    44: i32         vifr_speed;
+    45: i32         vifr_duplex;
+    46: i16         vifr_vlan_id;
+    47: i32         vifr_parent_vif_idx;
+    48: i16         vifr_nh_id;
+    49: i32         vifr_cross_connect_idx;
+    50: list<byte>  vifr_src_mac;
+    51: list<i32>   vifr_bridge_idx;
+    52: i16         vifr_ovlan_id;
+    53: byte        vifr_transport;
+    54: list<i32>   vifr_fat_flow_protocol_port;
+    55: i16         vifr_qos_map_index;
+    56: list<byte>  vifr_in_mirror_md;
+    57: list<byte>  vifr_out_mirror_md;
+    58: u64         vifr_dpackets;
+    59: list<i16>   vifr_hw_queues;
+    60: u32         vifr_isid;
+    61: list<byte>  vifr_pbb_mac;
+    62: byte        vifr_vhostuser_mode;
+    63: list<byte>  vifr_if_guid;
 }
 
 buffer sandesh vr_vxlan_req {
@@ -151,6 +161,7 @@ buffer sandesh vr_mirror_req {
     6: i32          mirr_flags;
     7: i32          mirr_marker;
     8: i32          mirr_vni;
+    9: i16          mirr_vlan;
 }
 
 buffer sandesh vr_flow_req {
@@ -159,40 +170,37 @@ buffer sandesh vr_flow_req {
     3: i32          fr_index;
     4: i16          fr_action;
     5: i16          fr_flags;
-    6: i32          fr_ftable_size;
-    7: i16          fr_ftable_dev;
-    8: i32          fr_rindex;
-    9: i32          fr_family;
-   10: list<byte>   fr_flow_ip;
-   11: i16          fr_flow_sport;
-   12: i16          fr_flow_dport;
-   13: byte         fr_flow_proto;
-   14: i16          fr_flow_vrf;
-   15: i16          fr_flow_dvrf;
-   16: i16          fr_mir_id;
-   17: i16          fr_sec_mir_id;
-   18: u32          fr_mir_sip;
-   19: i16          fr_mir_sport;
-   20: list<byte>   fr_pcap_meta_data;
-   21: i16          fr_mir_vrf;
-   22: i32          fr_ecmp_nh_index;
-   23: i32          fr_src_nh_index;
-   24: i32          fr_flow_nh_id;
-   25: i16          fr_drop_reason;
-   26: string       fr_file_path;
-   27: i64          fr_processed;
-   28: i64          fr_created;
-   29: i64          fr_added;
-   30: i32          fr_cpus;
-   31: i32          fr_hold_oflows;
-   32: list<i32>    fr_hold_stat;
-   33: u32          fr_flow_bytes;
-   34: u32          fr_flow_packets;
-   35: u32          fr_flow_stats_oflow;
-   36: i32          fr_oflow_entries;
-   37: byte         fr_gen_id;
-   38: i16          fr_qos_id;
-   39: byte         fr_ttl;
+    6: i32          fr_rindex;
+    7: i32          fr_family;
+    8: u64          fr_flow_sip_u;
+    9: u64          fr_flow_sip_l;
+   10: u64          fr_flow_dip_u;
+   11: u64          fr_flow_dip_l;
+   12: u16          fr_flow_sport;
+   13: u16          fr_flow_dport;
+   14: byte         fr_flow_proto;
+   15: u16          fr_flow_vrf;
+   16: u16          fr_flow_dvrf;
+   17: u16          fr_mir_id;
+   18: u16          fr_sec_mir_id;
+   19: u32          fr_mir_sip;
+   20: u16          fr_mir_sport;
+   21: list<byte>   fr_pcap_meta_data;
+   22: u16          fr_mir_vrf;
+   23: u32          fr_ecmp_nh_index;
+   24: u32          fr_src_nh_index;
+   25: u32          fr_flow_nh_id;
+   26: u16          fr_drop_reason;
+   27: byte         fr_gen_id;
+   28: u64          fr_rflow_sip_u;
+   29: u64          fr_rflow_sip_l;
+   30: u64          fr_rflow_dip_u;
+   31: u64          fr_rflow_dip_l;
+   32: u32          fr_rflow_nh_id;
+   33: u16          fr_rflow_sport;
+   34: u16          fr_rflow_dport;
+   35: u16          fr_qos_id;
+   36: byte         fr_ttl;
 }
 
 buffer sandesh vr_vrf_assign_req {
@@ -237,6 +245,7 @@ buffer sandesh vr_vrf_stats_req {
    29:  i64                 vsr_arp_physical_flood;
    30:  i64                 vsr_l2_receives;
    31:  i64                 vsr_uuc_floods;
+   32:  i64                 vsr_pbb_tunnels;
 }
 
 buffer sandesh vr_response {
@@ -278,6 +287,11 @@ buffer sandesh vrouter_ops {
    31: u32          vo_flow_used_oentries;
    32: u32          vo_bridge_used_entries;
    33: u32          vo_bridge_used_oentries;
+   34: i32          vo_burst_tokens;
+   35: i32          vo_burst_interval;
+   36: i32          vo_burst_step;
+   37: i32          vo_memory_alloc_checks;
+   38: u32          vo_priority_tagging;
 }
 
 buffer sandesh vr_mem_stats_req {
@@ -298,109 +312,115 @@ buffer sandesh vr_mem_stats_req {
    15:  i64             vms_flow_hold_stat_object;
    16:  i64             vms_flow_link_local_object;
    17:  i64             vms_flow_metadata_object;
-   18:  i64             vms_flow_table_info_object;
-   19:  i64             vms_fragment_object;
-   20:  i64             vms_fragment_queue_object;
-   21:  i64             vms_fragment_queue_element_object;
-   22:  i64             vms_fragment_scanner_object;
-   23:  i64             vms_hpacket_pool_object;
-   24:  i64             vms_htable_object;
-   25:  i64             vms_interface_object;
-   26:  i64             vms_interface_mac_object;
-   27:  i64             vms_interface_req_object;
-   28:  i64             vms_interface_req_mac_object;
-   29:  i64             vms_interface_req_name_object;
-   30:  i64             vms_interface_stats_object;
-   31:  i64             vms_interface_table_object;
-   32:  i64             vms_interface_vrf_table_object;
-   33:  i64             vms_itable_object;
-   34:  i64             vms_malloc_object;
-   35:  i64             vms_message_object;
-   36:  i64             vms_message_response_object;
-   37:  i64             vms_message_dump_object;
-   38:  i64             vms_mem_stats_req_object;
-   39:  i64             vms_mirror_object;
-   40:  i64             vms_mirror_table_object;
-   41:  i64             vms_mirror_meta_object;
-   42:  i64             vms_mtrie_object;
-   43:  i64             vms_mtrie_bucket_object;
-   44:  i64             vms_mtrie_stats_object;
-   45:  i64             vms_mtrie_table_object;
-   46:  i64             vms_network_address_object;
-   47:  i64             vms_nexthop_object;
-   48:  i64             vms_nexthop_component_object;
-   49:  i64             vms_nexthop_req_list_object;
-   50:  i64             vms_nexthop_req_encap_object;
-   51:  i64             vms_nexthop_req_object;
-   52:  i64             vms_route_table_object;
-   53:  i64             vms_route_req_mac_object;
-   54:  i64             vms_timer_object;
-   55:  i64             vms_usock_object;
-   56:  i64             vms_usock_poll_object;
-   57:  i64             vms_usock_buf_object;
-   58:  i64             vms_usock_iovec_object;
-   59:  i64             vms_vrouter_req_object;
-   60:  i64             vms_interface_fat_flow_config_object;
-   61:  i64             vms_qos_map_object;
-   62:  i64             vms_fc_object;
+   18:  i64             vms_flow_table_data_object;
+   19:  i64             vms_flow_table_info_object;
+   20:  i64             vms_fragment_object;
+   21:  i64             vms_fragment_queue_object;
+   22:  i64             vms_fragment_queue_element_object;
+   23:  i64             vms_fragment_scanner_object;
+   24:  i64             vms_hpacket_pool_object;
+   25:  i64             vms_htable_object;
+   26:  i64             vms_interface_object;
+   27:  i64             vms_interface_mac_object;
+   28:  i64             vms_interface_req_object;
+   29:  i64             vms_interface_req_mac_object;
+   30:  i64             vms_interface_req_name_object;
+   31:  i64             vms_interface_stats_object;
+   32:  i64             vms_interface_table_object;
+   33:  i64             vms_interface_vrf_table_object;
+   34:  i64             vms_itable_object;
+   35:  i64             vms_malloc_object;
+   36:  i64             vms_message_object;
+   37:  i64             vms_message_response_object;
+   38:  i64             vms_message_dump_object;
+   39:  i64             vms_mem_stats_req_object;
+   40:  i64             vms_mirror_object;
+   41:  i64             vms_mirror_table_object;
+   42:  i64             vms_mirror_meta_object;
+   43:  i64             vms_mtrie_object;
+   44:  i64             vms_mtrie_bucket_object;
+   45:  i64             vms_mtrie_stats_object;
+   46:  i64             vms_mtrie_table_object;
+   47:  i64             vms_network_address_object;
+   48:  i64             vms_nexthop_object;
+   49:  i64             vms_nexthop_component_object;
+   50:  i64             vms_nexthop_req_list_object;
+   51:  i64             vms_nexthop_req_encap_object;
+   52:  i64             vms_nexthop_req_object;
+   53:  i64             vms_route_table_object;
+   54:  i64             vms_route_req_mac_object;
+   55:  i64             vms_timer_object;
+   56:  i64             vms_usock_object;
+   57:  i64             vms_usock_poll_object;
+   58:  i64             vms_usock_buf_object;
+   59:  i64             vms_usock_iovec_object;
+   60:  i64             vms_vrouter_req_object;
+   61:  i64             vms_interface_fat_flow_config_object;
+   62:  i64             vms_qos_map_object;
+   63:  i64             vms_fc_object;
+   64:  i64             vms_interface_mirror_meta_object;
+   65:  i64             vms_interface_req_mirror_meta_object;
+   66:  i64             vms_interface_bridge_lock_object;
+   67:  i64             vms_interface_queue_object;
+   68:  i64             vms_interface_req_pbb_mac_object;
+   69:  i64             vms_nexthop_req_bmac_object;
+   70:  i64             vms_interface_req_bridge_id_object;
 }
 
 /* any new addition needs update to vr_util.c & flow.c */
 buffer sandesh vr_drop_stats_req {
     1:  sandesh_op      h_op;
-    2:  u32             vds_core;
-    3:  i16             vds_rid;
+    2:  i16             vds_rid;
+    3:  i16             vds_core;
     4:  i64             vds_discard;
-    5:  i64             vds_pull;
-    6:  i64             vds_invalid_if;
-    7:  i64             vds_arp_no_where_to_go;
-    8:  i64             vds_garp_from_vm;
-    9:  i64             vds_invalid_arp;
-    10: i64             vds_trap_no_if;
-    11: i64             vds_nowhere_to_go;
-    12: i64             vds_flow_queue_limit_exceeded;
-    13: i64             vds_flow_no_memory;
-    14: i64             vds_flow_invalid_protocol;
-    15: i64             vds_flow_nat_no_rflow;
-    16: i64             vds_flow_action_drop;
-    17: i64             vds_flow_action_invalid;
-    18: i64             vds_flow_unusable;
-    19: i64             vds_flow_table_full;
-    20: i64             vds_interface_tx_discard;
-    21: i64             vds_interface_drop;
-    22: i64             vds_duplicated;
-    23: i64             vds_push;
-    24: i64             vds_ttl_exceeded;
-    25: i64             vds_invalid_nh;
-    26: i64             vds_invalid_label;
-    27: i64             vds_invalid_protocol;
-    28: i64             vds_interface_rx_discard;
-    29: i64             vds_invalid_mcast_source;
-    30: i64             vds_head_alloc_fail;
-    31: i64             vds_head_space_reserve_fail;
-    32: i64             vds_pcow_fail;
-    33: i64             vds_flood;
-    34: i64             vds_mcast_clone_fail;
-    35: i64             vds_no_memory;
-    36: i64             vds_rewrite_fail;
-    37: i64             vds_misc;
-    38: i64             vds_invalid_packet;
-    39: i64             vds_cksum_err;
-    40: i64             vds_clone_fail;
-    41: i64             vds_no_fmd;
-    42: i64             vds_cloned_original;
-    43: i64             vds_invalid_vnid;
-    44: i64             vds_frag_err;
-    45: i64             vds_invalid_source;
-    46: i64             vds_mcast_df_bit;
-    47: i64             vds_arp_no_route;
-    48: i64             vds_l2_no_route;
-    49: i64             vds_fragment_queue_fail;
-    50: i64             vds_vlan_fwd_tx;
-    51: i64             vds_vlan_fwd_enq;
-    52: i64             vds_drop_new_flow;
-    53: i64             vds_flow_evict;
-    54: i64             vds_trap_original;
+    5:  byte            vds_pcpu_stats_failure_status;
+    6:  i64             vds_pull;
+    7:  i64             vds_invalid_if;
+    8:  i64             vds_invalid_arp;
+    9:  i64             vds_trap_no_if;
+    10:  i64             vds_nowhere_to_go;
+    11: i64             vds_flow_queue_limit_exceeded;
+    12: i64             vds_flow_no_memory;
+    13: i64             vds_flow_invalid_protocol;
+    14: i64             vds_flow_nat_no_rflow;
+    15: i64             vds_flow_action_drop;
+    16: i64             vds_flow_action_invalid;
+    17: i64             vds_flow_unusable;
+    18: i64             vds_flow_table_full;
+    19: i64             vds_interface_tx_discard;
+    20: i64             vds_interface_drop;
+    21: i64             vds_duplicated;
+    22: i64             vds_push;
+    23: i64             vds_ttl_exceeded;
+    24: i64             vds_invalid_nh;
+    25: i64             vds_invalid_label;
+    26: i64             vds_invalid_protocol;
+    27: i64             vds_interface_rx_discard;
+    28: i64             vds_invalid_mcast_source;
+    29: i64             vds_head_alloc_fail;
+    30: i64             vds_pcow_fail;
+    31: i64             vds_mcast_df_bit;
+    32: i64             vds_mcast_clone_fail;
+    33: i64             vds_no_memory;
+    34: i64             vds_rewrite_fail;
+    35: i64             vds_misc;
+    36: i64             vds_invalid_packet;
+    37: i64             vds_cksum_err;
+    38: i64             vds_no_fmd;
+    39: i64             vds_cloned_original;
+    40: i64             vds_invalid_vnid;
+    41: i64             vds_frag_err;
+    42: i64             vds_invalid_source;
+    43: i64             vds_l2_no_route;
+    44: i64             vds_fragment_queue_fail;
+    45: i64             vds_vlan_fwd_tx;
+    46: i64             vds_vlan_fwd_enq;
+    47: i64             vds_drop_new_flow;
+    48: i64             vds_flow_evict;
+    49: i64             vds_trap_original;
+    50: i64             vds_leaf_to_leaf;
+    51: i64             vds_bmac_isid_mismatch;
+    52: i64             vds_pkt_loop;
 }
 
 buffer sandesh vr_qos_map_req {
@@ -425,4 +445,43 @@ buffer sandesh vr_fc_map_req {
     6: list<byte>       fmr_dotonep;
     7: list<byte>       fmr_queue_id;
     8: i16              fmr_marker;
+}
+
+buffer sandesh vr_flow_response {
+    1: flow_op      fresp_op;
+    2: u16          fresp_rid;
+    3: u16          fresp_flags;
+    4: u32          fresp_index;
+    5: u32          fresp_bytes;
+    6: u32          fresp_packets;
+    7: u32          fresp_stats_oflow;
+    8: byte         fresp_gen_id;
+}
+
+buffer sandesh vr_flow_table_data {
+    1: flow_op      ftable_op;
+    2: u16          ftable_rid;
+    3: u32          ftable_size;
+    4: u16          ftable_dev;
+    5: string       ftable_file_path;
+    6: u64          ftable_used_entries;
+    7: u64          ftable_processed;
+    8: u64          ftable_deleted;
+    9: u64          ftable_added;
+   10: u64          ftable_created;
+   11: u64          ftable_changed;
+   12: u32          ftable_hold_oflows;
+   13: u32          ftable_cpus;
+   14: u32          ftable_oflow_entries;
+   15: list<u32>    ftable_hold_stat;
+   16: u32          ftable_burst_free_tokens;
+   17: u32          ftable_hold_entries;
+}
+
+buffer sandesh vr_bridge_table_data {
+    1: sandesh_op   btable_op;
+    2: u16          btable_rid;
+    3: u32          btable_size;
+    4: u16          btable_dev;
+    5: string       btable_file_path;
 }

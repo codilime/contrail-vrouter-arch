@@ -45,7 +45,7 @@ vr_vxlan_input(struct vrouter *router, struct vr_packet *pkt,
         goto fail;
     }
 
-    vr_forwarding_md_set_label(fmd, vnid, VR_LABEL_TYPE_VXLAN_ID);
+    vr_fmd_set_label(fmd, vnid, VR_LABEL_TYPE_VXLAN_ID);
 
     nh = (struct vr_nexthop *)vr_itable_get(router->vr_vxlan_table, vnid);
     if (!nh) {
@@ -74,7 +74,7 @@ vr_vxlan_input(struct vrouter *router, struct vr_packet *pkt,
     }
 
     if (vr_perfr)
-        pkt->vp_flags |= VP_FLAG_GRO;
+        vr_pkt_set_gro(pkt);
 
     return nh_output(pkt, nh, fmd);
 
@@ -152,7 +152,7 @@ vr_vxlan_get(vr_vxlan_req *req)
     else
         req = NULL;
 
-    vr_message_response(VR_VXLAN_OBJECT_ID, req, ret);
+    vr_message_response(VR_VXLAN_OBJECT_ID, req, ret, false);
 
     return 0;
 }

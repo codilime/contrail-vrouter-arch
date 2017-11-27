@@ -22,6 +22,13 @@
 #include <rte_kni.h>
 #include <rte_malloc.h>
 
+#if (RTE_VERSION >= RTE_VERSION_NUM(17, 2, 0, 0))
+#define VROUTER_KNI_ADDR_CHECK 1
+#define vr_elt_va_start 0
+#define vr_elt_va_end 1
+#define vr_elt_va_status 2
+#endif
+
 /*
  * KNI Reader
  */
@@ -194,12 +201,75 @@ send_burst(struct dpdk_knidev_writer *p)
     nb_tx = rte_kni_tx_burst(p->kni, p->tx_buf, p->tx_buf_count);
 
     DPDK_KNIDEV_WRITER_STATS_PKTS_DROP_ADD(p, p->tx_buf_count - nb_tx);
-    for ( ; nb_tx < p->tx_buf_count; nb_tx++)
+    for ( ; nb_tx < p->tx_buf_count; nb_tx++) {
+        struct vr_packet *pkt = vr_dpdk_mbuf_to_pkt(p->tx_buf[nb_tx]);
         /* TODO: a separate counter for this drop */
-        vr_dpdk_pfree(p->tx_buf[nb_tx], VP_DROP_INTERFACE_DROP);
+        vr_dpdk_pfree(p->tx_buf[nb_tx], pkt->vp_if, VP_DROP_INTERFACE_DROP);
+    }
 
     p->tx_buf_count = 0;
 }
+
+#ifdef VROUTER_KNI_ADDR_CHECK
+/*
+ The rte_mempool_mem_iter callback routine for inspecting
+ mempool pointers to find a start/end address of a contiguous
+ memory region
+ */
+static void mempool_info_cb(struct rte_mempool *mp,
+       void *opaque, struct rte_mempool_memhdr *memhdr,
+       unsigned index)
+{
+       uintptr_t *info = opaque;
+
+       /* Stop iteration ...*/
+       if (info[vr_elt_va_status] || (memhdr == NULL))
+               return;
+
+       /* This is the first link */
+       if (info[vr_elt_va_start] == 0 && info[vr_elt_va_end] == 0) {
+               info[vr_elt_va_start] = (uintptr_t)memhdr->addr;
+               info[vr_elt_va_end] = (uintptr_t)(info[vr_elt_va_start] + memhdr->len);
+               return;
+       }
+
+       /* This is the link before head block */
+       if (info[vr_elt_va_end] == (uintptr_t)memhdr->addr) {
+               info[vr_elt_va_end] += memhdr->len;
+               return;
+       }
+
+       /* This is the link down last block */
+       if (info[vr_elt_va_start] == (uintptr_t)(memhdr->addr + memhdr->len)) {
+               info[vr_elt_va_start] -= memhdr->len;
+               return;
+       }
+
+
+       /* mempool is not contiguous. */
+       info[vr_elt_va_status] = (uintptr_t)1;
+}
+
+/**
+ * Check if the provided address is inside mempool memory region
+ *
+ * @return
+ *   1: (true) if the provided address is out of range
+     0: (false) if the provided address is in range
+ */
+static int addr_out_range(struct rte_mempool *mp, uintptr_t addr)
+{
+    uintptr_t info[vr_elt_va_status + 1];
+
+       memset(&info, 0, sizeof(info));
+       rte_mempool_mem_iter(mp, mempool_info_cb, &info);
+       if ((addr < info[vr_elt_va_start]) ||
+               (addr > info[vr_elt_va_end])) {
+               return true;
+       }
+       return false;
+}
+#endif
 
 static int
 dpdk_knidev_writer_tx(void *port, struct rte_mbuf *pkt)
@@ -227,14 +297,23 @@ dpdk_knidev_writer_tx(void *port, struct rte_mbuf *pkt)
      * So we make sure the packet is from the RSS mempool. If not, we make
      * a copy to the RSS mempool.
      */
+#if (RTE_VERSION == RTE_VERSION_NUM(2, 1, 0, 0))
     if (unlikely(pkt->pool != vr_dpdk.rss_mempool ||
             /* Check indirect mbuf's data is within the RSS mempool. */
             rte_pktmbuf_mtod(pkt, uintptr_t) < vr_dpdk.rss_mempool->elt_va_start ||
             rte_pktmbuf_mtod(pkt, uintptr_t) > vr_dpdk.rss_mempool->elt_va_end
             )) {
+#else
+    if (unlikely(pkt->pool != vr_dpdk.rss_mempool
+#ifdef VROUTER_KNI_ADDR_CHECK
+        || addr_out_range(vr_dpdk.rss_mempool, rte_pktmbuf_mtod(pkt, uintptr_t))
+#endif
+        )) {
+#endif
+        struct vr_packet *vr_pkt = vr_dpdk_mbuf_to_pkt(pkt);
         pkt_copy = vr_dpdk_pktmbuf_copy(pkt, vr_dpdk.rss_mempool);
         /* The original mbuf is no longer needed. */
-        vr_dpdk_pfree(pkt, VP_DROP_CLONED_ORIGINAL);
+        vr_dpdk_pfree(pkt, vr_pkt->vp_if, VP_DROP_CLONED_ORIGINAL);
 
         if (unlikely(pkt_copy == NULL)) {
             DPDK_KNIDEV_WRITER_STATS_PKTS_DROP_ADD(p, 1);
@@ -314,7 +393,9 @@ struct rte_port_out_ops dpdk_knidev_writer_ops = {
 
 /* Release KNI RX queue */
 static void
-dpdk_kni_rx_queue_release(unsigned lcore_id, struct vr_interface *vif)
+dpdk_kni_rx_queue_release(unsigned lcore_id,
+        unsigned queue_index __attribute__((unused)),
+        struct vr_interface *vif)
 {
     struct vr_dpdk_lcore *lcore = vr_dpdk.lcores[lcore_id];
     struct vr_dpdk_queue *rx_queue = &lcore->lcore_rx_queues[vif->vif_idx];
@@ -375,12 +456,14 @@ vr_dpdk_kni_rx_queue_init(unsigned lcore_id, struct vr_interface *vif,
 
 /* Release KNI TX queue */
 static void
-dpdk_kni_tx_queue_release(unsigned lcore_id, struct vr_interface *vif)
+dpdk_kni_tx_queue_release(unsigned lcore_id, unsigned queue_index,
+        struct vr_interface *vif)
 {
     struct vr_dpdk_lcore *lcore = vr_dpdk.lcores[lcore_id];
-    struct vr_dpdk_queue *tx_queue = &lcore->lcore_tx_queues[vif->vif_idx];
+    struct vr_dpdk_queue *tx_queue =
+        &lcore->lcore_tx_queues[vif->vif_idx][queue_index];
     struct vr_dpdk_queue_params *tx_queue_params
-                        = &lcore->lcore_tx_queue_params[vif->vif_idx];
+        = &lcore->lcore_tx_queue_params[vif->vif_idx][queue_index];
 
     tx_queue->txq_ops.f_tx = NULL;
     rte_wmb();
@@ -406,9 +489,9 @@ vr_dpdk_kni_tx_queue_init(unsigned lcore_id, struct vr_interface *vif,
     const unsigned socket_id = rte_lcore_to_socket_id(lcore_id);
     uint8_t port_id = 0;
     unsigned vif_idx = vif->vif_idx;
-    struct vr_dpdk_queue *tx_queue = &lcore->lcore_tx_queues[vif_idx];
+    struct vr_dpdk_queue *tx_queue = &lcore->lcore_tx_queues[vif_idx][0];
     struct vr_dpdk_queue_params *tx_queue_params
-                    = &lcore->lcore_tx_queue_params[vif_idx];
+                    = &lcore->lcore_tx_queue_params[vif_idx][0];
     struct vr_dpdk_ethdev *ethdev;
 
     if (vif->vif_type == VIF_TYPE_HOST) {
@@ -483,10 +566,14 @@ dpdk_knidev_change_mtu(uint8_t port_id, unsigned new_mtu)
 
             ret =  rte_eth_dev_set_mtu(slave_port_id, new_mtu);
             if (ret < 0) {
-                RTE_LOG(ERR, VROUTER,
+                /*
+                 * Do not return error as some NICs (such as X710) do not allow setting 
+                 * the MTU while the NIC is up and running. The max_rx_pkt_len is anyway
+                 * set to support jumbo frames, so continue further here to set vif_mtu.
+                 */
+                RTE_LOG(DEBUG, VROUTER,
                         "    error changing bond member eth device %" PRIu8 " MTU: %s (%d)\n",
                         slave_port_id, rte_strerror(-ret), -ret);
-                return ret;
             }
         }
     } else {
@@ -495,10 +582,14 @@ dpdk_knidev_change_mtu(uint8_t port_id, unsigned new_mtu)
 
         ret =  rte_eth_dev_set_mtu(port_id, new_mtu);
         if (ret < 0) {
-            RTE_LOG(ERR, VROUTER,
+            /*
+             * Do not return error as some NICs (such as X710) do not allow setting 
+             * the MTU while the NIC is up and running. The max_rx_pkt_len is anyway
+             * set to support jumbo frames, so continue further here to set vif_mtu.
+             */
+            RTE_LOG(DEBUG, VROUTER,
                     "Error changing eth device %" PRIu8 " MTU: %s (%d)\n",
                     port_id, rte_strerror(-ret), -ret);
-            return ret;
         }
     }
 
@@ -573,13 +664,23 @@ vr_dpdk_knidev_init(uint8_t port_id, struct vr_interface *vif)
     struct rte_kni *kni;
     struct rte_config *rte_conf = rte_eal_get_configuration();
 
-    if (!vr_dpdk.kni_inited) {
-        /*
-         * If the host does not support KNIs (i.e. RedHat), we'll get
-         * a panic here.
-         */
-        rte_kni_init(VR_DPDK_MAX_KNI_INTERFACES);
-        vr_dpdk.kni_inited = true;
+    /* Probe KNI. */
+    if (vr_dpdk.kni_state == 0) {
+        /* Check if the KNI is available. */
+        if (access("/dev/kni", R_OK | W_OK)) {
+            vr_dpdk.kni_state = -1;
+        } else {
+            RTE_LOG(INFO, VROUTER,
+                "    initializing KNI with %d maximum interfaces\n",
+                VR_DPDK_MAX_KNI_INTERFACES);
+            rte_kni_init(VR_DPDK_MAX_KNI_INTERFACES);
+            vr_dpdk.kni_state = 1;
+        }
+    }
+
+    if (vr_dpdk.kni_state == -1) {
+        RTE_LOG(INFO, VROUTER, "    KNI is not available\n");
+        return -ENOTSUP;
     }
 
     /* Check if port is valid. */
@@ -632,7 +733,7 @@ vr_dpdk_knidev_init(uint8_t port_id, struct vr_interface *vif)
     /* allocate KNI device */
     kni = rte_kni_alloc(vr_dpdk.rss_mempool, &kni_conf, &kni_ops);
     if (kni == NULL) {
-        RTE_LOG(ERR, VROUTER, "    error allocation KNI device %s"
+        RTE_LOG(ERR, VROUTER, "    error allocating KNI device %s"
             " at eth device %" PRIu8 "\n", vif->vif_name, port_id);
         return -ENOMEM;
     }
@@ -661,6 +762,9 @@ vr_dpdk_knidev_release(struct vr_interface *vif)
 {
     int i;
     struct rte_kni *kni = vif->vif_os;
+
+    RTE_LOG(INFO, VROUTER, "    releasing vif %u KNI device %s\n",
+            vif->vif_idx, vif->vif_name);
 
     vif->vif_os = NULL;
 

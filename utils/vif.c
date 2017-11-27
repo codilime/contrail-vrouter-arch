@@ -96,7 +96,7 @@ static int8_t vr_transport = 0;
 static int add_set, create_set, get_set, list_set;
 static int kindex_set, type_set, transport_set, help_set, set_set, vlan_set, dhcp_set;
 static int vrf_set, mac_set, delete_set, policy_set, pmd_set, vindex_set, pci_set;
-static int xconnect_set, vif_set, vhost_phys_set, core_set, rate_set;
+static int xconnect_set, vif_set, vhost_phys_set, core_set, rate_set, drop_set;
 #ifdef _WIN32
 static int guid_set;
 #endif
@@ -146,25 +146,28 @@ static void rate_stats(struct nl_client *, unsigned int);
 static int is_stdin_hit();
 
 static struct vr_util_flags flag_metadata[] = {
-    {VIF_FLAG_POLICY_ENABLED,   "P",    "Policy"            },
-    {VIF_FLAG_XCONNECT,         "X",    "Cross Connect"     },
-    {VIF_FLAG_SERVICE_IF,       "S",    "Service Chain"     },
-    {VIF_FLAG_MIRROR_RX,        "Mr",   "Receive Mirror"    },
-    {VIF_FLAG_MIRROR_TX,        "Mt",   "Transmit Mirror"   },
-    {VIF_FLAG_TX_CSUM_OFFLOAD,  "Tc",   "Transmit Checksum Offload"},
-    {VIF_FLAG_L3_ENABLED,       "L3",   "Layer 3"           },
-    {VIF_FLAG_L2_ENABLED,       "L2",   "Layer 2"           },
-    {VIF_FLAG_DHCP_ENABLED,     "D",    "DHCP"              },
-    {VIF_FLAG_VHOST_PHYS,       "Vp",   "Vhost Physical"    },
-    {VIF_FLAG_PROMISCOUS,       "Pr",   "Promiscuous"       },
-    {VIF_FLAG_NATIVE_VLAN_TAG,  "Vnt",  "Native Vlan Tagged"},
-    {VIF_FLAG_NO_ARP_PROXY,     "Mnp",  "No MAC Proxy"      },
-    {VIF_FLAG_PMD,              "Dpdk", "DPDK PMD Interface"},
-    {VIF_FLAG_FILTERING_OFFLOAD,"Rfl",  "Receive Filtering Offload"},
-    {VIF_FLAG_MONITORED,        "Mon",  "Interface is Monitored"},
-    {VIF_FLAG_UNKNOWN_UC_FLOOD, "Uuf",  "Unknown Unicast Flood"},
-    {VIF_FLAG_VLAN_OFFLOAD,     "Vof",  "VLAN insert/strip offload"},
-    {VIF_FLAG_DROP_NEW_FLOWS,   "Df",   "Drop New Flows"},
+    {VIF_FLAG_POLICY_ENABLED,   "P",        "Policy"            },
+    {VIF_FLAG_XCONNECT,         "X",        "Cross Connect"     },
+    {VIF_FLAG_SERVICE_IF,       "S",        "Service Chain"     },
+    {VIF_FLAG_MIRROR_RX,        "Mr",       "Receive Mirror"    },
+    {VIF_FLAG_MIRROR_TX,        "Mt",       "Transmit Mirror"   },
+    {VIF_FLAG_TX_CSUM_OFFLOAD,  "Tc",       "Transmit Checksum Offload"},
+    {VIF_FLAG_L3_ENABLED,       "L3",       "Layer 3"           },
+    {VIF_FLAG_L2_ENABLED,       "L2",       "Layer 2"           },
+    {VIF_FLAG_DHCP_ENABLED,     "D",        "DHCP"              },
+    {VIF_FLAG_VHOST_PHYS,       "Vp",       "Vhost Physical"    },
+    {VIF_FLAG_PROMISCOUS,       "Pr",       "Promiscuous"       },
+    {VIF_FLAG_NATIVE_VLAN_TAG,  "Vnt",      "Native Vlan Tagged"},
+    {VIF_FLAG_NO_ARP_PROXY,     "Mnp",      "No MAC Proxy"      },
+    {VIF_FLAG_PMD,              "Dpdk",     "DPDK PMD Interface"},
+    {VIF_FLAG_FILTERING_OFFLOAD,"Rfl",      "Receive Filtering Offload"},
+    {VIF_FLAG_MONITORED,        "Mon",      "Interface is Monitored"},
+    {VIF_FLAG_UNKNOWN_UC_FLOOD, "Uuf",      "Unknown Unicast Flood"},
+    {VIF_FLAG_VLAN_OFFLOAD,     "Vof",      "VLAN insert/strip offload"},
+    {VIF_FLAG_DROP_NEW_FLOWS,   "Df",       "Drop New Flows"},
+    {VIF_FLAG_MAC_LEARN,        "L",        "MAC Learning Enabled"},
+    {VIF_FLAG_MAC_PROXY,        "Proxy",    "MAC Requests Proxied Always"},
+    {VIF_FLAG_ETREE_ROOT,       "Er",       "Etree Root"},
 };
 
 static char *
@@ -296,6 +299,15 @@ vr_interface_print_header(void)
 }
 
 static void
+drop_stats_req_process(void *s_req)
+{
+    vr_drop_stats_req *stats = (vr_drop_stats_req *)s_req;
+    vr_print_drop_stats(stats, core);
+
+    return;
+}
+
+static void
 vrf_assign_req_process(void *s)
 {
     vr_vrf_assign_req *req = (vr_vrf_assign_req *)s;
@@ -306,14 +318,14 @@ vrf_assign_req_process(void *s)
     return;
 }
 
-static void
+static int
 vr_interface_print_head_space(void)
 {
     int i;
 
     for (i = 0; i < 12; i++)
         printf(" ");
-    return;
+    return i;
 }
 
 char *
@@ -418,11 +430,13 @@ vr_interface_e_per_lcore_counters_print(const char *title, bool print_always,
 static void
 list_get_print(vr_interface_req *req)
 {
-    char name[50] = {0};
-    int printed = 0;
-    unsigned int i;
-    uint16_t proto, port;
+    char ip6_addr[INET6_ADDRSTRLEN], ip_addr[INET_ADDRSTRLEN],
+         name[50] = {0}, ip6_ip[16];
     bool print_zero = false;
+    uint16_t proto, port;
+    int printed = 0, len;
+    unsigned int i;
+    uint64_t *tmp;
 
     if (rate_set) {
         print_zero = true;
@@ -457,8 +471,11 @@ list_get_print(vr_interface_req *req)
         }
 
     } else {
-        printf("OS: %s", req->vifr_os_idx ?
-                if_indextoname(req->vifr_os_idx, name): "NULL");
+        if (req->vifr_os_idx > 0) {
+            printf("OS: %s", if_indextoname(req->vifr_os_idx, name));
+        } else {
+            printf("    %s", req->vifr_name);
+        }
     }
 
     if (req->vifr_type == VIF_TYPE_PHYSICAL) {
@@ -470,9 +487,13 @@ list_get_print(vr_interface_req *req)
         }
     } else if (req->vifr_type == VIF_TYPE_VIRTUAL_VLAN) {
         printf(" Vlan(o/i)(,S): %d/%d", req->vifr_ovlan_id, req->vifr_vlan_id);
-        if (req->vifr_src_mac_size && req->vifr_src_mac)
-            printf(", "MAC_FORMAT, MAC_VALUE((uint8_t *)req->vifr_src_mac));
-        printf(" Bridge Index: %d", req->vifr_bridge_idx);
+        if (req->vifr_src_mac_size && req->vifr_src_mac) {
+            for (i = 0; i < (req->vifr_src_mac_size / VR_ETHER_ALEN); i = i + 1) {
+                printf(", "MAC_FORMAT, MAC_VALUE((uint8_t *)
+                            (req->vifr_src_mac + (i * VR_ETHER_ALEN))));
+                printf(" Bridge Index: %d", req->vifr_bridge_idx[i]);
+            }
+        }
     }
 
     if (req->vifr_parent_vif_idx >= 0)
@@ -481,13 +502,22 @@ list_get_print(vr_interface_req *req)
     printf("\n");
 
     vr_interface_print_head_space();
-    printf("Type:%s HWaddr:"MAC_FORMAT" IPaddr:%x\n",
+    printf("Type:%s HWaddr:"MAC_FORMAT" IPaddr:%s\n",
             vr_get_if_type_string(req->vifr_type),
-            MAC_VALUE((uint8_t *)req->vifr_mac), req->vifr_ip);
+            MAC_VALUE((uint8_t *)req->vifr_mac), inet_ntop(AF_INET,
+                &req->vifr_ip, ip_addr, INET_ADDRSTRLEN));
+    if (req->vifr_ip6_u || req->vifr_ip6_l) {
+        tmp = (uint64_t *)ip6_ip;
+        *tmp = req->vifr_ip6_u;
+        *(tmp + 1) = req->vifr_ip6_l;
+        vr_interface_print_head_space();
+        printf("IP6addr:%s\n", inet_ntop(AF_INET6, ip6_ip, ip6_addr,
+                                                    INET6_ADDRSTRLEN));
+    }
     vr_interface_print_head_space();
-    printf("Vrf:%d Flags:%s MTU:%d QOS:%d Ref:%d", req->vifr_vrf,
+    printf("Vrf:%d Flags:%s QOS:%d Ref:%d", req->vifr_vrf,
             req->vifr_flags ? vr_if_flags(req->vifr_flags) : "NULL" ,
-            req->vifr_mtu, req->vifr_qos_map_index, req->vifr_ref_cnt);
+            req->vifr_qos_map_index, req->vifr_ref_cnt);
     if (req->vifr_flags & (VIF_FLAG_MIRROR_TX | VIF_FLAG_MIRROR_RX)) {
         printf(" Mirror index %d\n", req->vifr_mir_id);
     } else {
@@ -513,6 +543,47 @@ list_get_print(vr_interface_req *req)
             req->vifr_ibytes, req->vifr_ierrors, 0);
     vr_interface_pbem_counters_print("TX", true, req->vifr_opackets,
             req->vifr_obytes, req->vifr_oerrors, 0);
+    if (req->vifr_isid || req->vifr_pbb_mac_size) {
+        vr_interface_print_head_space();
+        printf("ISID: %d Bmac: "MAC_FORMAT"\n",
+                req->vifr_isid, MAC_VALUE((uint8_t *)req->vifr_pbb_mac));
+    }
+    vr_interface_print_head_space();
+    printf("Drops:%" PRIu64 "\n", req->vifr_dpackets);
+
+
+    if (req->vifr_in_mirror_md_size) {
+        printed = vr_interface_print_head_space();
+        len = printf("Ingress Mirror Metadata: ");
+        printed += len;
+        for (i = 0; i < req->vifr_in_mirror_md_size; i++) {
+            printed += printf("%x ", 0xFF & req->vifr_in_mirror_md[i]);
+            if (printed > 68) {
+                printf("\n");
+                printed = vr_interface_print_head_space();
+                printf("%*c", len, ' ');
+                printed += len;
+            }
+        }
+        printf("\n");
+    }
+
+    if (req->vifr_out_mirror_md_size) {
+        printed = vr_interface_print_head_space();
+        len = printf("Egress Mirror Metadata: ");
+        printed += len;
+        for (i = 0; i < req->vifr_out_mirror_md_size; i++) {
+            printed += printf("%x ", 0xFF & req->vifr_out_mirror_md[i]);
+            if (printed > 68) {
+                printf("\n");
+                printed = vr_interface_print_head_space();
+                printf("%*c", len, ' ');
+                printed += len;
+            }
+        }
+        printf("\n");
+
+    }
 
     if (platform == DPDK_PLATFORM) {
         vr_interface_pe_counters_print("TX queue ", print_zero,
@@ -788,7 +859,7 @@ vhost_create(void)
     if ((ret = nl_recvmsg(cl)) > 0) {
         resp = nl_parse_reply(cl);
         if (resp && resp->nl_op)
-            printf("%s\n", strerror(resp->nl_op));
+            printf("%s: %s\n", __func__, strerror(resp->nl_op));
     }
 #elif defined(__FreeBSD__)
     struct ifreq ifr = { 0 };
@@ -912,7 +983,8 @@ op_retry:
          * decremented back in vRouter.
          */
         if (!vr_vrf_assign_dump) {
-            ret = vr_send_interface_get(cl, 0, vr_ifindex, if_kindex, core + 1);
+            ret = vr_send_interface_get(cl, 0, vr_ifindex, if_kindex,
+                    core + 1, drop_set);
         } else {
             dump = true;
             ret = vr_send_vrf_assign_dump(cl, 0, vr_ifindex, var_marker);
@@ -962,7 +1034,7 @@ Usage()
     printf("\t   \t--guid <GUID>\n");
 #endif
     printf("\t   [--delete <intf_id>]\n");
-    printf("\t   [--get <intf_id>][--kernel][--core <core number>][--rate]\n");
+    printf("\t   [--get <intf_id>][--kernel][--core <core number>][--rate] [--get-drop-stats]\n");
     printf("\t   [--set <intf_id> --vlan <vlan_id> --vrf <vrf_id>]\n");
     printf("\t   [--list][--core <core number>][--rate]\n");
     printf("\t   [--help]\n");
@@ -976,6 +1048,7 @@ enum if_opt_index {
     CREATE_OPT_INDEX,
     GET_OPT_INDEX,
     RATE_OPT_INDEX,
+    DROP_OPT_INDEX,
     LIST_OPT_INDEX,
     VRF_OPT_INDEX,
     MAC_OPT_INDEX,
@@ -1006,6 +1079,7 @@ static struct option long_options[] = {
     [CREATE_OPT_INDEX]      =   {"create",      required_argument,  &create_set,        1},
     [GET_OPT_INDEX]         =   {"get",         required_argument,  &get_set,           1},
     [RATE_OPT_INDEX]        =   {"rate",        no_argument,        &rate_set,          1},
+    [DROP_OPT_INDEX]        =   {"get-drop-stats",no_argument,      &drop_set,          1},
     [LIST_OPT_INDEX]        =   {"list",        no_argument,        &list_set,          1},
     [VRF_OPT_INDEX]         =   {"vrf",         required_argument,  &vrf_set,           1},
     [MAC_OPT_INDEX]         =   {"mac",         required_argument,  &mac_set,           1},
@@ -1081,7 +1155,10 @@ parse_long_opts(int option_index, char *opt_arg)
 
         case DELETE_OPT_INDEX:
             vr_op = SANDESH_OP_DEL;
-            vr_ifindex = safer_strtoul(opt_arg, NULL, 0);
+            if (isdigit(opt_arg[0]))
+                vr_ifindex = safer_strtoul(opt_arg, NULL, 0);
+            else
+                strncpy(if_name, opt_arg, sizeof(if_name) - 1);
             if (errno)
                 Usage();
             break;
@@ -1219,8 +1296,8 @@ validate_options(void)
         return;
     }
     if (get_set) {
-        if ((sum_opt > 1) && (sum_opt != 3) &&
-                (!kindex_set && !core_set && !rate_set))
+        if ((sum_opt > 1) && (sum_opt != 3) && (sum_opt != 4) &&
+                (!kindex_set && !core_set && !rate_set && !drop_set))
             Usage();
         return;
     }
@@ -1230,6 +1307,8 @@ validate_options(void)
         return;
     }
     if (list_set) {
+        if (drop_set)
+            Usage();
         if (!core_set) {
             if (rate_set && !(sum_opt > 2))
                 return;

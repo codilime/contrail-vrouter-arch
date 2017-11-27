@@ -7,6 +7,7 @@ import sys
 import os
 import copy
 import re
+import platform
 
 AddOption('--kernel-dir', dest = 'kernel-dir', action='store',
           help='Linux kernel source directory for vrouter.ko')
@@ -75,19 +76,20 @@ if sys.platform.startswith('freebsd'):
 # This approach always uses --kernel-dir, which works for vrouter, but
 # libdpdk still defaults to installed version and thus will fail.
 #
-
 if not sys.platform.startswith('win'):
     default_kernel_ver = shellCommand("uname -r").strip()
     kernel_build_dir = None
-    if re.search('^4\.', default_kernel_ver):
-        print "Warn: kernel version %s not supported for vrouter and dpdk" % default_kernel_ver
-        kernel_build_dir = '/lib/modules/3.13.0-85-generic/build'
-        if os.path.isdir(kernel_build_dir):
-            default_kernel_ver = "3.13.0-85-generic"
-            print "info: libdpdk will be built against kernel version %s" % default_kernel_ver
-        else:
-            print "*** Error: Cannot find kernel v3.13.0-85, build of vrouter will likely fail"
-            kernel_build_dir = '/lib/modules/%s/build' % default_kernel_ver
+    (PLATFORM, VERSION, EXTRA) = platform.linux_distribution()
+    if (PLATFORM.lower() == 'ubuntu' and VERSION.find('14.') == 0):
+        if re.search('^4\.', default_kernel_ver):
+            print "Warn: kernel version %s not supported for vrouter and dpdk" % default_kernel_ver
+            kernel_build_dir = '/lib/modules/3.13.0-110-generic/build'
+            if os.path.isdir(kernel_build_dir):
+                default_kernel_ver = "3.13.0-110-generic"
+                print "info: libdpdk will be built against kernel version %s" % default_kernel_ver
+            else:
+                print "*** Error: Cannot find kernel v3.13.0-110, build of vrouter will likely fail"
+                kernel_build_dir = '/lib/modules/%s/build' % default_kernel_ver
 
     kernel_dir = GetOption('kernel-dir')
     if kernel_dir:
@@ -115,10 +117,22 @@ if sys.platform != 'darwin':
     subdirs = ['linux', 'include', 'dp-core', 'host', 'sandesh', \
                         'utils', 'uvrouter', 'test']
     exports = ['VRouterEnv']
-
+  
     if dpdk_exists:
         subdirs.append('dpdk')
         exports.append('dpdk_lib')
+
+        rte_ver_filename = '../third_party/dpdk/lib/librte_eal/common/include/rte_version.h'
+        rte_ver_file = open(rte_ver_filename, 'r')
+        file_content = rte_ver_file.read()
+        rte_ver_file.close()
+        matches = re.findall("define RTE_VER_MAJOR 2", file_content)
+   
+        if matches:
+            rte_libs = '-lethdev', '-lrte_malloc'
+        else:
+            rte_libs = '-lrte_ethdev'
+  
         #
         # DPDK libraries need to be linked as a whole archive, otherwise some
         # callbacks and constructors will not be linked in. Also some of the
@@ -155,19 +169,19 @@ if sys.platform != 'darwin':
             '-lrte_kvargs',
             '-lrte_mbuf',
             '-lrte_ip_frag',
-            '-lethdev',
-            '-lrte_malloc',
+            rte_libs,
             '-lrte_mempool',
             '-lrte_ring',
             '-lrte_eal',
             '-lrte_cmdline',
         #    '-lrte_cfgfile',
             '-lrte_pmd_bond',
+            '-lrte_pmd_bnxt',
         #    '-lrte_pmd_xenvirt',
         #    '-lxenstore',
         #    '-lrte_pmd_vmxnet3_uio',
         #    '-lrte_pmd_virtio_uio',
-        #    '-lrte_pmd_enic',
+            '-lrte_pmd_enic',
             '-lrte_pmd_i40e',
         #    '-lrte_pmd_fm10k',
             '-lrte_pmd_ixgbe',
@@ -189,6 +203,7 @@ if sys.platform != 'darwin':
 
         make_cmd = 'make -C ' + dpdk_src_dir \
             + ' EXTRA_CFLAGS="' + DPDK_FLAGS + '"' \
+            + ' ARCH=x86_64' \
             + ' O=' + dpdk_dst_dir \
             + ' '
 
@@ -255,7 +270,6 @@ if sys.platform != 'darwin':
         'sandesh.c',
         'transport/thrift_fake_transport.c',
         'transport/thrift_memory_buffer.c',
-        'transport/thrift_transport.c',
         ]
     for src in sandesh_lib:
         dirname = os.path.dirname(src)

@@ -26,19 +26,23 @@
 #include <rte_port_ethdev.h>
 #include <rte_udp.h>
 
-static struct rte_eth_conf ethdev_conf = {
+struct rte_eth_conf ethdev_conf = {
+#if (RTE_VERSION >= RTE_VERSION_NUM(17, 2, 0, 0))
+    .link_speeds = ETH_LINK_SPEED_AUTONEG,
+#else
     .link_speed = 0,    /* ETH_LINK_SPEED_10[0|00|000], or 0 for autonegotation */
     .link_duplex = 0,   /* ETH_LINK_[HALF_DUPLEX|FULL_DUPLEX], or 0 for autonegotation */
+#endif
     .rxmode = { /* Port RX configuration. */
         /* The multi-queue packet distribution mode to be used, e.g. RSS. */
         .mq_mode            = ETH_MQ_RX_RSS,
-        .max_rx_pkt_len     = ETHER_MAX_LEN, /* Only used if jumbo_frame enabled */
+        .max_rx_pkt_len     = VR_DEF_MAX_PACKET_SZ, /* Only used if jumbo_frame enabled */
         .header_split       = 0, /* Disable Header Split */
         .hw_ip_checksum     = 1, /* Enable IP/UDP/TCP checksum offload */
         .hw_vlan_filter     = 0, /* Disabel VLAN filter */
         .hw_vlan_strip      = 0, /* Disable VLAN strip (might be enabled with --vlan argument) */
         .hw_vlan_extend     = 0, /* Disable Extended VLAN */
-        .jumbo_frame        = 0, /* Disable Jumbo Frame Receipt */
+        .jumbo_frame        = 1, /* Enable Jumbo Frame Receipt */
         .hw_strip_crc       = 1, /* Enable CRC stripping by hardware */
         .enable_scatter     = 0, /* Disable scatter packets rx handler */
     },
@@ -105,11 +109,12 @@ static const struct rte_eth_txconf tx_queue_conf = {
         .hthresh = 0,   /* Ring host threshold */
         .wthresh = 0,   /* Ring writeback threshold */
     },
-    .tx_free_thresh = 0,    /* Use PMD default values */
+    .tx_free_thresh = 0,
     .tx_rs_thresh = 0,      /* Use PMD default values */
     .txq_flags = 0          /* Set flags for the Tx queue */
 };
 
+#if VR_DPDK_USE_HW_FILTERING
 /* Add hardware filter */
 int
 vr_dpdk_ethdev_filter_add(struct vr_interface *vif, uint16_t queue_id,
@@ -134,7 +139,7 @@ vr_dpdk_ethdev_filter_add(struct vr_interface *vif, uint16_t queue_id,
     filter.port_dst = rte_cpu_to_be_16((uint16_t)VR_MPLS_OVER_UDP_DST_PORT);
     filter.flex_bytes = rte_cpu_to_be_16((uint16_t)mpls_label);
 
-    RTE_LOG(DEBUG, VROUTER, "%s: ip_dst=0x%x port_dst=%d flex_bytes=%d\n", __func__,
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: ip_dst=0x%x port_dst=%d flex_bytes=%d\n", __func__,
         (unsigned)dst_ip, (unsigned)VR_MPLS_OVER_UDP_DST_PORT, (unsigned)mpls_label);
 
     if (queue_id >= 0xFF) {
@@ -150,6 +155,7 @@ vr_dpdk_ethdev_filter_add(struct vr_interface *vif, uint16_t queue_id,
 
     return ret;
 }
+#endif
 
 /* Get a ready queue ID */
 uint16_t
@@ -168,7 +174,9 @@ vr_dpdk_ethdev_ready_queue_id_get(struct vr_interface *vif)
 
 /* Release ethdev RX queue */
 static void
-dpdk_ethdev_rx_queue_release(unsigned lcore_id, struct vr_interface *vif)
+dpdk_ethdev_rx_queue_release(unsigned lcore_id,
+        unsigned queue_index __attribute__((unused)),
+        struct vr_interface *vif)
 {
     struct vr_dpdk_lcore *lcore = vr_dpdk.lcores[lcore_id];
     struct vr_dpdk_queue *rx_queue = &lcore->lcore_rx_queues[vif->vif_idx];
@@ -233,13 +241,18 @@ vr_dpdk_ethdev_rx_queue_init(unsigned lcore_id, struct vr_interface *vif,
 
 /* Release ethdev TX queue */
 static void
-dpdk_ethdev_tx_queue_release(unsigned lcore_id, struct vr_interface *vif)
+dpdk_ethdev_tx_queue_release(unsigned lcore_id, unsigned queue_index,
+        struct vr_interface *vif)
 {
     int i;
+
     struct vr_dpdk_lcore *lcore = vr_dpdk.lcores[lcore_id];
-    struct vr_dpdk_queue *tx_queue = &lcore->lcore_tx_queues[vif->vif_idx];
-    struct vr_dpdk_queue_params *tx_queue_params
-                        = &lcore->lcore_tx_queue_params[vif->vif_idx];
+    struct vr_dpdk_queue *tx_queue;
+    struct vr_dpdk_queue_params *tx_queue_params;
+
+    tx_queue = &lcore->lcore_tx_queues[vif->vif_idx][queue_index];
+    tx_queue_params =
+        &lcore->lcore_tx_queue_params[vif->vif_idx][queue_index];
 
     /* remove queue params from the list of bonds to TX */
     for (i = 0; i < lcore->lcore_nb_bonds_to_tx; i++) {
@@ -273,19 +286,28 @@ struct vr_dpdk_queue *
 vr_dpdk_ethdev_tx_queue_init(unsigned lcore_id, struct vr_interface *vif,
     unsigned queue_or_lcore_id)
 {
-    uint16_t tx_queue_id = queue_or_lcore_id;
     uint8_t port_id;
-    unsigned int vif_idx = vif->vif_idx;
+    uint16_t tx_queue_id = queue_or_lcore_id;
+    unsigned int vif_idx = vif->vif_idx, dpdk_queue_index;
     const unsigned int socket_id = rte_lcore_to_socket_id(lcore_id);
 
     struct vr_dpdk_ethdev *ethdev;
     struct vr_dpdk_lcore *lcore = vr_dpdk.lcores[lcore_id];
-    struct vr_dpdk_queue *tx_queue = &lcore->lcore_tx_queues[vif_idx];
-    struct vr_dpdk_queue_params *tx_queue_params
-                    = &lcore->lcore_tx_queue_params[vif_idx];
+    struct vr_dpdk_queue *tx_queue;
+    struct vr_dpdk_queue_params *tx_queue_params;
 
     ethdev = (struct vr_dpdk_ethdev *)vif->vif_os;
     port_id = ethdev->ethdev_port_id;
+
+    if (lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx]) {
+        dpdk_queue_index =
+            lcore->lcore_hw_queue_to_dpdk_index[vif->vif_idx][tx_queue_id];
+    } else {
+        dpdk_queue_index = 0;
+    }
+
+    tx_queue = &lcore->lcore_tx_queues[vif_idx][dpdk_queue_index];
+    tx_queue_params = &lcore->lcore_tx_queue_params[vif_idx][dpdk_queue_index];
 
     /* init queue */
     tx_queue->txq_ops = rte_port_ethdev_writer_ops;
@@ -321,6 +343,37 @@ vr_dpdk_ethdev_tx_queue_init(unsigned lcore_id, struct vr_interface *vif,
     return tx_queue;
 }
 
+/*
+ * vr_max_tx_queues_adjust - bond devices always return dev_info indicating
+ * 512 TX queues are supported. vrouter clips down to a max of VR_DPDK_MAX_NB_TX_QUEUES.
+ * However, if any of the bond slaves does not support this many TX queues, the
+ * number needs to be reduced further to a value that the NIC can support. Also,
+ * bnxt report max_tx_queues of 170, but fails to configure more than 8 TX queues.
+ */
+static void
+vr_max_tx_queues_adjust(struct vr_dpdk_ethdev *ethdev, uint16_t *nb_tx_q)
+{
+    struct rte_eth_dev_info dev_info;
+    int i;
+
+    for (i = 0; i < rte_eth_dev_count(); i++)
+    {
+        rte_eth_dev_info_get(i, &dev_info);
+        if (dev_info.driver_name) {
+            if (strncmp(dev_info.driver_name, "net_bnxt",
+                         strlen("net_bnxt") + 1) == 0) {
+                if (*nb_tx_q > VR_DPDK_MAX_NB_TX_Q_BNXT) {
+                    RTE_LOG(INFO, VROUTER, "TX queues changed from %d to %d due to port %d\n",
+                        *nb_tx_q, VR_DPDK_MAX_NB_TX_Q_BNXT, i);
+                    *nb_tx_q = VR_DPDK_MAX_NB_TX_Q_BNXT;
+                }
+            }
+        }
+    }
+
+    return;
+}
+
 /* Update device info */
 static void
 dpdk_ethdev_info_update(struct vr_dpdk_ethdev *ethdev)
@@ -331,11 +384,18 @@ dpdk_ethdev_info_update(struct vr_dpdk_ethdev *ethdev)
 
     ethdev->ethdev_nb_rx_queues = RTE_MIN(dev_info.max_rx_queues,
         VR_DPDK_MAX_NB_RX_QUEUES);
-    /* [PAKCET_ID..FWD_ID) lcores have just TX queues, so we increase
-     * the number of TX queues here */
-    ethdev->ethdev_nb_tx_queues = RTE_MIN(RTE_MIN(dev_info.max_tx_queues,
-        vr_dpdk.nb_fwd_lcores + (VR_DPDK_FWD_LCORE_ID - VR_DPDK_PACKET_LCORE_ID)),
-        VR_DPDK_MAX_NB_TX_QUEUES);
+
+    if (dev_info.max_tx_queues > VR_DPDK_MAX_NB_TX_QUEUES)
+        dev_info.max_tx_queues = VR_DPDK_MAX_NB_TX_QUEUES;
+
+    /*
+     * If a device advertises max_tx_queues higher than it
+     * can actually support, reduce the value to a number
+     * that it can support.
+     */
+    vr_max_tx_queues_adjust(ethdev, &dev_info.max_tx_queues);
+
+    ethdev->ethdev_nb_tx_queues = dev_info.max_tx_queues;
 
     /* Check if we have dedicated an lcore for SR-IOV VF IO. */
     if (vr_dpdk.vf_lcore_id) {
@@ -347,7 +407,13 @@ dpdk_ethdev_info_update(struct vr_dpdk_ethdev *ethdev)
     ethdev->ethdev_reta_size = RTE_MIN(dev_info.reta_size,
         VR_DPDK_MAX_RETA_SIZE);
 
-    RTE_LOG(DEBUG, VROUTER, "dev_info: driver_name=%s if_index=%u"
+    /*
+     * If the NIC driver sets reta_size to a value that is not a power of
+     * 2, align it as DPDK expects it to be a power of 2.
+     */
+    ethdev->ethdev_reta_size = RTE_ALIGN(ethdev->ethdev_reta_size, RTE_RETA_GROUP_SIZE);
+
+    RTE_LOG_DP(DEBUG, VROUTER, "dev_info: driver_name=%s if_index=%u"
             " max_rx_queues=%" PRIu16 " max_tx_queues=%" PRIu16
             " max_vfs=%" PRIu16 " max_vmdq_pools=%" PRIu16
             " rx_offload_capa=%" PRIx32 " tx_offload_capa=%" PRIx32 "\n",
@@ -365,6 +431,10 @@ dpdk_ethdev_info_update(struct vr_dpdk_ethdev *ethdev)
         ethdev->ethdev_nb_rx_queues = ethdev->ethdev_nb_rss_queues;
 #endif
 
+    RTE_LOG(INFO, VROUTER, "Using %d TX queues, %d RX queues\n",
+            ethdev->ethdev_nb_tx_queues, 
+            ethdev->ethdev_nb_rx_queues);
+
     return;
 }
 
@@ -377,7 +447,7 @@ dpdk_ethdev_queues_setup(struct vr_dpdk_ethdev *ethdev)
     struct rte_mempool *mempool;
 
     /* configure RX queues */
-    RTE_LOG(DEBUG, VROUTER, "%s: nb_rx_queues=%u nb_tx_queues=%u\n",
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: nb_rx_queues=%u nb_tx_queues=%u\n",
         __func__, (unsigned)ethdev->ethdev_nb_rx_queues,
             (unsigned)ethdev->ethdev_nb_tx_queues);
 
@@ -463,7 +533,7 @@ dpdk_ethdev_reta_show(uint8_t port_id, uint16_t reta_size)
         shift = i % RTE_RETA_GROUP_SIZE;
         if (!(reta_entries[idx].mask & (1ULL << shift)))
             continue;
-        RTE_LOG(DEBUG, VROUTER, "        hash index=%u, queue=%u\n",
+        RTE_LOG_DP(DEBUG, VROUTER, "        hash index=%u, queue=%u\n",
                     i, reta_entries[idx].reta[shift]);
     }
 }
@@ -485,7 +555,7 @@ vr_dpdk_ethdev_rss_init(struct vr_dpdk_ethdev *ethdev)
     if (ethdev->ethdev_reta_size == 0)
         return 0;
 
-    RTE_LOG(DEBUG, VROUTER, "%s: RSS RETA BEFORE:\n", __func__);
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: RSS RETA BEFORE:\n", __func__);
     dpdk_ethdev_reta_show(port_id, ethdev->ethdev_reta_size);
 
     for (entry = 0; entry < nb_entries; entry++) {
@@ -514,7 +584,7 @@ vr_dpdk_ethdev_rss_init(struct vr_dpdk_ethdev *ethdev)
             port_id, rte_strerror(-ret), -ret);
     }
 
-    RTE_LOG(DEBUG, VROUTER, "%s: RSS RETA AFTER:\n", __func__);
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: RSS RETA AFTER:\n", __func__);
     dpdk_ethdev_reta_show(port_id, ethdev->ethdev_reta_size);
 
     return ret;
@@ -537,6 +607,7 @@ dpdk_ethdev_mempools_free(struct vr_dpdk_ethdev *ethdev)
     }
 }
 
+#if VR_DPDK_USE_HW_FILTERING
 /* Init hardware filtering */
 int
 vr_dpdk_ethdev_filtering_init(struct vr_interface *vif,
@@ -576,6 +647,7 @@ vr_dpdk_ethdev_filtering_init(struct vr_interface *vif,
 
     return ret;
 }
+#endif
 
 /* Update device bond info */
 static void
@@ -608,7 +680,11 @@ dpdk_ethdev_bond_info_update(struct vr_dpdk_ethdev *ethdev)
             }
             memset(&mac_addr, 0, sizeof(mac_addr));
             rte_eth_macaddr_get(slave_port_id, &mac_addr);
+#if (RTE_VERSION >= RTE_VERSION_NUM(17, 2, 0, 0))
+            pci_addr = &(RTE_DEV_TO_PCI(rte_eth_devices[slave_port_id].device)->addr);
+#else
             pci_addr = &rte_eth_devices[slave_port_id].pci_dev->addr;
+#endif
             RTE_LOG(INFO, VROUTER, "    bond member eth device %" PRIu8
                 " PCI " PCI_PRI_FMT " MAC " MAC_FORMAT "\n",
                 slave_port_id, pci_addr->domain, pci_addr->bus,
@@ -657,7 +733,7 @@ vr_dpdk_ethdev_bond_port_match(uint8_t port_id, struct vr_dpdk_ethdev *ethdev)
 
 /* Init ethernet device */
 int
-vr_dpdk_ethdev_init(struct vr_dpdk_ethdev *ethdev)
+vr_dpdk_ethdev_init(struct vr_dpdk_ethdev *ethdev, struct rte_eth_conf *dev_conf)
 {
     uint8_t port_id;
     int ret;
@@ -668,7 +744,7 @@ vr_dpdk_ethdev_init(struct vr_dpdk_ethdev *ethdev)
     dpdk_ethdev_info_update(ethdev);
 
     ret = rte_eth_dev_configure(port_id, ethdev->ethdev_nb_rx_queues,
-        ethdev->ethdev_nb_tx_queues, &ethdev_conf);
+        ethdev->ethdev_nb_tx_queues, dev_conf);
     if (ret < 0) {
         RTE_LOG(ERR, VROUTER, "    error configuring eth dev %" PRIu8
                 ": %s (%d)\n",
@@ -676,10 +752,15 @@ vr_dpdk_ethdev_init(struct vr_dpdk_ethdev *ethdev)
         return ret;
     }
 
+#if (RTE_VERSION < RTE_VERSION_NUM(17, 2, 0, 0))
     /* update device bond information after the device has been configured */
-    if (ethdev->ethdev_ptr->driver) /* af_packet has no driver and no bond info */
+    if (ethdev->ethdev_ptr->driver) { /* af_packet has no driver and no bond info */
+#else
+    if (dpdk_find_port_id_by_drv_name() != VR_DPDK_INVALID_PORT_ID) {
+#endif
         dpdk_ethdev_bond_info_update(ethdev);
-
+    }
+  
     ret = dpdk_ethdev_queues_setup(ethdev);
     if (ret < 0)
         return ret;
@@ -769,11 +850,20 @@ dpdk_mbuf_rss_hash(struct rte_mbuf *mbuf, struct vr_ip *ipv4_hdr,
     case VR_IP_PROTO_UDP:
         hash = rte_hash_crc_4byte(*l4_ptr, hash);
         break;
+    case VR_IP_PROTO_GRE:
+        if (likely(l4_ptr != NULL)) {
+            struct vr_gre_key* gre_hdr = (struct vr_gre_key *)l4_ptr;
+
+            if (likely(gre_hdr->gre_comm_hdr.gre_flags & VR_GRE_FLAG_KEY))  {
+                hash = rte_hash_crc_4byte(gre_hdr->gre_key , hash);
+            }
+        }
+        break;
     }
 
     mbuf->ol_flags |= PKT_RX_RSS_HASH;
     mbuf->hash.rss = hash;
-    RTE_LOG(DEBUG, VROUTER, "%s: RSS hash: 0x%x (emulated)\n",
+    RTE_LOG_DP(DEBUG, VROUTER, "%s: RSS hash: 0x%x (emulated)\n",
             __func__, mbuf->hash.rss);
 
     return 1;
@@ -873,7 +963,7 @@ dpdk_mbuf_parse_and_hash_packets(struct rte_mbuf *mbuf)
                 mbuf->ol_flags &= ~PKT_RX_RSS_HASH;
                 /* Go to parsing. */
             } else {
-                return 0; /* Looks like GRE, but no MPLS. */
+                return dpdk_mbuf_rss_hash(mbuf, ipv4_hdr, NULL); /* Looks like GRE, but no MPLS. */
             }
         } else if (ipv4_hdr->ip_proto == VR_IP_PROTO_UDP) {
             /* At this point the packet may be:
@@ -883,8 +973,10 @@ dpdk_mbuf_parse_and_hash_packets(struct rte_mbuf *mbuf)
              */
             udp_hdr = (struct vr_udp *)((uintptr_t)ipv4_hdr + ipv4_len);
 
-            if (unlikely(mbuf_data_len < pull_len + sizeof(struct vr_udp)))
-                return -1;
+            if (likely(vr_ip_transport_header_valid(ipv4_hdr))) {
+                if (unlikely(mbuf_data_len < pull_len + sizeof(struct vr_udp)))
+                    return -1;
+            }
 
             /*
              * If it is a packet from VM, it for sure will not be MPLS-over-UDP,
@@ -915,7 +1007,7 @@ dpdk_mbuf_parse_and_hash_packets(struct rte_mbuf *mbuf)
             /* Looks like no tunneling, perhaps a packet from a VM. */
             return dpdk_mbuf_rss_hash(mbuf, ipv4_hdr, ipv6_hdr);
         } else {
-            RTE_LOG(DEBUG, VROUTER, "%s: RSS hash: 0x%x (from NIC)\n",
+            RTE_LOG_DP(DEBUG, VROUTER, "%s: RSS hash: 0x%x (from NIC)\n",
                     __func__, mbuf->hash.rss);
             return 0; /* Not MPLS-over-GRE, not MPLS-over-UDP, not anything from VM. */
         }
@@ -943,7 +1035,7 @@ dpdk_mbuf_parse_and_hash_packets(struct rte_mbuf *mbuf)
 
         /* Packet may already be hashed by the NIC */
         if (mbuf->ol_flags & PKT_RX_RSS_HASH) {
-            RTE_LOG(DEBUG, VROUTER, "%s: RSS hash: 0x%x (from NIC)\n",
+            RTE_LOG_DP(DEBUG, VROUTER, "%s: RSS hash: 0x%x (from NIC)\n",
                     __func__, mbuf->hash.rss);
             return 0;
         } else {
@@ -971,7 +1063,7 @@ dpdk_mbuf_parse_and_hash_packets(struct rte_mbuf *mbuf)
         if ((mbuf->ol_flags & PKT_RX_RSS_HASH) == 0) {
             return dpdk_mbuf_rss_hash(mbuf, ipv4_hdr, ipv6_hdr);
         } else {
-            RTE_LOG(DEBUG, VROUTER, "%s: RSS hash: 0x%x (from NIC)\n",
+            RTE_LOG_DP(DEBUG, VROUTER, "%s: RSS hash: 0x%x (from NIC)\n",
                     __func__, mbuf->hash.rss);
             return 0;
         }
@@ -1048,7 +1140,7 @@ vr_dpdk_ethdev_rx_emulate(struct vr_interface *vif,
     if (unlikely(mask_to_drop != 0)) {
         for (i = 0; i < *nb_pkts; i++) {
             if (mask_to_drop & (1ULL << i)) {
-                vr_dpdk_pfree(pkts[i], VP_DROP_PULL);
+                vr_dpdk_pfree(pkts[i], vif, VP_DROP_PULL);
             } else {
                 pkts[nb_pkts_ret] = pkts[i];
                 if (mask_to_distribute & (1ULL << i)) {

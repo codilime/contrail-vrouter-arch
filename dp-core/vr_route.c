@@ -116,6 +116,7 @@ vr_route_delete(vr_route_req *req)
 
 error:
     vr_send_response(ret);
+    vr_send_broadcast(VR_ROUTE_OBJECT_ID, &vr_req, SANDESH_OP_DEL, ret);
 
     return ret;
 }
@@ -146,6 +147,7 @@ vr_route_add(vr_route_req *req)
     }
 
     vr_send_response(ret);
+    vr_send_broadcast(VR_ROUTE_OBJECT_ID, &vr_req, SANDESH_OP_ADD, ret);
 
     return ret;
 }
@@ -200,7 +202,7 @@ vr_route_get(vr_route_req *req)
     }
 
 generate_response:
-    vr_message_response(VR_ROUTE_OBJECT_ID, ret ? NULL : &vr_req, ret);
+    vr_message_response(VR_ROUTE_OBJECT_ID, ret ? NULL : &vr_req, ret, false);
     if (mac_mem_free && vr_req.rtr_req.rtr_mac) {
         vr_free(vr_req.rtr_req.rtr_mac, VR_ROUTE_REQ_MAC_OBJECT);
         vr_req.rtr_req.rtr_mac = NULL;
@@ -228,7 +230,6 @@ vr_route_dump(vr_route_req *req)
     }
         
     vr_req.rtr_req.rtr_marker_size = req->rtr_marker_size;
-    vr_req.rtr_req.rtr_marker_plen = req->rtr_prefix_len;
     if (req->rtr_marker_size) {
         vr_req.rtr_req.rtr_marker = (uint8_t*)&rt_marker;
         memcpy(vr_req.rtr_req.rtr_marker, req->rtr_marker, RT_IP_ADDR_SIZE(req->rtr_family));
@@ -333,7 +334,7 @@ vr_inet_vrf_stats_get(struct vrouter *router, vr_vrf_stats_req *req)
 
     ret = rtable->algo_stats_get(req, &response);
 generate_error:
-    vr_message_response(VR_VRF_STATS_OBJECT_ID, ret ? NULL : &response, ret);
+    vr_message_response(VR_VRF_STATS_OBJECT_ID, ret ? NULL : &response, ret, false);
     return;
 }
 
@@ -398,10 +399,9 @@ vr_vrf_stats_req_process(void *s_req)
 int
 inet_route_add(struct rtable_fspec *fs, struct vr_route_req *req)
 {
-    int i;
+    unsigned char pmask, pmask_byte;
     struct vr_rtable *rtable;
     struct vrouter *router;
-    unsigned int pmask, pmask_byte;
 
     router = vrouter_get(req->rtr_req.rtr_rid);
     if (!router)
@@ -420,27 +420,31 @@ inet_route_add(struct rtable_fspec *fs, struct vr_route_req *req)
     rtable = router->vr_inet_rtable;
     if (!rtable ||
             ((unsigned int)req->rtr_req.rtr_vrf_id >= fs->rtb_max_vrfs) ||
-            ((unsigned int)(req->rtr_req.rtr_prefix_len) > 
+            ((unsigned int)(req->rtr_req.rtr_prefix_len) >
                             (RT_IP_ADDR_SIZE(req->rtr_req.rtr_family)*8)))
         return -EINVAL;
 
+    /* Zero the bits in prefix, which are set beyond the mask len */
     if (req->rtr_req.rtr_prefix) {
 
-        if (req->rtr_req.rtr_family == AF_INET)
-            pmask = ~((1 << (32 - req->rtr_req.rtr_prefix_len)) - 1);
-        else
-            pmask = 0; /* TBD: Assume V6 prefix length will be multiple of 8 */
-            
-        pmask_byte = req->rtr_req.rtr_prefix_len/8;
-        if (pmask_byte < (RT_IP_ADDR_SIZE(req->rtr_req.rtr_family)-1)) {
-            for (i=pmask_byte+1; i<RT_IP_ADDR_SIZE(req->rtr_req.rtr_family); i++) {
-                req->rtr_req.rtr_prefix[i] = 0;
-                pmask = pmask >> 8;
-            }
-            req->rtr_req.rtr_prefix[pmask_byte] = 
-                         req->rtr_req.rtr_prefix[pmask_byte] & (pmask & 0xff);
+        pmask = req->rtr_req.rtr_prefix_len % 8;
+        pmask_byte = req->rtr_req.rtr_prefix_len / 8;
+        /*
+         * pmask_byte identifies the byte bumber from which we need to
+         * reset prefix till the end of prefix. If mask len is not 8 bit
+         * boundary, we calculate that in pmask
+         */
+        if (pmask) {
+            pmask = ~((1 << (8 - pmask)) - 1);
+            req->rtr_req.rtr_prefix[pmask_byte] =
+                         req->rtr_req.rtr_prefix[pmask_byte] & pmask;
+            pmask_byte++;
         }
-    } 
+        for (; pmask_byte < RT_IP_ADDR_SIZE(req->rtr_req.rtr_family);
+                                                            pmask_byte++) {
+            req->rtr_req.rtr_prefix[pmask_byte] = 0;
+        }
+    }
 
     if (rtable) {
         if (rtable->algo_add)
@@ -516,6 +520,12 @@ int
 bridge_entry_add(struct rtable_fspec *fs, struct vr_route_req *req)
 {
     struct vrouter *router;
+
+    if (!fs) {
+        fs = vr_get_family(AF_BRIDGE);
+        if (!fs)
+            return -EINVAL;
+    }
 
     router = vrouter_get(req->rtr_req.rtr_rid);
     if (!router)

@@ -13,6 +13,9 @@
 #include "vr_htable.h"
 #include "vr_datapath.h"
 #include "vr_bridge.h"
+#include "vr_btable.h"
+
+unsigned int vr_interfaces = VR_MAX_INTERFACES;
 
 volatile bool agent_alive = false;
 
@@ -37,12 +40,17 @@ extern void vr_host_interface_exit(void);
 extern void vr_host_vif_init(struct vrouter *);
 extern struct vr_interface *vif_bridge_get_sub_interface(vr_htable_t,
         unsigned short, unsigned char *);
-extern int vif_bridge_get_index(struct vr_interface *, struct vr_interface *);
+extern int vif_bridge_get_index(struct vr_interface *, struct
+        vr_interface *, uint8_t *);
 extern int vif_bridge_init(struct vr_interface *);
 extern void vif_bridge_deinit(struct vr_interface *);
-extern int vif_bridge_delete(struct vr_interface *, struct vr_interface *);
-extern int vif_bridge_add(struct vr_interface *, struct vr_interface *);
+extern int vif_bridge_delete(struct vr_interface *, struct vr_interface
+        *, uint8_t *);
+extern int vif_bridge_add(struct vr_interface *, struct vr_interface *,
+        uint8_t *);
 extern void vhost_remove_xconnect(void);
+extern void vr_drop_stats_get_vif_stats(vr_drop_stats_req *, struct vr_interface *);
+
 
 #define MINIMUM(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -86,7 +94,7 @@ vif_drop_pkt(struct vr_interface *vif, struct vr_packet *pkt, bool input)
  * in the rewrite case, we will assume the positive case of caller
  * passing us valid rewrite ptr and len and will not check for those
  */
-static unsigned char *
+static int
 vif_cmn_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
         unsigned short len)
@@ -95,21 +103,21 @@ vif_cmn_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
     struct vr_packet *tmp_pkt;
 
     if (!len)
-        return pkt_data(*pkt);
+        return 0;
 
     if (pkt_head_space(*pkt) < len) {
         tmp_pkt = vr_pexpand_head(*pkt, len - pkt_head_space(*pkt));
         if (!tmp_pkt)
-            return NULL;
+            return -ENOMEM;
         *pkt = tmp_pkt;
     }
 
     head = pkt_push(*pkt, len);
     if (!head)
-        return NULL;
+        return -ENOMEM;
 
     memcpy(head, rewrite, len);
-    return head;
+    return len;
 }
 
 static int
@@ -237,6 +245,7 @@ vif_mirror(struct vr_interface *vif, struct vr_packet *pkt,
 {
     unsigned int mirror_type;
     struct vr_forwarding_md mfmd;
+    uint16_t vlan_id;
 
     if (!txrx_mirror)
         return;
@@ -253,17 +262,22 @@ vif_mirror(struct vr_interface *vif, struct vr_packet *pkt,
     }
 
     mfmd.fmd_dvrf = vif->vif_vrf;
+    vr_fmd_put_mirror_if_id(&mfmd, vif->vif_idx);
 
     if (pkt->vp_type == VP_TYPE_NULL)
         vr_pkt_type(pkt, 0, &mfmd);
 
     vr_mirror(vif->vif_router, vif->vif_mirror_id, pkt, &mfmd, mirror_type);
 
+    vlan_id = vr_fmd_get_mirror_vlan(&mfmd);
+    if (vlan_id != FMD_MIRROR_INVALID_DATA)
+        vr_fmd_put_mirror_vlan(fmd, vlan_id);
+
     return;
 }
 
 /* agent driver */
-static unsigned char *
+static int
 agent_set_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
         unsigned short len)
@@ -279,13 +293,13 @@ agent_set_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
     if (pkt_head_space(*pkt) < hdr_len) {
         tmp_pkt = vr_pexpand_head(*pkt, hdr_len - pkt_head_space(*pkt));
         if (!tmp_pkt)
-            return NULL;
+            return -ENOMEM;
         *pkt = tmp_pkt;
     }
 
     head = pkt_push(*pkt, hdr_len);
     if (!head)
-        return NULL;
+        return -ENOMEM;
 
     /* copy the rewrite first */
     memcpy(head, rewrite, len);
@@ -297,7 +311,7 @@ agent_set_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
     hdr->hdr_cmd = htons(AGENT_TRAP_NEXTHOP);
     hdr->hdr_cmd_param = 0;
 
-    return head;
+    return len;
 }
 
 static int
@@ -351,7 +365,9 @@ agent_rx(struct vr_interface *vif, struct vr_packet *pkt,
             }
         }
 
-        vr_virtual_input(ntohs(hdr->hdr_vrf), agent_vif, pkt, VLAN_ID_INVALID);
+        vr_init_forwarding_md(&fmd);
+        vr_virtual_input(ntohs(hdr->hdr_vrf), agent_vif, pkt,
+                &fmd, VLAN_ID_INVALID);
 
         break;
 
@@ -415,6 +431,8 @@ agent_trap_may_truncate(int trap_reason)
     case AGENT_TRAP_ECMP_RESOLVE:
     case AGENT_TRAP_HANDLE_DF:
     case AGENT_TRAP_ZERO_TTL:
+    case AGENT_TRAP_MAC_LEARN:
+    case AGENT_TRAP_MAC_MOVE:
         return 1;
 
     case AGENT_TRAP_ARP:
@@ -523,11 +541,9 @@ agent_send(struct vr_interface *vif, struct vr_packet *pkt,
 
     case AGENT_TRAP_ECMP_RESOLVE:
     case AGENT_TRAP_SOURCE_MISMATCH:
-        if (params->trap_param)
-            hdr->hdr_cmd_param = htonl(*(unsigned int *)(params->trap_param));
-        break;
-
     case AGENT_TRAP_DIAG:
+    case AGENT_TRAP_MAC_LEARN:
+    case AGENT_TRAP_MAC_MOVE:
         if (params->trap_param)
             hdr->hdr_cmd_param = htonl(*(unsigned int *)(params->trap_param));
         break;
@@ -644,7 +660,7 @@ vhost_rx(struct vr_interface *vif, struct vr_packet *pkt,
 
     vif_mirror(vif, pkt, &fmd, vif->vif_flags & VIF_FLAG_MIRROR_RX);
 
-    return vr_fabric_input(vif, pkt, vlan_id);
+    return vr_fabric_input(vif, pkt, &fmd, vlan_id);
 }
 
 static int
@@ -769,7 +785,9 @@ vlan_rx(struct vr_interface *vif, struct vr_packet *pkt,
 {
     int8_t tos;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
+    struct vr_forwarding_md fmd;
 
+    vr_init_forwarding_md(&fmd);
     pkt->vp_if = vif;
 
     stats->vis_ibytes += pkt_len(pkt);
@@ -789,7 +807,7 @@ vlan_rx(struct vr_interface *vif, struct vr_packet *pkt,
 
     vr_pset_data(pkt, pkt->vp_data);
 
-    return vr_virtual_input(vif->vif_vrf, vif, pkt, VLAN_ID_INVALID);
+    return vr_virtual_input(vif->vif_vrf, vif, pkt, &fmd, VLAN_ID_INVALID);
 }
 
 
@@ -797,21 +815,26 @@ static int
 vlan_tx(struct vr_interface *vif, struct vr_packet *pkt,
         struct vr_forwarding_md *fmd)
 {
+    bool force_tag = false;
     int ret = 0;
-
     struct vr_interface *pvif;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
 
-    if (!(pkt->vp_flags & VP_FLAG_GRO)) {
+    if (!vr_pkt_is_gro(pkt)) {
         stats->vis_obytes += pkt_len(pkt);
         stats->vis_opackets++;
     }
 
-    fmd->fmd_vlan = vif->vif_vlan_id;
     if (vif_is_vlan(vif)) {
         if (vif->vif_ovlan_id) {
-            fmd->fmd_vlan = vif->vif_ovlan_id;
-            if (vr_tag_pkt(pkt, vif->vif_ovlan_id)) {
+            /*
+             * If the packet is already received with Tag on interface,
+             * we can force this tag, as double tag is intended
+             */
+            if (fmd->fmd_vlan != VLAN_ID_INVALID)
+                force_tag = true;
+
+            if (vr_tag_pkt(pkt, vif->vif_ovlan_id, force_tag)) {
                 goto drop;
             }
             vr_pset_data(pkt, pkt->vp_data);
@@ -842,6 +865,72 @@ drop:
 }
 
 static int
+vlan_sub_interface_manage(struct vr_interface *pvif,
+        struct vr_interface *vif, int src_mac_num, uint8_t *src_macs)
+{
+    int i, j, ret;
+    uint8_t *vif_mac_entry, *vifr_mac_entry, *free_entry;
+
+    if (!vif || !pvif || !vif->vif_src_mac)
+        return 0;
+
+    vif_mac_entry = vif->vif_src_mac;
+    for (i = 0; i < VIF_SRC_MACS; i++) {
+        if (!IS_MAC_ZERO(vif_mac_entry)) {
+            vifr_mac_entry = src_macs;
+            for (j = 0; j < src_mac_num; j++) {
+                if (VR_MAC_CMP(vifr_mac_entry, vif_mac_entry))
+                    break;
+                vifr_mac_entry += VR_ETHER_ALEN;
+            }
+            if (j == src_mac_num) {
+                ret = vif_bridge_delete(pvif, vif, vif_mac_entry);
+                if (!ret)
+                    return ret;
+
+                VR_MAC_RESET(vif_mac_entry);
+            }
+        }
+        vif_mac_entry += VR_ETHER_ALEN;
+    }
+
+    vifr_mac_entry = src_macs;
+    for (j = 0; j < src_mac_num; j++) {
+        if (!IS_MAC_ZERO(vifr_mac_entry)) {
+
+            vif_mac_entry = vif->vif_src_mac;
+            free_entry = NULL;
+
+            for (i = 0; i < VIF_SRC_MACS; i++) {
+
+                if (!IS_MAC_ZERO(vif_mac_entry)) {
+                    if (VR_MAC_CMP(vifr_mac_entry, vif_mac_entry))
+                        break;
+                } else if (!free_entry) {
+                    free_entry = vif_mac_entry;
+                }
+
+                vif_mac_entry += VR_ETHER_ALEN;
+            }
+
+            if (i == VIF_SRC_MACS) {
+                if (!free_entry)
+                    return -ENOSPC;
+                ret = vif_bridge_add(pvif, vif, vifr_mac_entry);
+                if (ret)
+                    return ret;
+                VR_MAC_COPY(free_entry, vifr_mac_entry);
+            }
+        }
+
+        vifr_mac_entry += VR_ETHER_ALEN;
+    }
+
+
+    return 0;
+}
+
+static int
 vlan_drv_del(struct vr_interface *vif)
 {
     int ret = 0;
@@ -851,13 +940,20 @@ vlan_drv_del(struct vr_interface *vif)
     if (!pvif)
         return 0;
 
-    if (pvif->vif_driver->drv_delete_sub_interface) {
-        ret = pvif->vif_driver->drv_delete_sub_interface(pvif, vif);
-        if (ret)
-            goto exit_del;
+    if (vif->vif_src_mac) {
+        vlan_sub_interface_manage(pvif, vif, 0, NULL);
+    } else {
+        if (pvif->vif_sub_interfaces &&
+                (pvif->vif_sub_interfaces[vif->vif_vlan_id] == vif)) {
+            pvif->vif_sub_interfaces[vif->vif_vlan_id] = NULL;
+        } else {
+            ret = -EINVAL;
+        }
     }
 
-exit_del:
+    if (pvif->vif_driver->drv_delete_sub_interface)
+        pvif->vif_driver->drv_delete_sub_interface(pvif, vif);
+
     if (vif->vif_src_mac) {
         vr_free(vif->vif_src_mac, VR_INTERFACE_MAC_OBJECT);
         vif->vif_src_mac = NULL;
@@ -869,6 +965,7 @@ exit_del:
 static int
 vlan_drv_add(struct vr_interface *vif, vr_interface_req *vifr)
 {
+    int ret = 0;
     struct vr_interface *pvif = NULL;
 
     if ((unsigned int)(vifr->vifr_parent_vif_idx) > VR_MAX_INTERFACES)
@@ -878,16 +975,36 @@ vlan_drv_add(struct vr_interface *vif, vr_interface_req *vifr)
             ((unsigned short)(vifr->vifr_ovlan_id) >= VLAN_ID_MAX))
         return -EINVAL;
 
+    pvif = vrouter_get_interface(vifr->vifr_rid, vifr->vifr_parent_vif_idx);
+    if (!pvif)
+        return -EINVAL;
+
     if (vifr->vifr_src_mac_size && vifr->vifr_src_mac) {
-        if (vifr->vifr_src_mac_size != VR_ETHER_ALEN)
+        if (vifr->vifr_src_mac_size % VR_ETHER_ALEN)
             return -EINVAL;
+        if ((vifr->vifr_src_mac_size / VR_ETHER_ALEN) > VIF_SRC_MACS)
+            return -EINVAL;
+        if (!vif->vif_src_mac) {
+            vif->vif_src_mac = vr_zalloc((VIF_SRC_MACS * VR_ETHER_ALEN), VR_INTERFACE_MAC_OBJECT);
+            if (!vif->vif_src_mac)
+                return -ENOMEM;
+        }
 
-        vif->vif_src_mac = vr_malloc(VR_ETHER_ALEN, VR_INTERFACE_MAC_OBJECT);
-        if (!vif->vif_src_mac)
-            return -ENOMEM;
-
-        memcpy(vif->vif_src_mac, vifr->vifr_src_mac, VR_ETHER_ALEN);
+        if (!pvif->vif_btable) {
+            ret = vif_bridge_init(pvif);
+            if (ret)
+                return ret;
+        }
+    } else {
+        if(!pvif->vif_sub_interfaces) {
+            pvif->vif_sub_interfaces = vr_zalloc(
+                    VLAN_ID_MAX * sizeof(struct vr_interface *),
+                    VR_INTERFACE_OBJECT);
+            if (!pvif->vif_sub_interfaces)
+                return -ENOMEM;
+        }
     }
+
 
     if (!vif->vif_mtu)
         vif->vif_mtu = 1514;
@@ -899,16 +1016,27 @@ vlan_drv_add(struct vr_interface *vif, vr_interface_req *vifr)
     vif->vif_vlan_id = vifr->vifr_vlan_id;
     vif->vif_ovlan_id = vifr->vifr_ovlan_id;
 
-    pvif = vrouter_get_interface(vifr->vifr_rid, vifr->vifr_parent_vif_idx);
-    if (!pvif)
-        return -EINVAL;
 
     vif->vif_parent = pvif;
 
     if (!pvif->vif_driver->drv_add_sub_interface)
         return -EINVAL;
 
-    return pvif->vif_driver->drv_add_sub_interface(pvif, vif);
+    ret = pvif->vif_driver->drv_add_sub_interface(pvif, vif);
+    if (ret)
+        return ret;
+
+    if (!vif->vif_src_mac) {
+        if (pvif->vif_sub_interfaces[vif->vif_vlan_id])
+            return -EEXIST;
+        pvif->vif_sub_interfaces[vif->vif_vlan_id] = vif;
+    } else {
+        return vlan_sub_interface_manage(pvif, vif,
+            (vifr->vifr_src_mac_size / VR_ETHER_ALEN), vifr->vifr_src_mac);
+
+    }
+
+    return 0;
 }
 /* end vlan driver */
 
@@ -919,6 +1047,9 @@ vm_srx(struct vr_interface *vif, struct vr_packet *pkt,
 {
     unsigned short vrf;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
+    struct vr_forwarding_md fmd;
+
+    vr_init_forwarding_md(&fmd);
 
     stats->vis_ibytes += pkt_len(pkt);
     stats->vis_ipackets++;
@@ -928,9 +1059,9 @@ vm_srx(struct vr_interface *vif, struct vr_packet *pkt,
     else
         vrf = vif->vif_vrf_table[vlan_id].va_vrf;
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
+    vif_mirror(vif, pkt, &fmd, vif->vif_flags & VIF_FLAG_MIRROR_RX);
 
-    return vr_virtual_input(vrf, vif, pkt, vlan_id);
+    return vr_virtual_input(vrf, vif, pkt, &fmd, vlan_id);
 }
 
 static mac_response_t
@@ -950,11 +1081,15 @@ static int
 vm_rx(struct vr_interface *vif, struct vr_packet *pkt,
         unsigned short vlan_id)
 {
+    struct vr_forwarding_md fmd;
     struct vr_interface *sub_vif = NULL;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
     struct vr_eth *eth = (struct vr_eth *)pkt_data(pkt);
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
+    vr_init_forwarding_md(&fmd);
+    fmd.fmd_dvrf = vif->vif_vrf;
+
+    vif_mirror(vif, pkt, &fmd, vif->vif_flags & VIF_FLAG_MIRROR_RX);
 
     if (vlan_id != VLAN_ID_INVALID && vlan_id < VLAN_ID_MAX) {
         if (vif->vif_btable) {
@@ -983,7 +1118,7 @@ vm_rx(struct vr_interface *vif, struct vr_packet *pkt,
     stats->vis_ibytes += pkt_len(pkt);
     stats->vis_ipackets++;
 
-    return vr_virtual_input(vif->vif_vrf, vif, pkt, vlan_id);
+    return vr_virtual_input(vif->vif_vrf, vif, pkt, &fmd, vlan_id);
 }
 
 static int
@@ -1025,23 +1160,25 @@ tun_rx(struct vr_interface *vif, struct vr_packet *pkt,
     fmd.fmd_vlan = vlan_id;
     fmd.fmd_dvrf = vif->vif_vrf;
 
+    vif_mirror(vif, pkt, &fmd, vif->vif_flags & VIF_FLAG_MIRROR_RX);
+
     vr_l3_input(pkt, &fmd);
 
     return 0;
 }
 
-static unsigned char *
+static int
 eth_set_rewrite(struct vr_interface *vif, struct vr_packet **pkt,
         struct vr_forwarding_md *fmd, unsigned char *rewrite,
         unsigned short len)
 {
     if (!len)
-        return pkt_data(*pkt);
+        return 0;
 
     if (((*pkt)->vp_if->vif_type == VIF_TYPE_HOST) &&
             !((*pkt)->vp_flags & VP_FLAG_FROM_DP)) {
         vr_preset(*pkt);
-        return pkt_data(*pkt);
+        return 0;
     }
 
     return vif_cmn_rewrite(vif, pkt, fmd, rewrite, len);
@@ -1077,14 +1214,17 @@ static int
 eth_rx(struct vr_interface *vif, struct vr_packet *pkt,
         unsigned short vlan_id)
 {
+    struct vr_forwarding_md fmd;
     struct vr_interface *sub_vif = NULL;
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
     struct vr_eth *eth = (struct vr_eth *)pkt_data(pkt);
 
+    vr_init_forwarding_md(&fmd);
+
     stats->vis_ibytes += pkt_len(pkt);
     stats->vis_ipackets++;
 
-    vif_mirror(vif, pkt, NULL, vif->vif_flags & VIF_FLAG_MIRROR_RX);
+    vif_mirror(vif, pkt, &fmd, vif->vif_flags & VIF_FLAG_MIRROR_RX);
 
     /*
      * please see the text on xconnect mode
@@ -1114,15 +1254,16 @@ eth_rx(struct vr_interface *vif, struct vr_packet *pkt,
             return sub_vif->vif_rx(sub_vif, pkt, VLAN_ID_INVALID);
     }
 
-    return vr_fabric_input(vif, pkt, vlan_id);
+    return vr_fabric_input(vif, pkt, &fmd, vlan_id);
 }
 
 static int
 eth_tx(struct vr_interface *vif, struct vr_packet *pkt,
         struct vr_forwarding_md *fmd)
 {
+    bool stats_count = true, from_subvif = false, force_tag = true;
     int ret, handled;
-    bool stats_count = true, from_subvif = false;
+    uint16_t vlan_id;
 
     struct vr_interface_stats *stats = vif_get_stats(vif, pkt->vp_cpu);
 
@@ -1143,7 +1284,7 @@ eth_tx(struct vr_interface *vif, struct vr_packet *pkt,
          * the absence of nh and the packet ingressed from agent interface,
          * the vlan id is set.
          */
-        if (pkt->vp_flags & VP_FLAG_GRO)
+        if (vr_pkt_is_gro(pkt))
             stats_count = false;
 
         if ((pkt->vp_nh && (pkt->vp_nh->nh_dev != vif)) ||
@@ -1151,6 +1292,11 @@ eth_tx(struct vr_interface *vif, struct vr_packet *pkt,
                  (fmd->fmd_vlan != VLAN_ID_INVALID))) {
                 from_subvif = true;
                 stats_count = false;
+        }
+    } else if (vif_is_fabric(vif)) {
+        vlan_id = vr_fmd_get_mirror_vlan(fmd);
+        if (vlan_id != FMD_MIRROR_INVALID_DATA) {
+            vr_tag_pkt(pkt, vlan_id, force_tag);
         }
     }
 
@@ -1191,65 +1337,20 @@ eth_drv_del(struct vr_interface *vif)
 static int
 eth_drv_del_sub_interface(struct vr_interface *pvif, struct vr_interface *vif)
 {
-    int ret = 0;
 
-    if (vif->vif_src_mac) {
-        ret = vif_bridge_delete(pvif, vif);
-    } else {
-        if (pvif->vif_sub_interfaces &&
-                (pvif->vif_sub_interfaces[vif->vif_vlan_id] == vif)) {
-            pvif->vif_sub_interfaces[vif->vif_vlan_id] = NULL;
-        } else {
-            ret = -EINVAL;
-        }
-    }
-
-    if (!ret) {
-        vrouter_put_interface(pvif);
+    if (vif->vif_parent == pvif) {
         vif->vif_parent = NULL;
-        hif_ops->hif_del(vif);
+        vrouter_put_interface(pvif);
     }
+    hif_ops->hif_del(vif);
 
-    return ret;
+    return 0;
 }
 
 static int
 eth_drv_add_sub_interface(struct vr_interface *pvif, struct vr_interface *vif)
 {
-    int ret = 0;
-
-    ret = hif_ops->hif_add(vif);
-    if (ret)
-        return ret;
-
-    if (vif->vif_src_mac) {
-        if (!pvif->vif_btable) {
-            ret = vif_bridge_init(pvif);
-            if (ret)
-                return ret;
-        }
-
-        ret = vif_bridge_add(pvif, vif);
-    } else {
-        if(!pvif->vif_sub_interfaces) {
-            pvif->vif_sub_interfaces = vr_zalloc(VLAN_ID_MAX *
-                sizeof(struct vr_interface *), VR_INTERFACE_OBJECT);
-            if (!pvif->vif_sub_interfaces)
-                return -ENOMEM;
-            /*
-             * we are not going to free this memory, since it is not guaranteed
-             * that we will get contiguous memory. so hold on to it for the life
-             * time of the interface
-             */
-        }
-
-        if (pvif->vif_sub_interfaces[vif->vif_vlan_id])
-            return -EEXIST;
-
-        pvif->vif_sub_interfaces[vif->vif_vlan_id] = vif;
-    }
-
-    return ret;
+    return hif_ops->hif_add(vif);
 }
 
 static int
@@ -1399,6 +1500,18 @@ vif_free(struct vr_interface *vif)
         vif_bridge_deinit(vif);
     }
 
+    if (vif->vif_bridge_table_lock) {
+        vr_free(vif->vif_bridge_table_lock,
+                VR_INTERFACE_BRIDGE_LOCK_OBJECT);
+        vif->vif_bridge_table_lock = NULL;
+    }
+
+    if (vif->vif_hw_queues) {
+        vr_free(vif->vif_hw_queues, VR_INTERFACE_QUEUE_OBJECT);
+        vif->vif_hw_queues = NULL;
+        vif->vif_num_hw_queues = 0;
+    }
+
     if (vif->vif_src_mac) {
         vr_free(vif->vif_src_mac, VR_INTERFACE_MAC_OBJECT);
         vif->vif_src_mac = NULL;
@@ -1415,6 +1528,30 @@ vif_free(struct vr_interface *vif)
             vif_fat_flow_free(vif->vif_fat_flow_ports[i]);
             vif->vif_fat_flow_ports[i] = NULL;
         }
+    }
+
+    if (vif->vif_in_mirror_md) {
+        vif->vif_in_mirror_md_len = 0;
+        vif->vif_in_mirror_md_size = 0;
+        vr_free(vif->vif_in_mirror_md, VR_INTERFACE_MIRROR_META_OBJECT);
+        vif->vif_in_mirror_md = NULL;
+    }
+
+    if (vif->vif_out_mirror_md) {
+        vif->vif_out_mirror_md_len = 0;
+        vif->vif_out_mirror_md_size = 0;
+        vr_free(vif->vif_out_mirror_md, VR_INTERFACE_MIRROR_META_OBJECT);
+        vif->vif_out_mirror_md = NULL;
+    }
+
+    if (vif->vif_drop_stats) {
+        vr_free(vif->vif_drop_stats, VR_DROP_STATS_OBJECT);
+        vif->vif_drop_stats = NULL;
+    }
+
+    if (vif->vif_pcpu_drop_stats) {
+        vr_btable_free(vif->vif_pcpu_drop_stats);
+        vif->vif_pcpu_drop_stats = NULL;
     }
 
     vr_free(vif, VR_INTERFACE_OBJECT);
@@ -1464,7 +1601,7 @@ vrouter_get_interface(unsigned int rid, unsigned int idx)
 
     vif = __vrouter_get_interface(router, idx);
     if (vif)
-        vif->vif_users++;
+        (void)vr_sync_add_and_fetch_32u(&vif->vif_users, 1);
 
     return vif;
 }
@@ -1735,7 +1872,24 @@ vr_interface_delete(vr_interface_req *req, bool need_response)
     struct vr_interface *vif;
     struct vrouter *router = vrouter_get(req->vifr_rid);
 
-    vif = __vrouter_get_interface(router, req->vifr_idx);
+    /* Interface can be deleted using vif name of OS interface name or
+     * index
+     */
+    if (req->vifr_name) {
+#ifdef _WIN32
+        vif = vif_find(router, req->vifr_name);
+#else
+        if (2 == sscanf(req->vifr_name, "vif%u/%u", &req->vifr_rid,
+                    &req->vifr_idx))
+            vif = __vrouter_get_interface(vrouter_get(req->vifr_rid),
+                    req->vifr_idx);
+        else
+            vif = vif_find(router, req->vifr_name);
+#endif
+    } else {
+        vif = __vrouter_get_interface(router, req->vifr_idx);
+    }
+
     if (!vif && (ret = -ENODEV))
         goto del_fail;
 
@@ -1749,8 +1903,46 @@ del_fail:
 }
 
 static void
+vif_free_bridge_table_lock(struct vrouter *router, void *data)
+{
+   struct vr_defer_data *vdd = (struct vr_defer_data *)data;
+
+    if (!vdd)
+        return;
+
+    vr_free(vdd->vdd_data, VR_INTERFACE_BRIDGE_LOCK_OBJECT);
+
+    return;
+}
+
+static int
 vif_set_flags(struct vr_interface *vif, vr_interface_req *req)
 {
+    void *mem;
+    struct vr_defer_data *vdd;
+
+    if ((req->vifr_flags & VIF_FLAG_MAC_LEARN) || (vif_is_fabric(vif))) {
+        if (!vif->vif_bridge_table_lock) {
+            vif->vif_bridge_table_lock =
+                vr_zalloc(vr_num_cpus * sizeof(uint8_t),
+                        VR_INTERFACE_BRIDGE_LOCK_OBJECT);
+            if (!vif->vif_bridge_table_lock) {
+                return -ENOMEM;
+            }
+        }
+    } else if (vif->vif_flags & VIF_FLAG_MAC_LEARN) {
+        if (vif->vif_bridge_table_lock) {
+            vdd = vr_get_defer_data(sizeof(*vdd));
+            if (vdd) {
+                mem = vif->vif_bridge_table_lock;
+                vif->vif_bridge_table_lock = NULL;
+                vdd->vdd_data = mem;
+                vr_defer(vif->vif_router, vif_free_bridge_table_lock,
+                        (void *)vdd);
+            }
+        }
+    }
+
     vif->vif_flags = (vif->vif_flags & VIF_VR_CAP_MASK) |
                      (req->vifr_flags & ~VIF_VR_CAP_MASK);
 
@@ -1762,13 +1954,89 @@ vif_set_flags(struct vr_interface *vif, vr_interface_req *req)
         vif->vif_flags |= (VIF_FLAG_L3_ENABLED | VIF_FLAG_L2_ENABLED);
     }
 
-    return;
+    return 0;
+}
+
+static int
+vr_interface_mirror_md_set(struct vr_interface *vif, vr_interface_req *req)
+{
+    /*
+     * If metadata is removed from request, make our metadata len to
+     * zero, so that it does not get used in packet processeing. The
+     * memory will get freed only at the time of deletion of interface
+     * _size hold the allocated memory size, so that we would not over
+     * shoot while copying.
+     * It is also assumed that the interface metadata does not change
+     * once allocated
+     */
+    if (!req->vifr_in_mirror_md_size)
+        vif->vif_in_mirror_md_len = 0;
+
+    if (!req->vifr_out_mirror_md_size)
+        vif->vif_out_mirror_md_len = 0;
+
+    if (req->vifr_in_mirror_md_size) {
+        if (!vif->vif_in_mirror_md) {
+            /*
+             * If there is no mirror md already, ensure we dont create
+             * more than the max size
+             */
+            if (req->vifr_in_mirror_md_size > VIF_MAX_MIRROR_MD_SIZE)
+                req->vifr_in_mirror_md_size = VIF_MAX_MIRROR_MD_SIZE;
+
+            vif->vif_in_mirror_md =
+                vr_zalloc(req->vifr_in_mirror_md_size,
+                                VR_INTERFACE_MIRROR_META_OBJECT);
+            if (!vif->vif_in_mirror_md)
+                return -ENOMEM;
+
+            vif->vif_in_mirror_md_size = req->vifr_in_mirror_md_size;
+        } else {
+            /*
+             * If mirror md already exists, we dont want the new len to
+             * be more than that
+             */
+            if (req->vifr_in_mirror_md_size > vif->vif_in_mirror_md_size) {
+                req->vifr_in_mirror_md_size = vif->vif_in_mirror_md_size;
+            }
+        }
+
+        memcpy(vif->vif_in_mirror_md,
+                    req->vifr_in_mirror_md, req->vifr_in_mirror_md_size);
+        vif->vif_in_mirror_md_len = req->vifr_in_mirror_md_size;
+    }
+
+    if (req->vifr_out_mirror_md_size) {
+        if (!vif->vif_out_mirror_md) {
+            if (req->vifr_out_mirror_md_size > VIF_MAX_MIRROR_MD_SIZE)
+                req->vifr_out_mirror_md_size = VIF_MAX_MIRROR_MD_SIZE;
+
+            vif->vif_out_mirror_md =
+                vr_zalloc(req->vifr_out_mirror_md_size,
+                                VR_INTERFACE_MIRROR_META_OBJECT);
+            if (!vif->vif_out_mirror_md)
+                return -ENOMEM;
+
+            vif->vif_out_mirror_md_size = req->vifr_out_mirror_md_size;
+        } else {
+            if (req->vifr_out_mirror_md_size > vif->vif_out_mirror_md_size) {
+                req->vifr_out_mirror_md_size = vif->vif_out_mirror_md_size;
+            }
+        }
+
+        memcpy(vif->vif_out_mirror_md,
+                    req->vifr_out_mirror_md, req->vifr_out_mirror_md_size);
+        vif->vif_out_mirror_md_len = req->vifr_out_mirror_md_size;
+    }
+
+    return 0;
 }
 
 static int
 vr_interface_change(struct vr_interface *vif, vr_interface_req *req)
 {
     int ret = 0;
+    uint64_t *ip6;
 
     if (req->vifr_flags & VIF_FLAG_SERVICE_IF &&
             !(vif->vif_flags & VIF_FLAG_SERVICE_IF)) {
@@ -1780,7 +2048,9 @@ vr_interface_change(struct vr_interface *vif, vr_interface_req *req)
         vr_interface_service_disable(vif);
     }
 
-    vif_set_flags(vif, req);
+    ret = vif_set_flags(vif, req);
+    if (ret)
+        return ret;
 
     vif->vif_mirror_id = req->vifr_mir_id;
     if (!(vif->vif_flags & VIF_FLAG_MIRROR_RX) &&
@@ -1795,11 +2065,25 @@ vr_interface_change(struct vr_interface *vif, vr_interface_req *req)
 
     vif->vif_nh_id = (unsigned short)req->vifr_nh_id;
     vif->vif_qos_map_index = req->vifr_qos_map_index;
+    vif->vif_isid = req->vifr_isid;
+    if (req->vifr_pbb_mac_size)
+        VR_MAC_COPY(vif->vif_pbb_mac, req->vifr_pbb_mac);
+
+    vif->vif_ip = req->vifr_ip;
+    ip6 = (uint64_t *)(vif->vif_ip6);
+    *ip6 = req->vifr_ip6_u;
+    *(ip6 + 1) = req->vifr_ip6_l;
+
+    ret = vr_interface_mirror_md_set(vif, req);
+    if (ret)
+        return ret;
 
     if ((ret = vif_fat_flow_add(vif, req)))
         return ret;
 
-    return 0;
+    return vlan_sub_interface_manage(vif->vif_parent, vif,
+                req->vifr_src_mac_size / VR_ETHER_ALEN, req->vifr_src_mac);
+
 }
 
 static bool
@@ -1823,19 +2107,20 @@ int
 vr_interface_add(vr_interface_req *req, bool need_response)
 {
     int i, ret = 0;
+    uint64_t *ip6;
     struct vr_interface *vif = NULL;
     struct vrouter *router = vrouter_get(req->vifr_rid);
 
     if (!router || ((unsigned int)req->vifr_idx >= router->vr_max_interfaces)) {
         ret = -EINVAL;
-        goto generate_resp;
+        goto error;
     }
 
     if (req->vifr_type >= VIF_TYPE_MAX && (ret = -EINVAL))
-        goto generate_resp;
+        goto error;
 
     if (!vif_transport_valid(req))
-        goto generate_resp;
+        goto error;
 
     vif = __vrouter_get_interface(router, req->vifr_idx);
     if (vif) {
@@ -1846,14 +2131,14 @@ vr_interface_add(vr_interface_req *req, bool need_response)
     vif = vr_zalloc(sizeof(*vif), VR_INTERFACE_OBJECT);
     if (!vif) {
         ret = -ENOMEM;
-        goto generate_resp;
+        goto error;
     }
 
     vif->vif_stats = vr_zalloc(vr_num_cpus *
             sizeof(struct vr_interface_stats), VR_INTERFACE_STATS_OBJECT);
     if (!vif->vif_stats) {
         ret = -ENOMEM;
-        goto generate_resp;
+        goto error;
     }
 
     for (i = 0; i < vr_num_cpus; i++) {
@@ -1861,19 +2146,43 @@ vr_interface_add(vr_interface_req *req, bool need_response)
                 sizeof(uint64_t), VR_INTERFACE_TO_LCORE_ERRORS_OBJECT);
         if (!vif->vif_stats[i].vis_queue_ierrors_to_lcore) {
             ret = -ENOMEM;
-            goto generate_resp;
+            goto error;
         }
     }
 
+    /*
+     * The dropstats need to be available per interface. Incrementing
+     * atomically the same statistics across many CPUs might attract
+     * significatnt delay. Alternative approach of allocating memory for
+     * every dropstat for every CPU will be large chunk of memory
+     * considering large number of interfaces, number of dropstats,
+     * number of CPUs and size of every counter.  To normalise both the
+     * requirements, one set of dropstats of 64 bit size and another set
+     * of dropstats of one byte per every cpu is allocated. The later is
+     * incremented without any contention as it is per cpu. When the
+     * one byte counter reaches its max value, it is added to the
+     * 64 bit counter atomically. This results in decreasing the delay
+     * as well decresing the memory requirement
+     */
+    vif->vif_drop_stats = vr_zalloc((VP_DROP_MAX * sizeof(uint64_t)),
+                                               VR_DROP_STATS_OBJECT);
+    if (!vif->vif_drop_stats) {
+        ret = -ENOMEM;
+        goto error;
+    }
+
+    /*
+     * We continue to create the interface even if per cpu stats
+     * allocation fails. In this case, we directly increment on
+     * vif_drop_stats atomically
+     */
+    vif->vif_pcpu_drop_stats = vr_btable_alloc((vr_num_cpus * VP_DROP_MAX), 1);
+
     vif->vif_type = req->vifr_type;
 
-    vif_set_flags(vif, req);
-
-    vif->vif_mirror_id = req->vifr_mir_id;
-    if (!(vif->vif_flags & VIF_FLAG_MIRROR_RX) &&
-        !(vif->vif_flags & VIF_FLAG_MIRROR_TX)) {
-        vif->vif_mirror_id = VR_MAX_MIRROR_INDICES;
-    }
+    ret = vif_set_flags(vif, req);
+    if (ret)
+        goto error;
 
     vif->vif_vrf = req->vifr_vrf;
     vif->vif_vlan_id = VLAN_ID_INVALID;
@@ -1881,16 +2190,29 @@ vr_interface_add(vr_interface_req *req, bool need_response)
     vif->vif_idx = req->vifr_idx;
     vif->vif_transport = req->vifr_transport;
     vif->vif_os_idx = req->vifr_os_idx;
+    vif->vif_vhostuser_mode = req->vifr_vhostuser_mode;
     if (req->vifr_os_idx == -1)
         vif->vif_os_idx = 0;
     vif->vif_rid = req->vifr_rid;
     vif->vif_nh_id = (unsigned short)req->vifr_nh_id;
     vif->vif_qos_map_index = req->vifr_qos_map_index;
+    vif->vif_isid = req->vifr_isid;
+    if (req->vifr_pbb_mac_size)
+        VR_MAC_COPY(vif->vif_pbb_mac, req->vifr_pbb_mac);
+
+    vif->vif_mirror_id = req->vifr_mir_id;
+    if (!(vif->vif_flags & VIF_FLAG_MIRROR_RX) &&
+        !(vif->vif_flags & VIF_FLAG_MIRROR_TX)) {
+        vif->vif_mirror_id = VR_MAX_MIRROR_INDICES;
+    }
+    ret = vr_interface_mirror_md_set(vif, req);
+    if (ret)
+        goto error;
 
     if (req->vifr_mac) {
         if (req->vifr_mac_size != sizeof(vif->vif_mac)) {
             ret = -EINVAL;
-            goto generate_resp;
+            goto error;
         }
 
         memcpy(vif->vif_mac, req->vifr_mac, sizeof(vif->vif_mac));
@@ -1898,14 +2220,29 @@ vr_interface_add(vr_interface_req *req, bool need_response)
     }
 
     vif->vif_ip = req->vifr_ip;
+    ip6 = (uint64_t *)(vif->vif_ip6);
+    *ip6 = req->vifr_ip6_u;
+    *(ip6 + 1) = req->vifr_ip6_l;
 
     if (req->vifr_name) {
         strncpy(vif->vif_name, req->vifr_name, sizeof(vif->vif_name) - 1);
     }
 
+    if (req->vifr_hw_queues_size) {
+        vif->vif_hw_queues = vr_malloc(sizeof(uint16_t) *
+                req->vifr_hw_queues_size, VR_INTERFACE_QUEUE_OBJECT);
+        if (!vif->vif_hw_queues) {
+            goto error;
+        }
+
+        vif->vif_num_hw_queues = req->vifr_hw_queues_size;
+        memcpy(vif->vif_hw_queues, req->vifr_hw_queues,
+                req->vifr_hw_queues_size * sizeof(uint16_t));
+    }
+
     ret = vif_fat_flow_add(vif, req);
     if (ret)
-        goto generate_resp;
+        goto error;
 
     /*
      * the order below is probably not intuitive, but we do this because
@@ -1917,7 +2254,7 @@ vr_interface_add(vr_interface_req *req, bool need_response)
     vif->vif_tx = vif_discard_tx;
     ret = vrouter_add_interface(vif, req);
     if (ret)
-        goto generate_resp;
+        goto error;
 
     ret = vif_drv_add(vif, req);
     if (ret) {
@@ -1925,19 +2262,18 @@ vr_interface_add(vr_interface_req *req, bool need_response)
         vif = NULL;
     }
 
-    if (!ret)
+    if (!ret) {
         vrouter_setup_vif(vif);
+        vr_register_nic(vif, req);
+    }
+
+error:
+    if (ret && vif)
+        vif_free(vif);
 
 generate_resp:
     if (need_response)
         vr_send_response(ret);
-
-    if (vif) {
-        if (ret)
-            vif_free(vif);
-        else
-            vr_register_nic(vif, req);
-    }
 
     return ret;
 }
@@ -1980,6 +2316,28 @@ vr_interface_add_response(vr_interface_req *req,
     req->vifr_dev_oerrors += stats->vis_dev_oerrors;
 }
 
+static uint64_t
+vr_interface_get_drops(struct vr_interface *vif)
+{
+    uint8_t *count, cpu;
+    int stats_index;
+    uint64_t total_drops;
+
+    total_drops = 0;
+    for (stats_index = 0; stats_index < VP_DROP_MAX; stats_index++) {
+        total_drops += vif->vif_drop_stats[stats_index];
+        if (vif->vif_pcpu_drop_stats) {
+            for (cpu = 0; cpu < vr_num_cpus; cpu++) {
+                count = vr_btable_get(vif->vif_pcpu_drop_stats,
+                            ((cpu * VP_DROP_MAX) + stats_index));
+                total_drops += *count;
+            }
+        }
+    }
+
+    return total_drops;
+}
+
 static void
 __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
         unsigned int core)
@@ -1987,6 +2345,7 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
     uint8_t proto;
     uint16_t port;
     unsigned int cpu, i, j, k = 0;
+    uint64_t *ip6;
 
     struct vr_interface_settings settings;
 
@@ -2003,6 +2362,9 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
         memcpy(req->vifr_mac, intf->vif_mac,
                 MINIMUM(req->vifr_mac_size, sizeof(intf->vif_mac)));
     req->vifr_ip = intf->vif_ip;
+    ip6 = (uint64_t *)(intf->vif_ip6);
+    req->vifr_ip6_u = *ip6;
+    req->vifr_ip6_l = *(ip6 + 1);
     req->vifr_mir_id = intf->vif_mirror_id;
 
     req->vifr_ref_cnt = intf->vif_users;
@@ -2022,9 +2384,19 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
     }
 
     if (intf->vif_src_mac) {
-        memcpy(req->vifr_src_mac, intf->vif_src_mac, VR_ETHER_ALEN);
-        req->vifr_src_mac_size = VR_ETHER_ALEN;
-        req->vifr_bridge_idx = vif_bridge_get_index(intf->vif_parent, intf);
+        req->vifr_src_mac_size = 0;
+        req->vifr_bridge_idx_size = 0;
+        for (i = 0; i < VIF_SRC_MACS; i++) {
+            if (IS_MAC_ZERO((intf->vif_src_mac + (i * VR_ETHER_ALEN))))
+                continue;
+            VR_MAC_COPY((req->vifr_src_mac + (i * VR_ETHER_ALEN)),
+                    (intf->vif_src_mac + (i * VR_ETHER_ALEN)));
+            req->vifr_src_mac_size += VR_ETHER_ALEN;
+            req->vifr_bridge_idx[i] =
+                vif_bridge_get_index(intf->vif_parent, intf,
+                        intf->vif_src_mac + (i * VR_ETHER_ALEN));
+            req->vifr_bridge_idx_size += sizeof(uint32_t);
+        }
     } else {
         /*
          * this is a small hack. we had already allocated the memory in
@@ -2032,7 +2404,32 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
          * that the field is not valid - by setting the size to 0.
          */
         req->vifr_src_mac_size = 0;
+        req->vifr_bridge_idx_size = 0;
     }
+
+    req->vifr_in_mirror_md_size = 0;
+    if (intf->vif_in_mirror_md_len) {
+        memcpy(req->vifr_in_mirror_md, intf->vif_in_mirror_md,
+                intf->vif_in_mirror_md_len);
+        req->vifr_in_mirror_md_size = intf->vif_in_mirror_md_len;
+    }
+
+    req->vifr_out_mirror_md_size = 0;
+    if (intf->vif_out_mirror_md_len) {
+        memcpy(req->vifr_out_mirror_md, intf->vif_out_mirror_md,
+                intf->vif_out_mirror_md_len);
+        req->vifr_out_mirror_md_size = intf->vif_out_mirror_md_len;
+    }
+
+    req->vifr_isid = intf->vif_isid;
+    if (!IS_MAC_ZERO(intf->vif_pbb_mac) && req->vifr_pbb_mac) {
+        req->vifr_pbb_mac_size = VR_ETHER_ALEN;
+        VR_MAC_COPY(req->vifr_pbb_mac, intf->vif_pbb_mac);
+    } else {
+        req->vifr_pbb_mac_size = 0;
+    }
+    req->vifr_vhostuser_mode = intf->vif_vhostuser_mode;
+
 
     /* vif counters */
     req->vifr_ibytes = 0;
@@ -2125,19 +2522,8 @@ __vr_interface_make_req(vr_interface_req *req, struct vr_interface *intf,
     }
 
     req->vifr_qos_map_index = intf->vif_qos_map_index;
+    req->vifr_dpackets = vr_interface_get_drops(intf);
     return;
-}
-
-unsigned int
-vr_interface_req_get_size(void *req_p)
-{
-    unsigned int size = 4 * sizeof(vr_interface_req);
-    vr_interface_req *req = (vr_interface_req *)req_p;
-
-    if (req->vifr_queue_ierrors_to_lcore)
-        size += (vr_num_cpus * sizeof(int64_t));
-
-    return size;
 }
 
 static int
@@ -2165,6 +2551,24 @@ vr_interface_make_req(vr_interface_req *req, struct vr_interface *vif,
     return 0;
 }
 
+unsigned int
+vr_interface_req_get_size(void *req_p)
+{
+    unsigned int size;
+    vr_interface_req *req = (vr_interface_req *)req_p;
+
+
+    /*
+     * Standard interface request size + both ingress and egress
+     * metadata size
+     */
+    size = ((4 * sizeof(*req)) + (2 * VIF_MAX_MIRROR_MD_SIZE));
+    if (req->vifr_queue_ierrors_to_lcore)
+        size += (vr_num_cpus * sizeof(int64_t));
+
+    return size;
+}
+
 static vr_interface_req *
 vr_interface_req_get(void)
 {
@@ -2178,9 +2582,15 @@ vr_interface_req_get(void)
     if (req->vifr_mac)
         req->vifr_mac_size = VR_ETHER_ALEN;
 
-    req->vifr_src_mac = vr_zalloc(VR_ETHER_ALEN, VR_INTERFACE_REQ_MAC_OBJECT);
+    req->vifr_src_mac = vr_zalloc(VR_ETHER_ALEN * VIF_SRC_MACS, VR_INTERFACE_REQ_MAC_OBJECT);
     if (req->vifr_src_mac)
         req->vifr_src_mac_size = 0;
+
+    req->vifr_bridge_idx = vr_zalloc(sizeof(uint32_t)* VIF_SRC_MACS,
+            VR_INTERFACE_REQ_BRIDGE_ID_OBJECT);
+    if (req->vifr_bridge_idx)
+        req->vifr_bridge_idx_size = 0;
+
     req->vifr_name = vr_zalloc(VR_INTERFACE_NAME_LEN,
             VR_INTERFACE_REQ_NAME_OBJECT);
 
@@ -2188,6 +2598,16 @@ vr_interface_req_get(void)
             VR_INTERFACE_REQ_TO_LCORE_ERRORS_OBJECT);
     if (req->vifr_queue_ierrors_to_lcore)
         req->vifr_queue_ierrors_to_lcore_size = 0;
+
+    req->vifr_in_mirror_md_size = 0;
+    req->vifr_in_mirror_md = vr_zalloc(VIF_MAX_MIRROR_MD_SIZE,
+                                VR_INTERFACE_REQ_MIRROR_META_OBJECT);
+
+    req->vifr_out_mirror_md_size = 0;
+    req->vifr_out_mirror_md = vr_zalloc(VIF_MAX_MIRROR_MD_SIZE,
+                                VR_INTERFACE_REQ_MIRROR_META_OBJECT);
+    req->vifr_pbb_mac = vr_zalloc(VR_ETHER_ALEN,
+            VR_INTERFACE_REQ_PBB_MAC_OBJECT);
 
     return req;
 }
@@ -2222,6 +2642,11 @@ vr_interface_req_destroy(vr_interface_req *req)
         req->vifr_src_mac_size = 0;
     }
 
+    if (req->vifr_bridge_idx) {
+        vr_free(req->vifr_bridge_idx, VR_INTERFACE_REQ_BRIDGE_ID_OBJECT);
+        req->vifr_bridge_idx_size = 0;
+    }
+
     if (req->vifr_name)
         vr_free(req->vifr_name, VR_INTERFACE_REQ_NAME_OBJECT);
 
@@ -2229,6 +2654,27 @@ vr_interface_req_destroy(vr_interface_req *req)
         vr_free(req->vifr_queue_ierrors_to_lcore,
             VR_INTERFACE_REQ_TO_LCORE_ERRORS_OBJECT);
         req->vifr_queue_ierrors_to_lcore_size = 0;
+    }
+
+    if (req->vifr_in_mirror_md) {
+        vr_free(req->vifr_in_mirror_md,
+                VR_INTERFACE_REQ_MIRROR_META_OBJECT);
+        req->vifr_in_mirror_md_size = 0;
+        req->vifr_in_mirror_md = NULL;
+    }
+
+    if (req->vifr_out_mirror_md) {
+        vr_free(req->vifr_out_mirror_md,
+                VR_INTERFACE_REQ_MIRROR_META_OBJECT);
+        req->vifr_out_mirror_md_size = 0;
+        req->vifr_out_mirror_md = NULL;
+    }
+
+    if (req->vifr_pbb_mac) {
+        vr_free(req->vifr_pbb_mac,
+                VR_INTERFACE_REQ_PBB_MAC_OBJECT);
+        req->vifr_pbb_mac = NULL;
+        req->vifr_pbb_mac_size = 0;
     }
 
     vr_interface_req_free_fat_flow_config(req);
@@ -2241,11 +2687,18 @@ vr_interface_req_destroy(vr_interface_req *req)
 static int
 vr_interface_get(vr_interface_req *req)
 {
-    int ret = 0;
-
-    struct vr_interface *vif = NULL;
+    int ret = 0, obj_cnt = 0;
+    struct vr_message_multi mm;
+    vr_response resp;
     struct vrouter *router;
-    vr_interface_req *resp = NULL;
+    vr_interface_req *vif_resp = NULL;
+    vr_drop_stats_req *drop_resp = NULL;
+    struct vr_interface *vif = NULL;
+
+    resp.h_op = SANDESH_OP_RESPONSE;
+    mm.vr_mm_object_type[obj_cnt] = VR_RESPONSE_OBJECT_ID;
+    mm.vr_mm_object[obj_cnt] = &resp;
+    obj_cnt++;
 
     router = vrouter_get(req->vifr_rid);
     if (!router) {
@@ -2258,22 +2711,52 @@ vr_interface_get(vr_interface_req *req)
     else
         vif = __vrouter_get_interface(router, req->vifr_idx);
 
-    if (vif) {
-        resp = vr_interface_req_get();
-        if (!resp) {
+    if (!vif) {
+        ret = -ENOENT;
+        goto generate_response;
+    }
+
+    vif_resp = vr_interface_req_get();
+    if (!vif_resp) {
+        ret = -ENOMEM;
+        goto generate_response;
+    }
+
+    ret = vr_interface_make_req(vif_resp, vif, (unsigned)(req->vifr_core - 1));
+    if (ret < 0)
+        goto generate_response;
+
+    mm.vr_mm_object_type[obj_cnt] = VR_INTERFACE_OBJECT_ID;
+    mm.vr_mm_object[obj_cnt] = vif_resp;
+    obj_cnt++;
+
+    if (req->vifr_flags & VIF_FLAG_GET_DROP_STATS) {
+        drop_resp = vr_zalloc(sizeof(*drop_resp), VR_DROP_STATS_REQ_OBJECT);
+        if (!drop_resp) {
             ret = -ENOMEM;
             goto generate_response;
         }
 
-        /* zero vifr_core means to sum up all the per-core stats */
-        vr_interface_make_req(resp, vif, (unsigned)(req->vifr_core - 1));
-    } else
-        ret = -ENOENT;
+        if (!vif->vif_pcpu_drop_stats)
+            drop_resp->vds_pcpu_stats_failure_status = 1;
+
+        vr_drop_stats_get_vif_stats(drop_resp, vif);
+
+        mm.vr_mm_object_type[obj_cnt] = VR_DROP_STATS_OBJECT_ID;
+        mm.vr_mm_object[obj_cnt] = drop_resp;
+        obj_cnt++;
+    }
 
 generate_response:
-    vr_message_response(VR_INTERFACE_OBJECT_ID, ret ? NULL : resp, ret);
-    if (resp)
-        vr_interface_req_destroy(resp);
+    mm.vr_mm_object_count = obj_cnt;
+    resp.resp_code = ret;
+    vr_message_multi_response(&mm);
+
+    if (vif_resp)
+        vr_interface_req_destroy(vif_resp);
+
+    if (drop_resp)
+        vr_free(drop_resp, VR_DROP_STATS_REQ_OBJECT);
 
     return 0;
 }
@@ -2285,8 +2768,9 @@ vr_interface_dump(vr_interface_req *r)
     unsigned int i;
     vr_interface_req *resp = NULL;
     struct vr_interface *vif;
-    struct vrouter *router = vrouter_get(r->vifr_vrf);
+    struct vrouter *router = vrouter_get(r->vifr_rid);
     struct vr_message_dumper *dumper = NULL;
+    vr_drop_stats_req *drop_resp = NULL;
 
     if (!router && (ret = -ENODEV))
         goto generate_response;
@@ -2306,6 +2790,12 @@ vr_interface_dump(vr_interface_req *r)
         goto generate_response;
     }
 
+    drop_resp = vr_zalloc(sizeof(*drop_resp), VR_DROP_STATS_REQ_OBJECT);
+    if (!drop_resp) {
+        ret = -ENOMEM;
+        goto generate_response;
+    }
+
     for (i = (unsigned int)(r->vifr_marker + 1);
             i < router->vr_max_interfaces; i++) {
         vif = router->vr_interfaces[i];
@@ -2315,15 +2805,33 @@ vr_interface_dump(vr_interface_req *r)
             ret = vr_message_dump_object(dumper, VR_INTERFACE_OBJECT_ID, resp);
             if (ret <= 0)
                 break;
-        }
 
-        vr_interface_req_free_fat_flow_config(resp);
+            if (r->vifr_flags & VIF_FLAG_GET_DROP_STATS) {
+                if (!vif->vif_pcpu_drop_stats)
+                    drop_resp->vds_pcpu_stats_failure_status = 1;
+
+                vr_drop_stats_get_vif_stats(drop_resp, vif);
+
+                ret = vr_message_dump_object(dumper, VR_DROP_STATS_OBJECT_ID, drop_resp);
+                /*
+                 * If we succed in interface dump, but fail to add drop
+                 * stats dump, the caller would retry the interface
+                 * again
+                 */
+                if (ret <= 0)
+                    break;
+            }
+            vr_interface_req_free_fat_flow_config(resp);
+        }
     }
 
 generate_response:
     vr_message_dump_exit(dumper, ret);
     if (resp)
         vr_interface_req_destroy(resp);
+
+    if (drop_resp)
+        vr_free(drop_resp, VR_DROP_STATS_REQ_OBJECT);
 
     return 0;
 }
@@ -2919,7 +3427,7 @@ vr_interface_init(struct vrouter *router)
     unsigned int table_memory = 0;
 
     if (!router->vr_interfaces) {
-        router->vr_max_interfaces = VR_MAX_INTERFACES;
+        router->vr_max_interfaces = vr_interfaces;
         table_memory = router->vr_max_interfaces *
             sizeof(struct vr_interface *);
         router->vr_interfaces = vr_zalloc(table_memory,

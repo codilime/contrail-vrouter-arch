@@ -32,6 +32,12 @@
 #include <rte_jhash.h>
 #include <rte_malloc.h>
 #include <rte_timer.h>
+#include <rte_hash.h>
+
+struct dpdk_work_cb_data {
+    void (*dwc_fn)(void *);
+    void *dwc_data;
+};
 
 /* Max number of CPUs. We adjust it later in vr_dpdk_host_init() */
 unsigned int vr_num_cpus = VR_MAX_CPUS;
@@ -43,6 +49,7 @@ extern void vr_malloc_stats(unsigned int, unsigned int);
 extern void vr_free_stats(unsigned int);
 /* RCU callback */
 extern void vr_flow_defer_cb(struct vrouter *router, void *arg);
+extern void vr_htable_hentry_scheduled_delete(void *arg);
 
 
 static void *
@@ -79,9 +86,24 @@ dpdk_printf(const char *format, ...)
 static void *
 dpdk_malloc(unsigned int size, unsigned int object)
 {
-    void *mem = rte_malloc(NULL, size, 0);
+    struct vr_malloc_md *md;
+    void *mem;
+
+    if (!size)
+        return NULL;
+
+    if (vr_memory_alloc_checks) {
+        size += sizeof(*md);
+    }
+
+    mem = rte_malloc(NULL, size, 0);
     if (likely(mem != NULL)) {
         vr_malloc_stats(size, object);
+
+        if (vr_memory_alloc_checks) {
+            vr_malloc_md_set(mem, object);
+            mem = (uint8_t *)mem + sizeof(*md);
+        }
     }
 
     return mem;
@@ -90,9 +112,24 @@ dpdk_malloc(unsigned int size, unsigned int object)
 static void *
 dpdk_zalloc(unsigned int size, unsigned int object)
 {
-    void *mem = rte_zmalloc(NULL, size, 0);
+    struct vr_malloc_md *md;
+    void *mem;
+
+    if (!size)
+        return NULL;
+
+    if (vr_memory_alloc_checks) {
+        size += sizeof(*md);
+    }
+
+    mem = rte_zmalloc(NULL, size, 0);
     if (likely(mem != NULL)) {
         vr_malloc_stats(size, object);
+
+        if (vr_memory_alloc_checks) {
+            vr_malloc_md_set(mem, object);
+            mem = (uint8_t *)mem + sizeof(*md);
+        }
     }
 
     return mem;
@@ -102,7 +139,16 @@ static void
 dpdk_free(void *mem, unsigned int object)
 {
     if (mem) {
+        if (vr_memory_alloc_checks) {
+            vr_malloc_md_check(mem, object);
+        }
+
         vr_free_stats(object);
+
+        if (vr_memory_alloc_checks) {
+            mem = (uint8_t *)mem - sizeof(struct vr_malloc_md);
+        }
+
         rte_free(mem);
     }
 
@@ -150,20 +196,20 @@ dpdk_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 static void
 dpdk_pfree(struct vr_packet *pkt, unsigned short reason)
 {
-    struct vrouter *router = vrouter_get(0);
+    if (pkt) {
+        /* Handle Vrouter statistics */
+        pkt_drop_stats(pkt->vp_if, reason, rte_lcore_id());
 
-    router->vr_pdrop_stats[rte_lcore_id()][reason]++;
-
-    if (pkt)
         rte_pktmbuf_free(vr_dpdk_pkt_to_mbuf(pkt));
-
-    return;
+    }
 }
 
 void
-vr_dpdk_pfree(struct rte_mbuf *mbuf, unsigned short reason)
+vr_dpdk_pfree(struct rte_mbuf *mbuf, struct vr_interface *vif, unsigned short reason)
 {
-    dpdk_pfree(vr_dpdk_mbuf_to_pkt(mbuf), reason);
+    struct vr_packet *pkt = vr_dpdk_mbuf_to_pkt(mbuf);
+    vr_dpdk_packet_get(mbuf, vif);
+    dpdk_pfree(pkt, reason);
 }
 
 
@@ -267,6 +313,55 @@ vr_dpdk_pktmbuf_copy(struct rte_mbuf *md, struct rte_mempool *mp)
         rte_pktmbuf_free(mc);
         return (NULL);
     }
+
+    __rte_mbuf_sanity_check(mc, 1);
+    return (mc);
+}
+
+/**
+ * Creates a copy of the given packet mbuf.
+ *
+ * Creates a new packet mbuf from the given pool.
+ * Walks through all segments of the given packet mbuf, and appends them
+ * in the new packet upto the size of the new packet and ignores the rest.
+ * This needs to be done because KNI doesn't handle mbuf chains.
+ *
+ * @param md
+ *   The packet mbuf to be copied.
+ * @param mp
+ *   The mempool from which the "copy" mbufs are allocated.
+ * @return
+ *   - The pointer to the new "copy" mbuf on success.
+ *   - NULL if allocation fails.
+ */
+
+inline struct rte_mbuf *
+vr_dpdk_pktmbuf_copy_mon(struct rte_mbuf *md, struct rte_mempool *mp)
+{
+    struct rte_mbuf *mc;
+    char *append_ptr;
+    uint32_t append_len;
+
+    if (unlikely ((mc = rte_pktmbuf_alloc(mp)) == NULL))
+        return (NULL);
+
+    dpdk_pktmbuf_data_copy(mc, md);
+    mc->pkt_len = md->data_len;
+
+    while (md->next)
+    {
+        md = md->next;
+        append_ptr = rte_pktmbuf_append(mc, md->data_len);
+        append_len = (append_ptr)? md->data_len : rte_pktmbuf_tailroom(mc);
+        if (append_ptr == NULL) {
+            append_ptr = rte_pktmbuf_append(mc, rte_pktmbuf_tailroom(mc));
+            rte_memcpy(append_ptr, rte_pktmbuf_mtod(md, void*), append_len);
+            break;
+        }
+        rte_memcpy(append_ptr, rte_pktmbuf_mtod(md, void*), append_len);
+    }
+
+    mc->nb_segs = 1;
 
     __rte_mbuf_sanity_check(mc, 1);
     return (mc);
@@ -490,7 +585,7 @@ dpdk_get_time(uint64_t *sec, uint64_t *usec)
 }
 
 static void
-dpdk_get_mono_time(unsigned int *sec, unsigned int *nsec)
+dpdk_get_mono_time(unsigned long *sec, unsigned long *nsec)
 {
     struct timespec ts;
 
@@ -504,11 +599,45 @@ dpdk_get_mono_time(unsigned int *sec, unsigned int *nsec)
     return;
 }
 
+static void
+dpdk_htable_work_cb(struct vrouter *router __attribute__((unused)), void *arg)
+{
+    struct dpdk_work_cb_data *defer = (struct dpdk_work_cb_data *)arg;
+
+    defer->dwc_fn(defer->dwc_data);
+
+    return;
+}
+
 /* Work callback called on NetLink lcore */
 static int
 dpdk_schedule_work(unsigned int cpu, void (*fn)(void *), void *arg)
 {
-    /* no RCU reader lock needed, just do the work */
+    struct dpdk_work_cb_data *defer;
+
+    if (!fn)
+        return -1;
+
+    /*
+     * Fix ME:
+     * Use RCU to defer the work only for hash tables. Rest all, invoke
+     * function as is
+     * This is a temporary fix to ensure that hash table deletion does
+     * not happen parrallely in different CPU's
+     */
+
+    if (fn == vr_htable_hentry_scheduled_delete) {
+        defer = vr_get_defer_data(sizeof(*defer));
+        if (!defer)
+            return -1;
+
+        defer->dwc_fn = fn;
+        defer->dwc_data = arg;
+        vr_defer(NULL, dpdk_htable_work_cb, defer);
+
+        return 0;
+    }
+
     fn(arg);
 
     return 0;
@@ -544,7 +673,7 @@ dpdk_rcu_cb(struct rcu_head *rh)
             for (i = 0; i < VR_MAX_FLOW_QUEUE_ENTRIES; i++) {
                 pnode = &vfq->vfq_pnodes[i];
                 if (pnode->pl_packet) {
-                    RTE_LOG(DEBUG, VROUTER, "%s: lcore %u passing RCU callback "
+                    RTE_LOG_DP(DEBUG, VROUTER, "%s: lcore %u passing RCU callback "
                             "to lcore %u\n", __func__, rte_lcore_id(),
                             VR_DPDK_PACKET_LCORE_ID);
                     vr_dpdk_lcore_cmd_post(VR_DPDK_PACKET_LCORE_ID,
@@ -552,7 +681,7 @@ dpdk_rcu_cb(struct rcu_head *rh)
                     return;
                 }
             }
-            RTE_LOG(DEBUG, VROUTER, "%s: lcore %u passing RCU callback to lcore %u\n",
+            RTE_LOG_DP(DEBUG, VROUTER, "%s: lcore %u passing RCU callback to lcore %u\n",
                     __func__, rte_lcore_id(), VR_DPDK_PACKET_LCORE_ID);
         }
     }
@@ -685,9 +814,31 @@ dpdk_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
 
 /* VRouter callback */
 static int
-dpdk_pcow(struct vr_packet *pkt, unsigned short head_room)
+dpdk_pcow(struct vr_packet **pktp, unsigned short head_room)
 {
+    struct vr_packet *pkt = *pktp;
     struct rte_mbuf *mbuf = vr_dpdk_pkt_to_mbuf(pkt);
+    struct rte_mbuf *m_copy;
+    struct vr_packet *p_copy;
+
+    /*
+     * If this is an indirect mbuf, allocate a new mbuf and copy
+     * its data. Then free the original mbuf.
+     */
+    if (RTE_MBUF_INDIRECT(mbuf)) {
+        m_copy = vr_dpdk_pktmbuf_copy(mbuf, mbuf->pool);
+        if (!m_copy) {
+            return -ENOMEM;
+        }
+
+        p_copy = vr_dpdk_mbuf_to_pkt(m_copy);
+        *p_copy = *pkt;
+        p_copy->vp_head = m_copy->buf_addr;
+
+        rte_pktmbuf_free(mbuf);
+        mbuf = m_copy;
+        *pktp = p_copy;
+    }
 
     if (head_room > rte_pktmbuf_headroom(mbuf)) {
         return -ENOMEM;
@@ -970,8 +1121,9 @@ out:
 static unsigned int
 dpdk_pgso_size(struct vr_packet *pkt)
 {
-    /* TODO: not implemented */
-    return 0;
+    struct rte_mbuf *m = vr_dpdk_pkt_to_mbuf(pkt);
+
+    return m->tso_segsz;
 }
 
 static void
@@ -991,7 +1143,8 @@ dpdk_add_mpls(struct vrouter *router, unsigned mpls_label)
                     mpls_label);
                 continue;
             }
-            ret = vr_dpdk_lcore_mpls_schedule(eth_vif, eth_vif->vif_ip, mpls_label);
+            ret = vr_dpdk_lcore_mpls_schedule(eth_vif,
+                                    ntohs(eth_vif->vif_ip), mpls_label);
             if (ret != 0)
                 RTE_LOG(INFO, VROUTER, "    error accelerating MPLS %u: %s (%d)\n",
                     mpls_label, rte_strerror(-ret), -ret);
@@ -1184,7 +1337,15 @@ dpdk_get_enabled_log_types(int *size)
 static void
 dpdk_soft_reset(struct vrouter *router)
 {
+    unsigned lcore_id;
     rcu_barrier();
+
+    /* Reset GRO hash tables */
+    RTE_LCORE_FOREACH(lcore_id) {
+        struct vr_dpdk_lcore *lcore = vr_dpdk.lcores[lcore_id];
+        if (lcore != NULL)
+            dpdk_gro_free_all_flows(lcore);
+    }
 }
 
 static int
@@ -1236,8 +1397,7 @@ struct host_os dpdk_host = {
     .hos_pfrag_len                  =    dpdk_pfrag_len,
     .hos_phead_len                  =    dpdk_phead_len,
     .hos_pset_data                  =    dpdk_pset_data,
-    .hos_pgso_size                  =    dpdk_pgso_size, /* not implemented, returns 0 */
-
+    .hos_pgso_size                  =    dpdk_pgso_size,
     .hos_get_cpu                    =    dpdk_get_cpu,
     .hos_schedule_work              =    dpdk_schedule_work,
     .hos_delay_op                   =    dpdk_delay_op, /* do nothing */
@@ -1261,7 +1421,7 @@ struct host_os dpdk_host = {
 #endif
     .hos_pkt_from_vm_tcp_mss_adj    =    dpdk_pkt_from_vm_tcp_mss_adj,
     .hos_pkt_may_pull               =    dpdk_pkt_may_pull,
-
+    .hos_gro_process                =    dpdk_gro_process,
     .hos_add_mpls                   =    dpdk_add_mpls,
     .hos_del_mpls                   =    dpdk_del_mpls, /* not implemented */
     .hos_enqueue_to_assembler       =    dpdk_fragment_assembler_enqueue,
@@ -1272,6 +1432,7 @@ struct host_os dpdk_host = {
     .hos_soft_reset                 =    dpdk_soft_reset,
     .hos_is_frag_limit_exceeded     =    dpdk_is_frag_limit_exceeded,
     .hos_register_nic               =    dpdk_register_nic,
+    .hos_nl_broadcast_supported     =    false,
 };
 
 struct host_os *
@@ -1350,7 +1511,7 @@ vr_dpdk_packet_get(struct rte_mbuf *m, struct vr_interface *vif)
 
     pkt->vp_ttl = 64;
     pkt->vp_type = VP_TYPE_NULL;
-    pkt->vp_queue = 0;
+    pkt->vp_queue = VP_QUEUE_INVALID;
     pkt->vp_priority = VP_PRIORITY_INVALID;
 
     return pkt;
@@ -1431,15 +1592,15 @@ vr_dpdk_host_init(void)
 
     if (!vrouter_host) {
         vrouter_host = vrouter_get_host();
+
         if (vr_dpdk_flow_init()) {
             return -1;
         }
-    }
 
-    /*
-     * Turn off GRO/GSO as they are not implemented with DPDK.
-     */
-    vr_perfr = vr_perfs = 0;
+        if (vr_dpdk_bridge_init()) {
+            return -1;
+        }
+    }
 
     /*
      * Allow at least one file descriptor per interface (as required by the

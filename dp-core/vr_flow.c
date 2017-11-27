@@ -18,6 +18,7 @@
 #include "vr_datapath.h"
 #include "vr_hash.h"
 #include "vr_ip_mtrie.h"
+#include "vr_bridge.h"
 
 #define VR_NUM_FLOW_TABLES          1
 
@@ -43,7 +44,7 @@ unsigned char *vr_flow_path;
 unsigned int vr_flow_hold_limit = VR_DEF_MAX_FLOW_TABLE_HOLD_COUNT;
 
 #if defined(__linux__) && defined(__KERNEL__)
-extern unsigned short vr_flow_major;
+extern short vr_flow_major;
 #endif
 
 uint32_t vr_hashrnd = 0;
@@ -174,10 +175,7 @@ vr_flow_reset_mirror(struct vrouter *router, struct vr_flow_entry *fe,
     if (fe->fe_flags & VR_FLOW_FLAG_MIRROR) {
         fe->fe_mirror_id = VR_MAX_MIRROR_INDICES;
         fe->fe_sec_mirror_id = VR_MAX_MIRROR_INDICES;
-        if (fe->fe_mme) {
-            vr_mirror_meta_entry_del(router, fe->fe_mme);
-            fe->fe_mme = NULL;
-        }
+        vr_mirror_meta_entry_del(router, index);
     }
     fe->fe_flags &= ~VR_FLOW_FLAG_MIRROR;
     fe->fe_mirror_id = VR_MAX_MIRROR_INDICES;
@@ -219,6 +217,7 @@ __vr_flow_reset_entry(struct vrouter *router, struct vr_flow_entry *fe)
         (VR_FLOW_FLAG_ACTIVE | VR_FLOW_FLAG_EVICTED |
          VR_FLOW_FLAG_NEW_FLOW | VR_FLOW_FLAG_DELETE_MARKED);
     fe->fe_ttl = 0;
+    fe->fe_src_info = 0;
 
     return;
 }
@@ -261,6 +260,21 @@ vr_flow_get_key(vr_htable_t flow_table, vr_hentry_t *entry,
     return &fe->fe_key;
 }
 
+uint32_t
+vr_flow_get_rflow_src_info(struct vrouter *router,
+        struct vr_flow_entry *fe)
+{
+    struct vr_flow_entry *rfe;
+
+    if ((!fe) || !(fe->fe_flags & VR_RFLOW_VALID))
+        return (unsigned int)-1;
+
+    rfe = vr_flow_get_entry(router, fe->fe_rflow);
+    if (!rfe)
+        return (unsigned int)-1;
+
+    return rfe->fe_src_info;
+}
 
 static inline bool
 vr_flow_set_active(struct vr_flow_entry *fe)
@@ -539,6 +553,7 @@ vr_find_flow(struct vrouter *router, struct vr_flow *key,
     return fe;
 }
 
+
 void
 vr_flow_fill_pnode(struct vr_packet_node *pnode, struct vr_packet *pkt,
         struct vr_forwarding_md *fmd)
@@ -562,31 +577,37 @@ vr_flow_fill_pnode(struct vr_packet_node *pnode, struct vr_packet *pkt,
     if (fmd) {
         pnode->pl_outer_src_ip = fmd->fmd_outer_src_ip;
         pnode->pl_label = fmd->fmd_label;
-        if (vr_forwarding_md_label_is_vxlan_id(fmd))
+        if (vr_fmd_label_is_vxlan_id(fmd))
             pnode->pl_flags |= PN_FLAG_LABEL_IS_VXLAN_ID;
         if (fmd->fmd_to_me)
             pnode->pl_flags |= PN_FLAG_TO_ME;
     }
 
-    if (ip && vr_ip_is_ip4(ip)) {
-        /*
-         * Source IP & Dest IP can change while the packet is in the queue
-         * (NAT). For e.g.: when the cloned head of a fragment is enqueued
-         * to the assembler and subsequently dequeued by the assembler, the
-         * original packet might have undergone a NAT, resulting in wrong
-         * hash and thus a wrong search for other fragments of the packet.
-         * Hence, store them here for others interested in the original IPs
-         */
-        pnode->pl_inner_src_ip = ip->ip_saddr;
-        pnode->pl_inner_dst_ip = ip->ip_daddr;
-        if (vr_ip_fragment_head(ip))
-            pnode->pl_flags |= PN_FLAG_FRAGMENT_HEAD;
+    if (ip) {
+        if (vr_ip_is_ip4(ip)) {
+            /*
+             * Source IP & Dest IP can change while the packet is in the queue
+             * (NAT). For e.g.: when the cloned head of a fragment is enqueued
+             * to the assembler and subsequently dequeued by the assembler, the
+             * original packet might have undergone a NAT, resulting in wrong
+             * hash and thus a wrong search for other fragments of the packet.
+             * Hence, store them here for others interested in the original IPs
+             */
+            pnode->pl_inner_src_ip = ip->ip_saddr;
+            pnode->pl_inner_dst_ip = ip->ip_daddr;
+            if (vr_ip_fragment_head(ip))
+                pnode->pl_flags |= PN_FLAG_FRAGMENT_HEAD;
+        } else if (vr_ip_is_ip6(ip)) {
+            if (vr_ip6_fragment_head((struct vr_ip6 *)ip))
+                pnode->pl_flags |= PN_FLAG_FRAGMENT_HEAD;
+        }
     }
 
     pnode->pl_dscp = fmd->fmd_dscp;
     pnode->pl_dotonep = fmd->fmd_dotonep;
     pnode->pl_vrf = fmd->fmd_dvrf;
     pnode->pl_vlan = fmd->fmd_vlan;
+    pnode->pl_mirror_vlan = fmd->fmd_mirror_data;
 
     vr_sync_synchronize();
     pnode->pl_packet = pkt;
@@ -753,21 +774,59 @@ vr_flow_get_qos(struct vrouter *router, struct vr_packet *pkt,
     return -1;
 }
 
+static int
+vr_rflow_update_ecmp_index(struct vrouter *router, struct vr_flow_entry *fe,
+                    unsigned int new_ecmp_index, struct vr_forwarding_md *fmd)
+{
+    struct vr_flow_entry *rfe;
+
+    if (new_ecmp_index == -1)
+        return -1;
+
+    rfe = vr_flow_get_entry(router, fe->fe_rflow);
+    if ((!rfe) || (rfe->fe_flags & VR_FLOW_FLAG_DELETE_MARKED))
+        return -1;
+
+    rfe->fe_ecmp_nh_index = new_ecmp_index;
+
+    fmd->fmd_ecmp_src_nh_index = new_ecmp_index;
+
+    return 0;
+}
+
+
+int
+vr_flow_update_ecmp_index(struct vrouter *router, struct vr_flow_entry *fe,
+                       unsigned int new_ecmp_index, struct vr_forwarding_md *fmd)
+{
+
+    if (new_ecmp_index == -1)
+        return -1;
+
+    if ((!fe) || (fe->fe_flags & VR_FLOW_FLAG_DELETE_MARKED))
+        return -1;
+
+    /* If RPF verification is manipulating this flow, let it succeed */
+    (void)vr_sync_bool_compare_and_swap_8s(&fe->fe_ecmp_nh_index,
+                                fmd->fmd_ecmp_nh_index, new_ecmp_index);
+
+    fmd->fmd_ecmp_nh_index = fe->fe_ecmp_nh_index;
+
+    return 0;
+}
 
 static flow_result_t
 vr_flow_action(struct vrouter *router, struct vr_flow_entry *fe,
         unsigned int index, struct vr_packet *pkt,
         struct vr_forwarding_md *fmd)
 {
-    int valid_src;
+    int valid_src, modified_index = -1;
     unsigned int ip_inc_diff_cksum = 0;
     struct vr_ip *ip;
-
     flow_result_t result;
 
     struct vr_forwarding_md mirror_fmd;
     struct vr_nexthop *src_nh;
-    struct vr_packet *pkt_clone;
 
     fmd->fmd_dvrf = fe->fe_vrf;
     /*
@@ -781,23 +840,18 @@ vr_flow_action(struct vrouter *router, struct vr_flow_entry *fe,
     }
 
     if (src_nh->nh_validate_src) {
-        valid_src = src_nh->nh_validate_src(pkt, src_nh, fmd, NULL);
+        valid_src = src_nh->nh_validate_src(pkt, src_nh, fmd, &modified_index);
         if (valid_src == NH_SOURCE_INVALID) {
             vr_pfree(pkt, VP_DROP_INVALID_SOURCE);
             return FLOW_CONSUMED;
         }
 
         if (valid_src == NH_SOURCE_MISMATCH) {
-            pkt_clone = vr_pclone(pkt);
-            if (pkt_clone) {
-                vr_preset(pkt_clone);
-                if (vr_pcow(pkt_clone, sizeof(struct vr_eth) +
-                            sizeof(struct agent_hdr))) {
-                    vr_pfree(pkt_clone, VP_DROP_PCOW_FAIL);
-                } else {
-                    vr_trap(pkt_clone, fmd->fmd_dvrf,
-                            AGENT_TRAP_ECMP_RESOLVE, &fmd->fmd_flow_index);
-                }
+            valid_src = vr_rflow_update_ecmp_index(router, fe,
+                                            modified_index, fmd);
+            if (valid_src == -1) {
+                vr_pfree(pkt, VP_DROP_INVALID_SOURCE);
+                return FLOW_CONSUMED;
             }
         }
     }
@@ -816,12 +870,15 @@ vr_flow_action(struct vrouter *router, struct vr_flow_entry *fe,
             mirror_fmd.fmd_ecmp_nh_index = -1;
             vr_mirror(router, fe->fe_mirror_id, pkt, &mirror_fmd,
                     MIRROR_TYPE_ACL);
+            fmd->fmd_mirror_data = mirror_fmd.fmd_mirror_data;
         }
+
         if (fe->fe_sec_mirror_id < VR_MAX_MIRROR_INDICES) {
             mirror_fmd = *fmd;
             mirror_fmd.fmd_ecmp_nh_index = -1;
             vr_mirror(router, fe->fe_sec_mirror_id, pkt, &mirror_fmd,
                     MIRROR_TYPE_ACL);
+            fmd->fmd_mirror_data = mirror_fmd.fmd_mirror_data;
         }
     }
 
@@ -880,7 +937,8 @@ vr_trap_flow(struct vrouter *router, struct vr_flow_entry *fe,
 
     npkt = vr_pclone(pkt);
     if (!npkt) {
-        vr_pfree(NULL, VP_DROP_TRAP_ORIGINAL);
+        /* Lets manipulate the stats */
+        pkt_drop_stats(pkt->vp_if, VP_DROP_TRAP_ORIGINAL, pkt->vp_cpu);
         if (pnode)
             pnode->pl_packet = NULL;
         npkt = pkt;
@@ -970,7 +1028,78 @@ vr_flow_table_hold_count(struct vrouter *router)
 }
 
 static void
-vr_flow_entry_set_hold(struct vrouter *router, struct vr_flow_entry *flow_e)
+vr_flow_burst_timeout(void *arg)
+{
+    int tokens;
+    struct vrouter *router = (struct vrouter *)arg;
+    struct vr_flow_table_info *infop = router->vr_flow_table_info;
+
+    tokens = infop->vfti_burst_tokens - infop->vfti_burst_used;
+    if (tokens > 0) {
+
+        tokens  = infop->vfti_burst_tokens_configured - tokens;
+        if (tokens <= 0) {
+            infop->vfti_timer->vt_stop_timer = 1;
+            return;
+        }
+
+        if (tokens > infop->vfti_burst_step_configured)
+            tokens = infop->vfti_burst_step_configured;
+    } else {
+        tokens = infop->vfti_burst_step_configured;
+    }
+
+    infop->vfti_burst_tokens += tokens;
+
+    return;
+}
+
+static void
+vr_flow_start_burst_processing(struct vrouter *router)
+{
+    struct vr_timer *vtimer;
+    struct vr_flow_table_info *infop = router->vr_flow_table_info;
+
+    if (!infop->vfti_burst_tokens_configured ||
+            !infop->vfti_burst_interval_configured ||
+            !infop->vfti_burst_step_configured) {
+        return;
+    }
+
+    if (!infop->vfti_timer) {
+        vtimer = vr_zalloc(sizeof(*vtimer), VR_TIMER_OBJECT);
+        if (!vtimer) {
+            vr_module_error(-ENOMEM, __FUNCTION__, __LINE__, sizeof(*vtimer));
+            return;
+        }
+
+        vtimer->vt_timer = vr_flow_burst_timeout;
+        vtimer->vt_vr_arg = router;
+        vtimer->vt_msecs = infop->vfti_burst_interval_configured;
+
+        if (vr_create_timer(vtimer)) {
+            vr_free(vtimer, VR_TIMER_OBJECT);
+            return;
+        }
+
+        infop->vfti_timer = vtimer;
+    } else {
+        if (!infop->vfti_timer->vt_stop_timer)
+            return;
+
+        if (vr_sync_bool_compare_and_swap_32u(
+                 &infop->vfti_timer->vt_stop_timer, 1, 0)) {
+            infop->vfti_timer->vt_msecs = infop->vfti_burst_interval_configured;
+            vr_restart_timer(infop->vfti_timer);
+        }
+    }
+
+    return;
+}
+
+static void
+vr_flow_entry_set_hold(struct vrouter *router, struct vr_flow_entry
+        *flow_e, bool burst)
 {
     unsigned int cpu;
     uint64_t act_count;
@@ -1000,6 +1129,11 @@ vr_flow_entry_set_hold(struct vrouter *router, struct vr_flow_entry *flow_e)
     }
 
     infop->vfti_hold_count[cpu]++;
+
+    if (burst == true) {
+        (void)vr_sync_add_and_fetch_64u(&infop->vfti_burst_used, 1);
+        vr_flow_start_burst_processing(router);
+    }
 
     return;
 }
@@ -1056,32 +1190,43 @@ static void
 vr_flow_tcp_digest(struct vrouter *router, struct vr_flow_entry *flow_e,
         struct vr_packet *pkt, struct vr_forwarding_md *fmd)
 {
+    uint8_t proto = 0, hlen = 0;
     uint16_t tcp_offset_flags;
-    unsigned int length;
+    unsigned int length = 0;
 
     struct vr_ip *iph;
     struct vr_ip6 *ip6h;
-    struct vr_tcp *tcph = NULL;
+    struct vr_tcp *tcph;
+    struct vr_ip6_frag *v6_frag;
     struct vr_flow_entry *rflow_e = NULL;
 
-    iph = (struct vr_ip *)pkt_network_header(pkt);
-    if (!vr_ip_transport_header_valid(iph))
-        return;
-
     if (pkt->vp_type == VP_TYPE_IP) {
-        if (iph->ip_proto != VR_IP_PROTO_TCP)
+        iph = (struct vr_ip *)pkt_network_header(pkt);
+        if (!vr_ip_transport_header_valid(iph))
             return;
+        proto = iph->ip_proto;
 
         length = ntohs(iph->ip_len) - (iph->ip_hl * 4);
-        tcph = (struct vr_tcp *)((unsigned char *)iph + (iph->ip_hl * 4));
+        hlen = iph->ip_hl * 4;
     } else if (pkt->vp_type == VP_TYPE_IP6) {
-        ip6h = (struct vr_ip6 *)iph;
-        if (ip6h->ip6_nxt != VR_IP_PROTO_TCP)
+        ip6h = (struct vr_ip6 *)pkt_network_header(pkt);
+        if (!vr_ip6_transport_header_valid(ip6h))
             return;
-
+        proto = ip6h->ip6_nxt;
         length = ntohs(ip6h->ip6_plen);
-        tcph = (struct vr_tcp *)((unsigned char *)iph + sizeof(struct vr_ip6));
+        hlen = sizeof(struct vr_ip6);
+        if (proto == VR_IP6_PROTO_FRAG) {
+            v6_frag = (struct vr_ip6_frag *)(ip6h + 1);
+            proto = v6_frag->ip6_frag_nxt;
+            length -= sizeof(struct vr_ip6_frag);
+            hlen += sizeof(struct vr_ip6_frag);
+        }
     }
+
+    if (proto != VR_IP_PROTO_TCP)
+        return;
+
+    tcph = (struct vr_tcp *)(pkt_network_header(pkt) + hlen);
 
     if (tcph) {
         if (vr_flow_is_fat_flow(router, pkt, flow_e))
@@ -1227,11 +1372,71 @@ vr_flow_vif_allow_new_flow(struct vrouter *router, struct vr_packet *pkt,
     return true;
 }
 
+void
+vr_flow_get_burst_params(struct vrouter *router, int *burst_tokens,
+        int *burst_interval, int *burst_step)
+{
+    struct vr_flow_table_info *infop;
+
+    if (!router || !router->vr_flow_table_info)
+        return;
+
+    infop = router->vr_flow_table_info;
+
+    if (burst_tokens)
+        *burst_tokens = infop->vfti_burst_tokens_configured;
+    if (burst_interval)
+        *burst_interval = infop->vfti_burst_interval_configured;
+    if (burst_step)
+        *burst_step = infop->vfti_burst_step_configured;
+
+    return;
+}
+
+void
+vr_flow_set_burst_params(struct vrouter *router, int burst_tokens,
+                                int burst_interval, int burst_step)
+{
+    struct vr_flow_table_info *infop;
+
+    if (!router || !router->vr_flow_table_info)
+        return;
+
+    infop = router->vr_flow_table_info;
+
+    if (burst_tokens != -1)
+        infop->vfti_burst_tokens_configured = burst_tokens;
+
+    if (burst_interval != -1)
+        infop->vfti_burst_interval_configured = burst_interval;
+
+    if (burst_step != -1)
+        infop->vfti_burst_step_configured = burst_step;
+
+
+    vr_flow_start_burst_processing(router);
+    return;
+}
+
+static inline unsigned int
+vr_flow_burst_count(struct vrouter *router)
+{
+    struct vr_flow_table_info *infop = router->vr_flow_table_info;
+
+    return infop->vfti_burst_tokens;
+}
+
 static inline bool
 vr_flow_allow_new_flow(struct vrouter *router, struct vr_packet *pkt,
-                       unsigned short *drop_reason)
+                       unsigned short *drop_reason, bool *burst)
 {
+    unsigned int hold_count;
+    struct vr_flow_table_info *infop = router->vr_flow_table_info;
+
+
     *drop_reason = VP_DROP_FLOW_UNUSABLE;
+    if (burst)
+        *burst = false;
 
     if (pkt->vp_type == VP_TYPE_IP) {
         if (!vr_inet_flow_allow_new_flow(router, pkt)) {
@@ -1240,11 +1445,17 @@ vr_flow_allow_new_flow(struct vrouter *router, struct vr_packet *pkt,
         }
     }
 
-    if ((vr_flow_hold_limit) &&
-            (vr_flow_table_hold_count(router) >
-             vr_flow_hold_limit)) {
-        *drop_reason = VP_DROP_FLOW_UNUSABLE;
-        return false;
+    if (vr_flow_hold_limit) {
+        hold_count = vr_flow_table_hold_count(router);
+        if (hold_count > vr_flow_hold_limit) {
+            if (infop->vfti_burst_used >= vr_flow_burst_count(router)) {
+                *drop_reason = VP_DROP_FLOW_UNUSABLE;
+                return false;
+            }
+            if (burst) {
+                *burst = true;
+            }
+        }
     }
 
     return vr_flow_vif_allow_new_flow(router, pkt, drop_reason);
@@ -1257,6 +1468,7 @@ vr_flow_lookup(struct vrouter *router, struct vr_flow *key,
     unsigned int fe_index;
     struct vr_flow_entry *flow_e;
     unsigned short drop_reason = 0;
+    bool burst = false;
 
     pkt->vp_flags |= VP_FLAG_FLOW_SET;
 
@@ -1268,7 +1480,7 @@ vr_flow_lookup(struct vrouter *router, struct vr_flow *key,
              (NH_FLAG_RELAXED_POLICY | NH_FLAG_FLOW_LOOKUP)))
             return FLOW_FORWARD;
 
-        if (!vr_flow_allow_new_flow(router, pkt, &drop_reason)) {
+        if (!vr_flow_allow_new_flow(router, pkt, &drop_reason, &burst)) {
             vr_pfree(pkt, drop_reason);
             return FLOW_CONSUMED;
         }
@@ -1282,11 +1494,20 @@ vr_flow_lookup(struct vrouter *router, struct vr_flow *key,
 
         flow_e->fe_vrf = fmd->fmd_dvrf;
         /* mark as hold */
-        vr_flow_entry_set_hold(router, flow_e);
+        vr_flow_entry_set_hold(router, flow_e, burst);
     }
 
     if (flow_e->fe_flags & VR_FLOW_FLAG_EVICT_CANDIDATE)
         return FLOW_EVICT_DROP;
+
+    /*
+     * Store the source of the packet which gets used incase of Ecmp
+     * Source
+     */
+    if (vif_is_fabric(pkt->vp_if))
+        flow_e->fe_src_info = fmd->fmd_outer_src_ip;
+    else if (vif_is_virtual(pkt->vp_if))
+        flow_e->fe_src_info = pkt->vp_if->vif_idx;
 
     vr_flow_set_forwarding_md(router, flow_e, fe_index, fmd);
     vr_flow_tcp_digest(router, flow_e, pkt, fmd);
@@ -1400,10 +1621,10 @@ vr_flow_flush_pnode(struct vrouter *router, struct vr_packet_node *pnode,
 
     fmd->fmd_outer_src_ip = pnode->pl_outer_src_ip;
     if (pnode->pl_flags & PN_FLAG_LABEL_IS_VXLAN_ID) {
-        vr_forwarding_md_set_label(fmd, pnode->pl_label,
+        vr_fmd_set_label(fmd, pnode->pl_label,
                 VR_LABEL_TYPE_VXLAN_ID);
     } else {
-        vr_forwarding_md_set_label(fmd, pnode->pl_label,
+        vr_fmd_set_label(fmd, pnode->pl_label,
                 VR_LABEL_TYPE_MPLS);
     }
 
@@ -1416,6 +1637,9 @@ vr_flow_flush_pnode(struct vrouter *router, struct vr_packet_node *pnode,
 
     fmd->fmd_dscp = pnode->pl_dscp;
     fmd->fmd_dotonep = pnode->pl_dotonep;
+    fmd->fmd_vlan = pnode->pl_vlan;
+    fmd->fmd_mirror_data = pnode->pl_mirror_vlan;
+
     pnode->pl_packet = NULL;
     /*
      * this is only a security check and not a catch all check. one note
@@ -1424,6 +1648,7 @@ vr_flow_flush_pnode(struct vrouter *router, struct vr_packet_node *pnode,
      */
     vif = __vrouter_get_interface(router, pnode->pl_vif_idx);
     if (!vif || (pkt->vp_if != vif)) {
+        pkt->vp_if = NULL;
         vr_pfree(pkt, VP_DROP_INVALID_IF);
         return -ENODEV;
     }
@@ -1431,8 +1656,12 @@ vr_flow_flush_pnode(struct vrouter *router, struct vr_packet_node *pnode,
     if (!pkt->vp_nh) {
         if (vif_is_fabric(pkt->vp_if) && fmd &&
                 (fmd->fmd_label >= 0)) {
-            if (!vr_forwarding_md_label_is_vxlan_id(fmd))
+            if (!vr_fmd_label_is_vxlan_id(fmd)) {
                 pkt->vp_nh = __vrouter_get_label(router, fmd->fmd_label);
+            }  else {
+                pkt->vp_nh = __vrouter_bridge_lookup(fmd->fmd_dvrf,
+                                                        pkt_data(pkt));
+            }
         }
     }
 
@@ -1591,30 +1820,51 @@ vr_flow_set_mirror(struct vrouter *router, vr_flow_req *req,
         }
     }
 
-    if (req->fr_pcap_meta_data_size && req->fr_pcap_meta_data) {
-        if (fe->fe_mme) {
-            vr_mirror_meta_entry_del(router, fe->fe_mme);
-            fe->fe_mme = NULL;
-        }
-
-        fe->fe_mme = vr_mirror_meta_entry_set(router, req->fr_index,
+    if (req->fr_pcap_meta_data_size && req->fr_pcap_meta_data)
+        vr_mirror_meta_entry_set(router, req->fr_index,
                 req->fr_mir_sip, req->fr_mir_sport,
                 req->fr_pcap_meta_data, req->fr_pcap_meta_data_size,
                 req->fr_mir_vrf);
-    }
+
+    return;
+}
+
+void
+vr_fill_flow_common(struct vr_flow *flowp, unsigned short nh_id,
+        uint8_t proto, uint16_t sport, uint16_t dport, uint8_t family,
+        uint8_t valid_fkey_params)
+{
+    flowp->flow_nh_id = nh_id;
+    flowp->flow_family = family;
+    if (family == AF_INET)
+        flowp->flow_key_len = VR_FLOW_IPV4_HASH_SIZE;
+    else
+        flowp->flow_key_len = VR_FLOW_IPV6_HASH_SIZE;
+    flowp->flow_unused = 0;
+
+    if (valid_fkey_params & VR_FLOW_KEY_PROTO)
+        flowp->flow_proto = proto;
+
+    if (valid_fkey_params & VR_FLOW_KEY_SRC_PORT)
+        flowp->flow_sport = sport;
+
+    if (valid_fkey_params & VR_FLOW_KEY_DST_PORT)
+        flowp->flow_dport = dport;
 
     return;
 }
 
 static struct vr_flow_entry *
 vr_add_flow(unsigned int rid, struct vr_flow *key, uint8_t type,
-        bool need_hold_queue, unsigned int *fe_index)
+        bool need_hold_queue, unsigned int *fe_index,
+        uint8_t *fe_gen_id)
 {
     struct vr_flow_entry *flow_e;
     struct vrouter *router = vrouter_get(rid);
 
     flow_e = vr_find_flow(router, key, type, fe_index);
     if (flow_e) {
+        *fe_gen_id = flow_e->fe_gen_id;
         /* a race between agent and dp. allow agent to handle this error */
         return NULL;
     } else {
@@ -1626,7 +1876,7 @@ vr_add_flow(unsigned int rid, struct vr_flow *key, uint8_t type,
 }
 
 static struct vr_flow_entry *
-vr_add_flow_req(vr_flow_req *req, unsigned int *fe_index)
+vr_add_flow_req(vr_flow_req *req, unsigned int *fe_index, uint8_t *fe_gen_id)
 {
     uint8_t type;
     bool need_hold_queue = false;
@@ -1637,14 +1887,15 @@ vr_add_flow_req(vr_flow_req *req, unsigned int *fe_index)
     switch (req->fr_family) {
     case  AF_INET6:
         type = VP_TYPE_IP6;
-        vr_inet6_fill_flow(&key, req->fr_flow_nh_id, req->fr_flow_ip,
-            req->fr_flow_proto, req->fr_flow_sport, req->fr_flow_dport);
+        vr_inet6_fill_flow_from_req(&key, req);
         break;
 
     case  AF_INET:
         type = VP_TYPE_IP;
-        vr_inet_fill_flow(&key, req->fr_flow_nh_id, req->fr_flow_ip,
-            req->fr_flow_proto, req->fr_flow_sport, req->fr_flow_dport);
+        vr_inet_fill_flow(&key, req->fr_flow_nh_id,
+            (uint32_t)req->fr_flow_sip_l, (uint32_t)req->fr_flow_dip_l,
+            req->fr_flow_proto, req->fr_flow_sport, req->fr_flow_dport,
+            VR_FLOW_KEY_ALL);
         break;
 
     default:
@@ -1654,7 +1905,8 @@ vr_add_flow_req(vr_flow_req *req, unsigned int *fe_index)
     if (req->fr_action == VR_FLOW_ACTION_HOLD)
         need_hold_queue = true;
 
-    fe = vr_add_flow(req->fr_rid, &key, type, need_hold_queue, fe_index);
+    fe = vr_add_flow(req->fr_rid, &key, type, need_hold_queue, fe_index,
+                     fe_gen_id);
     if (fe)
         req->fr_index = *fe_index;
 
@@ -1669,8 +1921,10 @@ static int
 vr_flow_set_req_is_invalid(struct vrouter *router, vr_flow_req *req,
         struct vr_flow_entry *fe)
 {
-    int error = 0;
+    int error = 0, key_type;
     struct vr_flow_entry *rfe;
+    struct vr_flow key;
+    uint64_t *ip;
 
     if (fe) {
 
@@ -1683,18 +1937,34 @@ vr_flow_set_req_is_invalid(struct vrouter *router, vr_flow_req *req,
                 error = -EBADF;
                 goto invalid_req;
             }
-            if (memcmp(req->fr_flow_ip, fe->fe_key.flow_ip, 
-                       2 * VR_IP_ADDR_SIZE(fe->fe_type)) ||
-                    (unsigned short)req->fr_flow_sport != fe->fe_key.flow_sport ||
+
+            /*
+             * when gen id is same flow keys should not mis-match
+             * send EFAULT if such incident happens
+             */
+            if((unsigned short)req->fr_flow_sport != fe->fe_key.flow_sport ||
                     (unsigned short)req->fr_flow_dport != fe->fe_key.flow_dport||
                     (unsigned short)req->fr_flow_nh_id != fe->fe_key.flow_nh_id ||
                     (unsigned char)req->fr_flow_proto != fe->fe_key.flow_proto) {
-                /*
-                 * when gen id is same flow keys should not mis-match
-                 * send EFAULT if such incident happens
-                 */
                 error = -EFAULT;
                 goto invalid_req;
+            }
+
+            if (fe->fe_type == VP_TYPE_IP) {
+                if ((fe->fe_key.flow4_sip != (uint32_t)req->fr_flow_sip_l) ||
+                        (fe->fe_key.flow4_dip != (uint32_t)req->fr_flow_dip_l)) {
+                    error = -EFAULT;
+                    goto invalid_req;
+                }
+            } else {
+                ip = (uint64_t *)fe->fe_key.flow6_sip;
+                if ((*ip != req->fr_flow_sip_u) ||
+                        (*(ip+1) != req->fr_flow_sip_l) ||
+                        (*(ip+2) != req->fr_flow_dip_u) ||
+                        (*(ip+3) != req->fr_flow_dip_l)) {
+                    error = -EFAULT;
+                    goto invalid_req;
+                }
             }
         }
     } else {
@@ -1724,7 +1994,24 @@ vr_flow_set_req_is_invalid(struct vrouter *router, vr_flow_req *req,
     }
 
     if (req->fr_flags & VR_RFLOW_VALID) {
-        rfe = vr_flow_get_entry(router, req->fr_rindex);
+        if (req->fr_rindex != -1) {
+            rfe = vr_flow_get_entry(router, req->fr_rindex);
+        } else {
+            if (req->fr_family == AF_INET) {
+                vr_inet_fill_flow(&key, req->fr_rflow_nh_id,
+                  (uint32_t)req->fr_rflow_sip_l, (uint32_t)req->fr_rflow_dip_l,
+                  req->fr_flow_proto, req->fr_rflow_sport,
+                  req->fr_rflow_dport, VR_FLOW_KEY_ALL);
+
+                key_type = VP_TYPE_IP;
+            } else {
+                vr_inet6_fill_rflow_from_req(&key, req);
+                key_type = VP_TYPE_IP6;
+            }
+
+            rfe = vr_find_flow(router, &key, key_type,  &req->fr_rindex);
+        }
+
         if (!rfe) {
             error = -EINVAL;
             goto invalid_req;
@@ -1779,8 +2066,10 @@ static int
 vr_flow_delete(struct vrouter *router, vr_flow_req *req,
         struct vr_flow_entry *fe)
 {
+
     /* Delete Mark it */
     fe->fe_flags |= VR_FLOW_FLAG_DELETE_MARKED;
+
 
     if (fe->fe_flags & VR_FLOW_FLAG_LINK_LOCAL)
         vr_clear_link_local_port(router, AF_INET, fe->fe_key.flow_proto,
@@ -1859,10 +2148,12 @@ vr_flow_update_link_local_port(struct vrouter *router, vr_flow_req *req,
 
 /* command from agent */
 static int
-vr_flow_set(struct vrouter *router, vr_flow_req *req)
+vr_flow_set(struct vrouter *router, vr_flow_req *req,
+            vr_flow_response *flow_resp)
 {
     int ret;
     unsigned int fe_index = (unsigned int)-1;
+    uint8_t fe_gen_id = 0;
     bool new_flow = false, modified = false;
 
     struct vr_flow_entry *fe = NULL, *rfe = NULL;
@@ -1871,6 +2162,8 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
     router = vrouter_get(req->fr_rid);
     if (!router)
         return -EINVAL;
+
+    flow_resp->fresp_index = req->fr_index;
 
     fe = vr_flow_get_entry(router, req->fr_index);
     if (fe) {
@@ -1887,6 +2180,7 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
              !(req->fr_flags & VR_FLOW_FLAG_ACTIVE))) {
             vr_sync_fetch_and_add_64u(&infop->vfti_action_count, 1);
         }
+
     }
     /*
      * for delete, absence of the requested flow entry is caustic. so
@@ -1896,6 +2190,8 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
         if (!fe)
             return -ENOENT;
 
+        infop->vfti_deleted++;
+        flow_resp->fresp_flags |= VR_FLOW_RESP_FLAG_DELETED;
         return vr_flow_delete(router, req, fe);
     }
 
@@ -1905,7 +2201,7 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
      * new flow entry with the key specified in the request
      */
     if (!fe) {
-        fe = vr_add_flow_req(req, &fe_index);
+        fe = vr_add_flow_req(req, &fe_index, &fe_gen_id);
         if (!fe) {
             if (fe_index != (unsigned int)-1) {
                 /*
@@ -1915,6 +2211,8 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
                  * error and allow agent to wait and handle flow add due to
                  * packet trap
                  */
+                flow_resp->fresp_index = fe_index;
+                flow_resp->fresp_gen_id = fe_gen_id;
                 return -EEXIST;
             }
             return -ENOSPC;
@@ -1936,6 +2234,9 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
         }
     }
 
+    flow_resp->fresp_gen_id = fe->fe_gen_id;
+    flow_resp->fresp_index = fe->fe_hentry.hentry_index;
+
     vr_flow_set_mirror(router, req, fe);
 
     if (req->fr_flags & VR_RFLOW_VALID) {
@@ -1951,13 +2252,16 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
 
     vr_flow_update_link_local_port(router, req, fe);
 
-    fe->fe_ecmp_nh_index = req->fr_ecmp_nh_index;
+    if (fe->fe_ecmp_nh_index == -1)
+        (void)vr_sync_bool_compare_and_swap_8s(&fe->fe_ecmp_nh_index, -1,
+                req->fr_ecmp_nh_index);
+
     fe->fe_src_nh_index = req->fr_src_nh_index;
     fe->fe_qos_id = req->fr_qos_id;
 
     if ((req->fr_action == VR_FLOW_ACTION_HOLD) &&
             (fe->fe_action != VR_FLOW_ACTION_HOLD)) {
-        vr_flow_entry_set_hold(router, fe);
+        vr_flow_entry_set_hold(router, fe, false);
     } else {
         fe->fe_action = req->fr_action;
     }
@@ -1971,10 +2275,10 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
         VR_FLOW_FLAG_MASK(req->fr_flags);
     if (new_flow) {
 
-        req->fr_flow_bytes = fe->fe_stats.flow_bytes;
-        req->fr_flow_packets = fe->fe_stats.flow_packets;
-        req->fr_flow_stats_oflow = (fe->fe_stats.flow_bytes_oflow |
-                (fe->fe_stats.flow_packets_oflow << 16));
+        flow_resp->fresp_bytes = fe->fe_stats.flow_bytes;
+        flow_resp->fresp_packets = fe->fe_stats.flow_packets;
+        flow_resp->fresp_stats_oflow = (fe->fe_stats.flow_bytes_oflow |
+                                    (fe->fe_stats.flow_packets_oflow << 16));
 
         if (fe->fe_flags & VR_FLOW_FLAG_NEW_FLOW) {
             if (fe->fe_stats.flow_packets || fe->fe_stats.flow_packets_oflow)
@@ -1988,13 +2292,14 @@ vr_flow_set(struct vrouter *router, vr_flow_req *req)
             }
         }
 
-        req->fr_gen_id = fe->fe_gen_id;
     }
 
     vr_flow_udp_src_port(router, fe);
 
     if (fe->fe_flags & VR_FLOW_FLAG_NEW_FLOW)
         fe->fe_flags &= ~VR_FLOW_FLAG_NEW_FLOW;
+
+
 
     ret = vr_flow_schedule_transition(router, req, fe);
 
@@ -2007,49 +2312,43 @@ exit_set:
 }
 
 static void
-vr_flow_req_destroy(vr_flow_req *req)
+vr_flow_table_data_destroy(vr_flow_table_data *ftable)
 {
-    if (!req)
+    if (!ftable)
         return;
 
-    if (req->fr_file_path) {
-        vr_free(req->fr_file_path, VR_FLOW_REQ_PATH_OBJECT);
-        req->fr_file_path = NULL;
+    if (ftable->ftable_file_path) {
+        vr_free(ftable->ftable_file_path, VR_FLOW_REQ_PATH_OBJECT);
+        ftable->ftable_file_path = NULL;
     }
 
-    if (req->fr_hold_stat && req->fr_hold_stat_size) {
-        vr_free(req->fr_hold_stat, VR_FLOW_HOLD_STAT_OBJECT);
-        req->fr_hold_stat = NULL;
-        req->fr_hold_stat_size = 0;
+    if (ftable->ftable_hold_stat && ftable->ftable_hold_stat_size) {
+        vr_free(ftable->ftable_hold_stat, VR_FLOW_HOLD_STAT_OBJECT);
+        ftable->ftable_hold_stat = NULL;
+        ftable->ftable_hold_stat_size = 0;
     }
 
-    vr_free(req, VR_FLOW_REQ_OBJECT);
+    vr_free(ftable, VR_FLOW_TABLE_DATA_OBJECT);
 
     return;
 }
 
-vr_flow_req *
-vr_flow_req_get(vr_flow_req *ref_req)
+vr_flow_table_data *
+vr_flow_table_data_get(vr_flow_table_data *ref)
 {
     unsigned int hold_stat_size;
     unsigned int num_cpus = vr_num_cpus;
-    vr_flow_req *req = vr_zalloc(sizeof(*req), VR_FLOW_REQ_OBJECT);
+    vr_flow_table_data *ftable = vr_zalloc(sizeof(*ref),
+            VR_FLOW_TABLE_DATA_OBJECT);
 
-    if (!req)
+    if (!ftable)
         return NULL;
 
-    if (ref_req) {
-        memcpy(req, ref_req, sizeof(*ref_req));
-        /* not intended */
-        req->fr_pcap_meta_data = NULL;
-        req->fr_pcap_meta_data_size = 0;
-    }
-
     if (vr_flow_path) {
-        req->fr_file_path = vr_zalloc(VR_UNIX_PATH_MAX,
+        ftable->ftable_file_path = vr_zalloc(VR_UNIX_PATH_MAX,
                 VR_FLOW_REQ_PATH_OBJECT);
-        if (!req->fr_file_path) {
-            vr_free(req, VR_FLOW_REQ_OBJECT);
+        if (!ftable->ftable_file_path) {
+            vr_free(ftable, VR_FLOW_TABLE_DATA_OBJECT);
             return NULL;
         }
     }
@@ -2058,19 +2357,73 @@ vr_flow_req_get(vr_flow_req *ref_req)
         num_cpus = VR_FLOW_MAX_CPUS;
 
     hold_stat_size = num_cpus * sizeof(uint32_t);
-    req->fr_hold_stat = vr_zalloc(hold_stat_size, VR_FLOW_HOLD_STAT_OBJECT);
-    if (!req->fr_hold_stat) {
-        if (vr_flow_path && req->fr_file_path) {
-            vr_free(req->fr_file_path, VR_FLOW_REQ_PATH_OBJECT);
-            req->fr_file_path = NULL;
+    ftable->ftable_hold_stat = vr_zalloc(hold_stat_size, VR_FLOW_HOLD_STAT_OBJECT);
+    if (!ftable->ftable_hold_stat) {
+        if (ftable->ftable_file_path) {
+            vr_free(ftable->ftable_file_path, VR_FLOW_REQ_PATH_OBJECT);
+            ftable->ftable_file_path = NULL;
         }
 
-        vr_free(req, VR_FLOW_REQ_OBJECT);
+        vr_free(ftable, VR_FLOW_TABLE_DATA_OBJECT);
         return NULL;
     }
-    req->fr_hold_stat_size = num_cpus;
+    ftable->ftable_hold_stat_size = num_cpus;
 
-    return req;
+    return ftable;
+}
+
+/*
+ * sandesh handler for vr_flow_table_data
+ */
+void
+vr_flow_table_data_process(void *s_req)
+{
+    int i, ret = 0;
+    uint64_t hold_count = 0;
+    struct vrouter *router;
+    struct vr_flow_table_info *infop;
+    vr_flow_table_data *resp, *ftable = (vr_flow_table_data *)s_req;
+
+    router = vrouter_get(ftable->ftable_rid);
+    resp = vr_flow_table_data_get(ftable);
+    if (!resp) {
+        ret = -ENOMEM;
+        goto send_response;
+    }
+
+    infop = router->vr_flow_table_info;
+    resp->ftable_op = ftable->ftable_op;
+    resp->ftable_size = vr_flow_table_size(router);
+#if defined(__linux__) && defined(__KERNEL__)
+    resp->ftable_dev = vr_flow_major;
+#endif
+    if (vr_flow_path)
+        strncpy(resp->ftable_file_path, vr_flow_path, VR_UNIX_PATH_MAX - 1);
+
+    resp->ftable_used_entries = vr_flow_table_used_total_entries(router);
+    resp->ftable_deleted = infop->vfti_deleted;
+    resp->ftable_changed = infop->vfti_changed;
+    resp->ftable_processed = infop->vfti_action_count;
+    resp->ftable_hold_oflows = infop->vfti_oflows;
+    resp->ftable_added = infop->vfti_added;
+    resp->ftable_cpus = vr_num_cpus;
+    /* we only have space for 64 stats block max when encoding */
+    for (i = 0; ((i < vr_num_cpus) && (i < VR_FLOW_MAX_CPUS)); i++) {
+        resp->ftable_hold_stat[i] = infop->vfti_hold_count[i];
+        hold_count += resp->ftable_hold_stat[i];
+    }
+
+    resp->ftable_created = hold_count;
+    resp->ftable_oflow_entries = vr_flow_table_used_oflow_entries(router);
+    resp->ftable_burst_free_tokens = infop->vfti_burst_tokens - infop->vfti_burst_used;
+    resp->ftable_hold_entries = vr_flow_table_hold_count(router);
+
+send_response:
+    vr_message_response(VR_FLOW_TABLE_DATA_OBJECT_ID, resp, ret, false);
+    if (resp)
+        vr_flow_table_data_destroy(resp);
+
+    return;
 }
 
 /*
@@ -2080,65 +2433,32 @@ void
 vr_flow_req_process(void *s_req)
 {
     int ret = 0;
-    unsigned int i, object = VR_FLOW_OBJECT_ID;
-    bool need_destroy = false;
-    uint64_t hold_count = 0;
-
     struct vrouter *router;
     vr_flow_req *req = (vr_flow_req *)s_req;
-    vr_flow_req *resp = NULL;
+    vr_flow_response flow_resp;
 
     router = vrouter_get(req->fr_rid);
     switch (req->fr_op) {
-    case FLOW_OP_FLOW_TABLE_GET:
-        resp = vr_flow_req_get(req);
-        if (!resp) {
-            ret = -ENOMEM;
-            goto send_response;
-        }
-
-        need_destroy = true;
-        resp->fr_op = req->fr_op;
-        resp->fr_ftable_size = vr_flow_table_size(router);
-#if defined(__linux__) && defined(__KERNEL__)
-        resp->fr_ftable_dev = vr_flow_major;
-#endif
-        if (vr_flow_path) {
-            strncpy(resp->fr_file_path, vr_flow_path, VR_UNIX_PATH_MAX - 1);
-        }
-
-        resp->fr_processed = router->vr_flow_table_info->vfti_action_count;
-        resp->fr_hold_oflows = router->vr_flow_table_info->vfti_oflows;
-        resp->fr_added = router->vr_flow_table_info->vfti_added;
-        resp->fr_cpus = vr_num_cpus;
-        /* we only have space for 64 stats block max when encoding */
-        for (i = 0; ((i < vr_num_cpus) && (i < VR_FLOW_MAX_CPUS)); i++) {
-            resp->fr_hold_stat[i] =
-                router->vr_flow_table_info->vfti_hold_count[i];
-            hold_count += resp->fr_hold_stat[i];
-        }
-
-        resp->fr_created = hold_count;
-        resp->fr_oflow_entries = vr_flow_table_used_oflow_entries(router);
-
-        object = VR_FLOW_INFO_OBJECT_ID;
-        break;
-
     case FLOW_OP_FLOW_SET:
-        ret = vr_flow_set(router, req);
-        resp = req;
+
+        flow_resp.fresp_rid = 0;
+        flow_resp.fresp_op = req->fr_op;
+
+        ret = vr_flow_set(router, req, &flow_resp);
         break;
 
     default:
         ret = -EINVAL;
     }
 
-send_response:
-    vr_message_response(object, resp, ret);
-    if (need_destroy) {
-        vr_flow_req_destroy(resp);
-    }
+    vr_message_response(VR_FLOW_RESPONSE_OBJECT_ID, &flow_resp, ret, false);
 
+    return;
+}
+
+void
+vr_flow_response_process(void *s_req)
+{
     return;
 }
 
@@ -2161,7 +2481,14 @@ vr_flow_table_info_reset(struct vrouter *router)
     if (!router->vr_flow_table_info)
         return;
 
+    if (router->vr_flow_table_info->vfti_timer) {
+        vr_delete_timer(router->vr_flow_table_info->vfti_timer);
+        vr_free(router->vr_flow_table_info->vfti_timer, VR_TIMER_OBJECT);
+        router->vr_flow_table_info->vfti_timer = NULL;
+    }
+
     memset(router->vr_flow_table_info, 0, router->vr_flow_table_info_size);
+
     return;
 }
 

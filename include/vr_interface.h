@@ -30,6 +30,7 @@
 #define VIF_TYPE_MONITORING         9
 #define VIF_TYPE_MAX               10
 
+
 #define vif_is_virtual(vif)         ((vif->vif_type == VIF_TYPE_VIRTUAL) ||\
                                         (vif->vif_type == VIF_TYPE_VIRTUAL_VLAN))
 #define vif_is_fabric(vif)          (vif->vif_type == VIF_TYPE_PHYSICAL)
@@ -58,6 +59,9 @@
 
 
 #define VR_INTERFACE_NAME_LEN       64
+#define VIF_MAX_MIRROR_MD_SIZE      255
+
+#define VIF_SRC_MACS                4
 
 #define VIF_TRANSPORT_VIRTUAL       0
 #define VIF_TRANSPORT_ETH           1
@@ -97,10 +101,19 @@
  * marked by vrouter agent to enforce flow-limit
  */
 #define VIF_FLAG_DROP_NEW_FLOWS     0x40000
+#define VIF_FLAG_MAC_LEARN          0x80000
+#define VIF_FLAG_MAC_PROXY          0x100000
+#define VIF_FLAG_ETREE_ROOT         0x200000
+
+#define VIF_FLAG_GRO_NEEDED         0x200000
+#define VIF_FLAG_MRG_RXBUF          0x400000
 
 /* vrouter capabilities mask (cannot be changed by agent) */
 #define VIF_VR_CAP_MASK (VIF_FLAG_TX_CSUM_OFFLOAD | \
                          VIF_FLAG_VLAN_OFFLOAD)
+
+/* Only to be used from Agent/utility to request for Drop stats dump */
+#define VIF_FLAG_GET_DROP_STATS    0x01
 
 #define vif_mode_xconnect(vif)      (vif->vif_flags & VIF_FLAG_XCONNECT)
 #define vif_dhcp_enabled(vif)       (vif->vif_flags & VIF_FLAG_DHCP_ENABLED)
@@ -120,6 +133,11 @@ typedef enum {
     MR_TRAP_X,
     MR_XCONNECT,
 } mac_response_t;
+
+typedef enum {
+    VHOSTUSER_CLIENT = 0,
+    VHOSTUSER_SERVER,
+}vhostuser_mode_t;
 
 struct vr_interface_stats {
     uint64_t vis_ibytes;
@@ -228,7 +246,7 @@ struct vr_interface {
      */
     int (*vif_rx)(struct vr_interface *, struct vr_packet *, unsigned short);
 
-    unsigned char *(*vif_set_rewrite)(struct vr_interface *, struct vr_packet **,
+    int (*vif_set_rewrite)(struct vr_interface *, struct vr_packet **,
             struct vr_forwarding_md *, unsigned char *, unsigned short);
     uint8_t **vif_fat_flow_ports[VIF_FAT_FLOW_MAXPROTO_INDEX];
     /*
@@ -268,14 +286,35 @@ struct vr_interface {
     struct vr_interface **vif_sub_interfaces;
     struct vr_interface_driver *vif_driver;
     unsigned char *vif_src_mac;
+    uint8_t *vif_bridge_table_lock;
     vr_htable_t vif_btable;
     unsigned char vif_rewrite[VR_ETHER_HLEN];
-    unsigned char vif_name[VR_INTERFACE_NAME_LEN];
-    unsigned short vif_vrf_table_users;
-    unsigned int  vif_ip;
     int16_t vif_qos_map_index;
-    unsigned short vif_mirror_md_len;
-    unsigned char *vif_mirror_md;
+    unsigned char vif_name[VR_INTERFACE_NAME_LEN];
+    uint64_t *vif_drop_stats;
+    /*
+     * The list of hardware queues that will be used in this NIC.
+     * 'agent' reads the configuration and lets us know the list.
+     * We need this information to bind the specific queues to
+     * each forwarding lcores in DPDK.
+     */
+    uint16_t *vif_hw_queues;
+    struct vr_btable *vif_pcpu_drop_stats;
+    unsigned char *vif_in_mirror_md;
+    unsigned char *vif_out_mirror_md;
+    unsigned char vif_in_mirror_md_len;
+    unsigned char vif_in_mirror_md_size;
+    unsigned char vif_out_mirror_md_len;
+    unsigned char vif_out_mirror_md_size;
+    unsigned short vif_vrf_table_users;
+    /* the number of hardware queues. from agent configuration */
+    unsigned short vif_num_hw_queues;
+    void *vif_queue_host_data;
+    unsigned int  vif_ip;
+    unsigned int vif_isid;
+    uint8_t vif_ip6[VR_IP6_ADDRESS_LEN];
+    uint8_t vif_pbb_mac[VR_ETHER_ALEN];
+    vhostuser_mode_t vif_vhostuser_mode;
 };
 
 struct vr_interface_settings {
@@ -322,6 +361,8 @@ extern int vif_vrf_table_get(struct vr_interface *, vr_vrf_assign_req *);
 extern unsigned int vif_vrf_table_get_nh(struct vr_interface *, unsigned short);
 extern int vif_vrf_table_set(struct vr_interface *, unsigned int,
         int, unsigned int);
+extern unsigned int vr_interface_req_get_size(void *);
+
 #if defined(__linux__) && defined(__KERNEL__)
 extern void vr_set_vif_ptr(struct net_device *dev, void *vif);
 #endif

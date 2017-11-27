@@ -210,19 +210,16 @@ fh_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 static void
 fh_pfree(struct vr_packet *pkt, unsigned short reason)
 {
-	struct vrouter *router;
 	struct mbuf *m;
 
 	KASSERT(pkt, ("Null packet"));
 
+    /* Handle vrouter statistics */
+    pkt_drop_stats(pkt->vp_if, reason, pkt->vp_cpu);
+
 	/* Fetch original mbuf from packet structure */
 	m = vp_os_packet(pkt);
 	KASSERT(m, ("NULL mbuf in pkt:%p", pkt));
-
-	router = vrouter_get(0);
-	if (router)
-		((uint64_t *)(router->vr_pdrop_stats[pkt->vp_cpu]))[reason]++;
-
 	m_freem(m);
 	uma_zfree(zone_vr_packet, pkt);
 }
@@ -481,7 +478,7 @@ fh_pheader_pointer(struct vr_packet *pkt, unsigned short hdr_len, void *buf)
 }
 
 static int
-fh_pcow(struct vr_packet *pkt, unsigned short head_room)
+fh_pcow(struct vr_packet **pkt, unsigned short head_room)
 {
 
 	vr_log(VR_ERR, "%s: not implemented\n", __func__);
@@ -726,6 +723,7 @@ struct host_os freebsd_host = {
 	.hos_get_log_level              = fh_get_log_level,
 	.hos_get_enabled_log_types      = fh_get_enabled_log_types,
 	.hos_register_nic               = fh_register_nic,
+	.hos_nl_broadcast_supported     = false,
 };
 
 struct host_os *

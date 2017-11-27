@@ -26,7 +26,7 @@
             <vifr_mtu>1514</vifr_mtu>
         </vr_interface_req>
         <return>0</return>
-    </message>       
+    </message>
 
     <message>
         <vr_interface_req>

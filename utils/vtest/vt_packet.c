@@ -9,6 +9,7 @@
 #include <libxml/parser.h>
 
 #include <vtest.h>
+#include <nl_util.h>
 #include "include/vt_packet.h"
 #include <vt_main.h>
 #include <vt_gen_message_modules.h>
@@ -18,6 +19,7 @@
 #include <vr_message.h>
 #include <vr_packet.h>
 #include <vr_interface.h>
+#include <vr_dpdk_usocket.h>
 
 #include "vt_packet.h"
 
@@ -256,9 +258,10 @@ tx_rx_pcap_test(struct vtest *test) {
     char src_vif_ctrl_sock[UNIX_PATH_MAX] = {0};
     char dst_vif_ctrl_sock[UNIX_PATH_MAX] = {0};
 
-
-    snprintf(src_vif_ctrl_sock, UNIX_PATH_MAX, "/var/run/vrouter/uvh_vif_%d", test->packet_tx.vif_id);
-    snprintf(dst_vif_ctrl_sock, UNIX_PATH_MAX, "/var/run/vrouter/uvh_vif_%d", test->packet_rx[0].vif_id);
+    snprintf(src_vif_ctrl_sock, UNIX_PATH_MAX, "%s/uvh_vif_%d",
+        vr_socket_dir, test->packet_tx.vif_id);
+    snprintf(dst_vif_ctrl_sock, UNIX_PATH_MAX, "%s/uvh_vif_%d",
+        vr_socket_dir, test->packet_rx[0].vif_id);
 
 
     struct tx_rx_handler tx_rx_handler;
@@ -310,7 +313,6 @@ tx_rx_pcap_test(struct vtest *test) {
     sleep(1);
 
     while(1) {
-
         //Now we can send next data
         if (tx_rx_state == S_SEND) {
             if (pcap_next_ex(tx_rx_handler.p, &tx_rx_handler.pkt_header, &tx_rx_handler.pkt_data) == -2) {
@@ -322,8 +324,7 @@ tx_rx_pcap_test(struct vtest *test) {
                         (u_char *)tx_rx_handler.pkt_data,
                         (size_t *) &(tx_rx_handler.pkt_header->len)));
             tx_rx_state = S_RECV;
-
-        } else if (tx_rx_state == S_RECV || tx_rx_state == S_RECV_TIMEOUT) {
+        } else if (tx_rx_state == S_RECV) {
             return_val_rx = (tx_rx_handler.recv_data->rx(
                         tx_rx_handler.recv_data->context,
                         &tx_rx_handler.data_dest_buf,
@@ -332,7 +333,6 @@ tx_rx_pcap_test(struct vtest *test) {
             //If everything is correct e.g. we have space in a ring...
             //We can save packet to pcap
             if (return_val_rx == E_VHOST_NET_OK) {
-
                 tx_rx_handler.pcap_hdr.caplen = tx_rx_handler.data_len_recv;
                 tx_rx_handler.pcap_hdr.len = tx_rx_handler.pcap_hdr.caplen;
                 (pcap_dump(
@@ -346,17 +346,17 @@ tx_rx_pcap_test(struct vtest *test) {
                 tx_rx_state = S_SEND;
                 read_try = 0;
                 continue;
-
-            } else {
-                if (tx_rx_state == S_RECV_TIMEOUT && ((++read_try) > 51200)) {
-                    tx_rx_state = S_SEND;
-                } else {
-                    tx_rx_state = S_RECV_ERR;
+            } else if (return_val_rx == E_VHOST_NET_ERR_RECV_PACKET) {
+                // Try again...
+                if (++read_try > READ_TRY_MAX) {
+                    // ...or give up.
+                    fprintf(stderr, "%s(): RX error: pkt not recvd after %u retries.\n",
+                        __func__, read_try);
+                    break;
                 }
-            }
-        } else {
-            if (tx_rx_state == S_RECV_ERR) {
-                tx_rx_state = S_RECV_TIMEOUT;
+            } else {
+                    fprintf(stderr, "%s(): RX critical error: %d\n",
+                        __func__, return_val_rx);
             }
         }
     }

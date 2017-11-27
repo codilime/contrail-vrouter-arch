@@ -23,6 +23,9 @@ typedef enum {
     FLOW_EVICT_DROP,
 } flow_result_t;
 
+
+#define VR_FLOW_RESP_FLAG_DELETED       0x0001
+
 #define VR_FLOW_FLAG_ACTIVE             0x0001
 #define VR_FLOW_FLAG_MODIFIED           0x0100
 #define VR_FLOW_FLAG_NEW_FLOW           0x0200
@@ -59,34 +62,49 @@ typedef enum {
 #define VR_FLOW_BGP_SERVICE         0x80
 
 /* Flow Action Reason code */
-#define VR_FLOW_DR_UNKNOWN              0x00
-#define VR_FLOW_DR_UNAVIALABLE_INTF     0x01
-#define VR_FLOW_DR_IPv4_FWD_DIS         0x02
-#define VR_FLOW_DR_UNAVAILABLE_VRF      0x03
-#define VR_FLOW_DR_NO_SRC_ROUTE         0x04
-#define VR_FLOW_DR_NO_DST_ROUTE         0x05
-#define VR_FLOW_DR_AUDIT_ENTRY          0x06
-#define VR_FLOW_DR_VRF_CHANGE           0x07
-#define VR_FLOW_DR_NO_REVERSE_FLOW      0x08
-#define VR_FLOW_DR_REVERSE_FLOW_CHANGE  0x09
-#define VR_FLOW_DR_NAT_CHANGE           0x0a
-#define VR_FLOW_DR_FLOW_LIMIT           0x0b
-#define VR_FLOW_DR_LINKLOCAL_SRC_NAT    0x0c
-#define VR_FLOW_DR_POLICY               0x0d
-#define VR_FLOW_DR_OUT_POLICY           0x0e
-#define VR_FLOW_DR_SG                   0x0f
-#define VR_FLOW_DR_OUT_SG               0x10
-#define VR_FLOW_DR_REVERSE_SG           0x11
-#define VR_FLOW_DR_REVERSE_OUT_SG       0x12
-#define VR_FLOW_DR_SAME_FLOW_RFLOW_KEY  0x13
-#define VR_FLOW_DR_NO_MIRROR_ENTRY      0x14
+#define VR_FLOW_DR_UNKNOWN                0x00
+#define VR_FLOW_DR_UNAVIALABLE_INTF       0x01
+#define VR_FLOW_DR_IPv4_FWD_DIS           0x02
+#define VR_FLOW_DR_UNAVAILABLE_VRF        0x03
+#define VR_FLOW_DR_NO_SRC_ROUTE           0x04
+#define VR_FLOW_DR_NO_DST_ROUTE           0x05
+#define VR_FLOW_DR_AUDIT_ENTRY            0x06
+#define VR_FLOW_DR_VRF_CHANGE             0x07
+#define VR_FLOW_DR_NO_REVERSE_FLOW        0x08
+#define VR_FLOW_DR_REVERSE_FLOW_CHANGE    0x09
+#define VR_FLOW_DR_NAT_CHANGE             0x0a
+#define VR_FLOW_DR_FLOW_LIMIT             0x0b
+#define VR_FLOW_DR_LINKLOCAL_SRC_NAT      0x0c
+#define VR_FLOW_DR_FAILED_VROUTER_INSTALL 0x0d
+#define VR_FLOW_DR_INVALID_L2_FLOW        0x0e
+#define VR_FLOW_DR_FLOW_ON_TSN            0x0f
+#define VR_FLOW_DR_NO_MIRROR_ENTRY        0x10
+#define VR_FLOW_DR_SAME_FLOW_RFLOW_KEY    0x11
+#define VR_FLOW_DR_PORT_MAP_DROP          0x12
+#define VR_FLOW_DR_NO_SRC_ROUTE_L2RPF     0x13
+#define VR_FLOW_DR_POLICY                 0x14
+#define VR_FLOW_DR_OUT_POLICY             0x15
+#define VR_FLOW_DR_SG                     0x16
+#define VR_FLOW_DR_OUT_SG                 0x17
+#define VR_FLOW_DR_REVERSE_SG             0x18
+#define VR_FLOW_DR_REVERSE_OUT_SG         0x19
 
 #define VR_IP6_ADDRESS_LEN               16
 
 #define VR_FLOW_FAMILY(type) \
         ((type == VP_TYPE_IP6) ? AF_INET6 \
                                : AF_INET)
+
+#define VR_FLOW_KEY_ALL          0x1F
+#define VR_FLOW_KEY_NONE         0x00
+#define VR_FLOW_KEY_PROTO        0x01
+#define VR_FLOW_KEY_SRC_IP       0x02
+#define VR_FLOW_KEY_SRC_PORT     0x04
+#define VR_FLOW_KEY_DST_IP       0x08
+#define VR_FLOW_KEY_DST_PORT     0x10
+
 struct vr_forwarding_md;
+struct _vr_flow_req;
 
 struct vr_flow_defer_data {
     struct vr_flow_queue *vfdd_flow_queue;
@@ -148,6 +166,7 @@ struct vr_flow {
 #define flow_nh_id     key_u.ip_key.ip_nh_id
 #define flow_proto     key_u.ip_key.ip_proto
 #define flow_ip        key_u.ip_key.ip_addr
+#define flow_unused    key_u.ip_key.ip_unused
 #define flow4_family   key_u.ip4_key.ip4_family
 #define flow4_sip      key_u.ip4_key.ip4_sip
 #define flow4_dip      key_u.ip4_key.ip4_dip
@@ -205,9 +224,17 @@ struct vr_flow {
  * no two values will differ by more than hold count.
  */
 struct vr_flow_table_info {
+    uint64_t vfti_burst_tokens;
+    uint64_t vfti_burst_used;
+    uint64_t vfti_deleted;
+    uint64_t vfti_changed;
     uint64_t vfti_action_count;
     uint64_t vfti_added;
     uint32_t vfti_oflows;
+    uint32_t vfti_burst_step_configured;
+    uint32_t vfti_burst_interval_configured;
+    uint32_t vfti_burst_tokens_configured;
+    struct vr_timer *vfti_timer;
     uint32_t vfti_hold_count[0];
 };
 
@@ -243,7 +270,8 @@ struct vr_packet_node {
     int8_t pl_dscp;
     int8_t pl_dotonep;
     uint32_t pl_vrf;
-    int32_t pl_vlan;
+    uint16_t pl_vlan;
+    uint16_t pl_mirror_vlan;
 };
 
 struct vr_flow_queue {
@@ -328,7 +356,7 @@ struct vr_dummy_flow_entry {
     uint8_t fe_drop_reason;
     uint8_t fe_type;
     unsigned short fe_udp_src_port;
-    struct vr_mirror_meta_entry *fe_mme;
+    uint32_t fe_src_info;
 } __attribute__packed__close__;
 
 #define VR_FLOW_ENTRY_PACK (128 - sizeof(struct vr_dummy_flow_entry))
@@ -358,7 +386,13 @@ struct vr_flow_entry {
     uint8_t fe_drop_reason;
     uint8_t fe_type;
     unsigned short fe_udp_src_port;
-    struct vr_mirror_meta_entry *fe_mme;
+    /*
+     * fe_src_info holds outer source IP if the packet is received on
+     * Fabric or the interface index if packet is received on Vmi. This
+     * helps, if reverse flow is Ecmp, in choosing the reverse flow's
+     * component NH as this source
+     */
+    uint32_t fe_src_info;
     unsigned char fe_pack[VR_FLOW_ENTRY_PACK];
 } __attribute__packed__close__;
 
@@ -425,29 +459,37 @@ flow_result_t vr_inet_flow_lookup(struct vrouter *, struct vr_packet *,
 flow_result_t vr_inet6_flow_lookup(struct vrouter *, struct vr_packet *,
                                   struct vr_forwarding_md *);
 int vr_inet6_form_flow(struct vrouter *, unsigned short, struct vr_packet *,
-        uint16_t, struct vr_ip6 *, struct vr_flow *);
+        uint16_t, struct vr_ip6 *, struct vr_flow *, uint8_t);
 
 extern unsigned short vr_inet_flow_nexthop(struct vr_packet *, unsigned short);
 extern flow_result_t vr_inet_flow_nat(struct vr_flow_entry *,
         struct vr_packet *, struct vr_forwarding_md *);
 extern void vr_inet_fill_flow(struct vr_flow *, unsigned short,
-       unsigned char *, uint8_t, uint16_t, uint16_t);
+       uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, uint8_t);
 extern void vr_inet6_fill_flow(struct vr_flow *, unsigned short,
-       unsigned char *, uint8_t, uint16_t, uint16_t);
+       unsigned char *, uint8_t, uint16_t, uint16_t, uint8_t);
+extern void vr_inet6_fill_flow_from_req(struct vr_flow *,
+        struct _vr_flow_req *);
+extern void vr_inet6_fill_rflow_from_req(struct vr_flow *,
+        struct _vr_flow_req *);
+extern void vr_fill_flow_common(struct vr_flow *, unsigned short,
+                uint8_t, uint16_t, uint16_t, uint8_t, uint8_t);
 extern bool vr_inet_flow_is_fat_flow(struct vrouter *, struct vr_packet *,
         struct vr_flow_entry *);
 extern bool vr_inet6_flow_is_fat_flow(struct vrouter *, struct vr_packet *,
         struct vr_flow_entry *);
 extern bool vr_inet_flow_allow_new_flow(struct vrouter *, struct vr_packet *);
 extern int vr_inet_get_flow_key(struct vrouter *, struct vr_packet *,
-        struct vr_forwarding_md *, struct vr_flow *);
-
+        struct vr_forwarding_md *, struct vr_flow *, uint8_t);
 extern unsigned int vr_reinject_packet(struct vr_packet *,
         struct vr_forwarding_md *);
+extern void vr_flow_set_burst_params(struct vrouter *,int,int,int);
+extern void vr_flow_get_burst_params(struct vrouter *,int *,int *,int *);
+
 
 bool vr_valid_link_local_port(struct vrouter *, int, int, int);
 int vr_inet_form_flow(struct vrouter *, unsigned short,
-                struct vr_packet *, uint16_t, struct vr_flow *);
+                struct vr_packet *, uint16_t, struct vr_flow *, uint8_t);
 int vr_flow_flush_pnode(struct vrouter *, struct vr_packet_node *,
                 struct vr_flow_entry *, struct vr_forwarding_md *);
 void vr_flow_fill_pnode(struct vr_packet_node *, struct vr_packet *,
@@ -458,6 +500,13 @@ extern int16_t vr_flow_get_qos(struct vrouter *, struct vr_packet *,
         struct vr_forwarding_md *);
 unsigned int vr_flow_table_used_oflow_entries(struct vrouter *);
 unsigned int vr_flow_table_used_total_entries(struct vrouter *);
+int vr_flow_update_ecmp_index(struct vrouter *, struct vr_flow_entry *,
+        unsigned int, struct vr_forwarding_md *);
+uint32_t vr_flow_get_rflow_src_info(struct vrouter *, struct
+        vr_flow_entry *);
+unsigned int vr_flow_table_burst_step_configured(struct vrouter *);
+unsigned int vr_flow_table_burst_tokens_configured(struct vrouter *);
+unsigned int vr_flow_table_burst_time_configured(struct vrouter *);
 
 void vr_compute_size_oflow_table(int *oentries, int entries);
 

@@ -62,6 +62,7 @@ struct vr_vrf_stats {
     uint64_t vrf_arp_tor_proxy;
     uint64_t vrf_arp_physical_flood;
     uint64_t vrf_uuc_floods;
+    uint64_t vrf_pbb_tunnels;
 };
 
 struct vr_route {
@@ -112,6 +113,7 @@ extern void vr_fib_exit(struct vrouter *, bool);
 extern int vr_route_add(vr_route_req *);
 extern struct vr_nexthop *(*vr_inet_route_lookup)(unsigned int,
                struct vr_route_req *);
+extern int bridge_entry_add(struct rtable_fspec *, struct vr_route_req *);
 
 #ifdef __cplusplus
 }

@@ -83,4 +83,9 @@ struct nlattr {
 
 #define FAKE_NETLINK_FAMILY (1)
 
+struct nlmsgerr {
+    int             error;
+    struct nlmsghdr msg;
+};
+
 #endif /* FAKE_NETLINK_H */

@@ -751,7 +751,7 @@ win_get_time(uint64_t *sec, uint64_t *usec)
 }
 
 static void
-win_get_mono_time(unsigned int *sec, unsigned int *nsec)
+win_get_mono_time(uint64_t *sec, uint64_t *nsec)
 {
     LARGE_INTEGER i;
     KeQueryTickCount(&i);
@@ -837,7 +837,7 @@ win_pull_inner_headers(struct vr_packet *pkt,
 }
 
 static int
-win_pcow(struct vr_packet *pkt, unsigned short head_room)
+win_pcow(struct vr_packet **pkt, unsigned short head_room)
 {
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(head_room);

@@ -17,14 +17,18 @@
 /* For sched_getaffinity() */
 #define _GNU_SOURCE
 
-#include "vr_dpdk.h"
-#include "vr_dpdk_virtio.h"
-#include "vr_uvhost.h"
-#include "vr_bridge.h"
-
+#include <stdint.h>
 #include <getopt.h>
 #include <signal.h>
 #include <sys/time.h>
+
+#include "vr_dpdk.h"
+#include "vr_dpdk_usocket.h"
+#include "vr_dpdk_virtio.h"
+#include "vr_uvhost.h"
+#include "vr_bridge.h"
+#include "vr_mem.h"
+#include "nl_util.h"
 
 #include <rte_errno.h>
 #include <rte_ethdev.h>
@@ -53,6 +57,12 @@ enum vr_opt_index {
     VTEST_VLAN_OPT_INDEX,
 #define VDEV_OPT                "vdev"
     VDEV_OPT_INDEX,
+#define NO_GRO_OPT              "no-gro"
+    NO_GRO_OPT_INDEX,
+#define NO_GSO_OPT              "no-gso"
+    NO_GSO_OPT_INDEX,
+#define NO_RX_MRG_BUF_OPT       "no-mrgbuf"
+    NO_RX_MRG_BUF_INDEX,
 #define BRIDGE_ENTRIES_OPT      "vr_bridge_entries"
     BRIDGE_ENTRIES_OPT_INDEX,
 #define BRIDGE_OENTRIES_OPT     "vr_bridge_oentries"
@@ -67,10 +77,16 @@ enum vr_opt_index {
     NEXTHOPS_OPT_INDEX,
 #define VRFS_OPT                "vr_vrfs"
     VRFS_OPT_INDEX,
+#define SOCKET_DIR_OPT          "vr_socket_dir"
+    SOCKET_DIR_OPT_INDEX,
+#define NETLINK_PORT_OPT        "vr_netlink_port"
+    NETLINK_PORT_OPT_INDEX,
 #define SOCKET_MEM_OPT          "socket-mem"
     SOCKET_MEM_OPT_INDEX,
 #define LCORES_OPT              "lcores"
     LCORES_OPT_INDEX,
+#define MEMORY_ALLOC_CHECKS_OPT "vr_memory_alloc_checks"
+    MEMORY_ALLOC_CHECKS_OPT_INDEX,
     MAX_OPT_INDEX
 };
 
@@ -82,7 +98,10 @@ extern unsigned int vr_nexthops;
 extern unsigned int vr_vrfs;
 
 static int no_daemon_set;
+static int no_gro_set = 0;
+static int no_gso_set = 0;
 int no_huge_set;
+int no_rx_mrgbuf = 0;
 unsigned int vr_mempool_sz = VR_DEF_MEMPOOL_SZ;
 unsigned int vr_packet_sz = VR_DEF_MAX_PACKET_SZ;
 extern char *ContrailBuildInfo;
@@ -590,7 +609,16 @@ version_print(void)
 }
 
 /*
+ * dpdk_check_rx_mrgbuf_disable - check if mergeable buffers is disabled by cmdline */
+int
+dpdk_check_rx_mrgbuf_disable(void)
+{
+    return no_rx_mrgbuf;
+}
+
+/*
  * dpdk_check_sriov_vf - check if any of eth devices is a virtual function.
+ *               - Pin the lcore for SR-IOV vf I/O for eth devices. 
  */
 static void
 dpdk_check_sriov_vf(void)
@@ -621,6 +649,7 @@ dpdk_check_sriov_vf(void)
     }
 }
 
+
 /* Init DPDK EAL */
 static int
 dpdk_init(void)
@@ -629,9 +658,19 @@ dpdk_init(void)
 
     version_print();
 
-    ret = vr_dpdk_flow_mem_init();
+    ret = vr_dpdk_table_mem_init(VR_MEM_FLOW_TABLE_OBJECT, vr_flow_entries,
+            VR_FLOW_TABLE_SIZE, vr_oflow_entries, VR_OFLOW_TABLE_SIZE);
     if (ret < 0) {
         RTE_LOG(ERR, VROUTER, "Error initializing flow table: %s (%d)\n",
+            rte_strerror(-ret), -ret);
+        return ret;
+    }
+
+    ret = vr_dpdk_table_mem_init(VR_MEM_BRIDGE_TABLE_OBJECT, vr_bridge_entries,
+            VR_BRIDGE_TABLE_SIZE, vr_bridge_oentries,
+            VR_BRIDGE_OFLOW_TABLE_SIZE);
+    if (ret < 0) {
+        RTE_LOG(ERR, VROUTER, "Error initializing bridge table: %s (%d)\n",
             rte_strerror(-ret), -ret);
         return ret;
     }
@@ -697,6 +736,14 @@ dpdk_exit(void)
         if (vr_dpdk.knis[i] != NULL) {
             rte_kni_release(vr_dpdk.knis[i]);
             vr_dpdk.knis[i] = NULL;
+        }
+    }
+
+    RTE_LOG(INFO, VROUTER, "Releasing TAP devices...\n");
+    for (i = 0; i < VR_DPDK_MAX_TAP_INTERFACES; i++) {
+        if (vr_dpdk.tapdevs[i].tapdev_fd > 0) {
+            close(vr_dpdk.tapdevs[i].tapdev_fd);
+            vr_dpdk.tapdevs[i].tapdev_fd = -1;
         }
     }
 
@@ -829,6 +876,12 @@ static struct option long_options[] = {
                                                     NULL,                   0},
     [VDEV_OPT_INDEX]                =   {VDEV_OPT,              required_argument,
                                                     NULL,                   0},
+    [NO_GRO_OPT_INDEX]              =   {NO_GRO_OPT,            no_argument,
+                                                    &no_gro_set,            1},
+    [NO_GSO_OPT_INDEX]              =   {NO_GSO_OPT,            no_argument,
+                                                    &no_gso_set,            1},
+    [NO_RX_MRG_BUF_INDEX]           =   {NO_RX_MRG_BUF_OPT,     no_argument,
+                                                    &no_rx_mrgbuf,          1},
     [BRIDGE_ENTRIES_OPT_INDEX]      =   {BRIDGE_ENTRIES_OPT,    required_argument,
                                                     NULL,                   0},
     [BRIDGE_OENTRIES_OPT_INDEX]     =   {BRIDGE_OENTRIES_OPT,   required_argument,
@@ -843,7 +896,13 @@ static struct option long_options[] = {
                                                     NULL,                   0},
     [VRFS_OPT_INDEX]                =   {VRFS_OPT,              required_argument,
                                                     NULL,                   0},
+    [SOCKET_DIR_OPT_INDEX]          =   {SOCKET_DIR_OPT,        required_argument,
+                                                    NULL,                   0},
+    [NETLINK_PORT_OPT_INDEX]        =   {NETLINK_PORT_OPT,      required_argument,
+                                                    NULL,                   0},
     [SOCKET_MEM_OPT_INDEX]          =   {SOCKET_MEM_OPT,        required_argument,
+                                                    NULL,                   0},
+    [MEMORY_ALLOC_CHECKS_OPT_INDEX] =   {MEMORY_ALLOC_CHECKS_OPT, no_argument,
                                                     NULL,                   0},
     [MAX_OPT_INDEX]                 =   {NULL,                  0,
                                                     NULL,                   0},
@@ -876,8 +935,9 @@ Usage(void)
         "    --"MPLS_LABELS_OPT" NUM      MPLS table limit\n"
         "    --"NEXTHOPS_OPT" NUM         Nexthop table limit\n"
         "    --"VRFS_OPT" NUM             VRF tables limit\n"
-        "    --"MEMPOOL_SIZE_OPT" NUM       Main packet pool size\n"
-        "    --"PACKET_SIZE_OPT" NUM        Maximum packet size\n"
+        "    --"MEMORY_ALLOC_CHECKS_OPT"  Enable memory checks\n"
+        "    --"MEMPOOL_SIZE_OPT" NUM     Main packet pool size\n"
+        "    --"PACKET_SIZE_OPT" NUM      Maximum packet size\n"
         );
 
     exit(1);
@@ -887,9 +947,13 @@ static void
 parse_long_opts(int opt_flow_index, char *optarg)
 {
     errno = 0;
+
     switch (opt_flow_index) {
     case NO_DAEMON_OPT_INDEX:
     case NO_HUGE_OPT_INDEX:
+    case NO_GRO_OPT_INDEX:
+    case NO_GSO_OPT_INDEX:
+    case NO_RX_MRG_BUF_INDEX:
         break;
 
     case VERSION_OPT_INDEX:
@@ -979,6 +1043,10 @@ parse_long_opts(int opt_flow_index, char *optarg)
         }
         break;
 
+    case MEMORY_ALLOC_CHECKS_OPT_INDEX:
+        vr_memory_alloc_checks = 1;
+        break;
+
     case MPLS_LABELS_OPT_INDEX:
         vr_mpls_labels = (unsigned int)strtoul(optarg, NULL, 0);
         if (errno != 0) {
@@ -997,6 +1065,17 @@ parse_long_opts(int opt_flow_index, char *optarg)
         vr_vrfs = (unsigned int)strtoul(optarg, NULL, 0);
         if (errno != 0) {
             vr_vrfs = VR_DEF_VRFS;
+        }
+        break;
+
+    case SOCKET_DIR_OPT_INDEX:
+        vr_socket_dir = optarg;
+        break;
+
+    case NETLINK_PORT_OPT_INDEX:
+        vr_netlink_port = (unsigned int)strtoul(optarg, NULL, 0);
+        if (errno != 0) {
+            vr_netlink_port = VR_DEF_NETLINK_PORT;
         }
         break;
 
@@ -1086,6 +1165,9 @@ main(int argc, char *argv[])
             return 1;
         }
     }
+
+    vr_perfr = no_gro_set ? 0 : 1;
+    vr_perfs = no_gso_set ? 0 : 1;
 
     /* init DPDK first since vRouter uses DPDK mallocs and logs */
     ret = dpdk_init();

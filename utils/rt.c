@@ -13,9 +13,11 @@
 #include <stdbool.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <fcntl.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 
 #include <net/if.h>
 
@@ -34,12 +36,14 @@
 #include "vr_route.h"
 #include "vr_bridge.h"
 #include "vr_os.h"
+#include "ini_parser.h"
+#include "vr_mem.h"
+#include "vrouter.h"
 
 static struct nl_client *cl;
 static int resp_code;
 
 static uint8_t rt_prefix[16], rt_marker[16];
-unsigned int rt_marker_plen;
 
 static bool cmd_proxy_set = false;
 static bool cmd_trap_set = false;
@@ -67,9 +71,20 @@ static bool dump_pending;
 static void Usage(void);
 static void usage_internal(void);
 
+static void bridge_table_data_process(void *s_req);
+
 #define INET_FAMILY_STRING      "inet"
 #define BRIDGE_FAMILY_STRING    "bridge"
 #define INET6_FAMILY_STRING     "inet6"
+#define BRIDGE_TABLE_DEV        "/dev/vr_bridge"
+
+static int mem_fd = -1;
+static struct bridge_table {
+    unsigned int bt_size;
+    unsigned int bt_num_entries;
+    struct vr_bridge_entry *bt_entries;
+} vr_bridge_table;
+
 
 struct vr_util_flags inet_flags[] = {
     {VR_RT_LABEL_VALID_FLAG,    "L",    "Label Valid"   },
@@ -79,8 +94,12 @@ struct vr_util_flags inet_flags[] = {
 };
 
 struct vr_util_flags bridge_flags[] = {
-    {VR_BE_LABEL_VALID_FLAG,    "L",    "Label Valid"   },
-    {VR_BE_FLOOD_DHCP_FLAG,     "Df",   "DHCP flood"    },
+    {VR_BE_LABEL_VALID_FLAG,      "L",    "Label Valid"         },
+    {VR_BE_FLOOD_DHCP_FLAG,       "Df",   "DHCP flood"          },
+    {VR_BE_MAC_MOVED_FLAG,        "Mm",   "Mac Moved"           },
+    {VR_BE_L2_CONTROL_DATA_FLAG,  "L2c",  "L2 Evpn Control Word"},
+    {VR_BE_MAC_NEW_FLAG,          "N",    "New Entry"           },
+    {VR_BE_EVPN_CONTROL_PROCESSING_FLAG, "Ec",    "EvpnControlProcessing" },
 };
 
 static void
@@ -131,6 +150,57 @@ family_string_to_id(char *fname)
 }
 
 static void
+vr_bridge_print_route(uint8_t *mac, unsigned int index,
+        unsigned int flags, unsigned int label,
+        unsigned int nh_id, uint64_t packets)
+{
+    int ret, i;
+    char flag_string[32];
+
+    memset(flag_string, 0, sizeof(flag_string));
+    if (flags & VR_BE_LABEL_VALID_FLAG)
+        strcat(flag_string, "L");
+    if (flags & VR_BE_FLOOD_DHCP_FLAG)
+        strcat(flag_string, "Df");
+    if (flags & VR_BE_MAC_MOVED_FLAG)
+        strcat(flag_string, "Mm");
+    if (flags & VR_BE_L2_CONTROL_DATA_FLAG)
+        strcat(flag_string, "L2c");
+    if (flags & VR_BE_MAC_NEW_FLAG)
+        strcat(flag_string, "N");
+    if (flags & VR_BE_EVPN_CONTROL_PROCESSING_FLAG)
+        strcat(flag_string, "Ec");
+
+    ret = printf("%-9d", index);
+    for (i = ret; i < 12; i++)
+        printf(" ");
+
+    ret = printf("%s", ether_ntoa((struct ether_addr *)(mac)));
+    for (i = ret; i < 20; i++)
+        printf(" ");
+
+    ret = printf(" %9s", flag_string);
+
+    for (i = 0; i < 11; i++)
+        printf(" ");
+
+    if (flags & VR_BE_LABEL_VALID_FLAG)
+        ret = printf(" %9d", label);
+    else
+        ret = printf(" %9c", '-');
+
+    for (i = 0; i < 6; i++)
+        printf(" ");
+    printf("%7d", nh_id);
+
+    for (i = 0; i < 4; i++)
+        printf(" ");
+    printf("%12" PRIu64 "\n", packets);
+
+    return;
+}
+
+static void
 route_req_process(void *s_req)
 {
     int ret = 0, i;
@@ -141,7 +211,6 @@ route_req_process(void *s_req)
     if ((rt->rtr_family == AF_INET) ||
         (rt->rtr_family == AF_INET6)) {
         memcpy(rt_marker, rt->rtr_prefix, RT_IP_ADDR_SIZE(rt->rtr_family));
-        rt_marker_plen = rt->rtr_prefix_len;
 
         if (rt->rtr_prefix_size) {
             if (cmd_op == SANDESH_OP_GET)
@@ -195,35 +264,8 @@ route_req_process(void *s_req)
         printf("\n");
     } else {
         memcpy(rt_marker, rt->rtr_mac, VR_ETHER_ALEN);
-        rt_marker_plen = VR_ETHER_ALEN;
-
-        memset(flags, 0, sizeof(flags));
-        if (rt->rtr_label_flags & VR_BE_LABEL_VALID_FLAG)
-            strcat(flags, "L");
-        if (rt->rtr_label_flags & VR_BE_FLOOD_DHCP_FLAG)
-            strcat(flags, "Df");
-
-        ret = printf("%-9d", rt->rtr_index);
-        for (i = ret; i < 12; i++)
-            printf(" ");
-
-        ret = printf("%s", ether_ntoa((struct ether_addr *)(rt->rtr_mac)));
-        for (i = ret; i < 20; i++)
-            printf(" ");
-
-        ret = printf(" %8s", flags);
-        for (i = ret; i < 10; i++)
-            printf(" ");
-
-        if (rt->rtr_label_flags & VR_BE_LABEL_VALID_FLAG)
-            ret = printf(" %16d", rt->rtr_label);
-        else
-            ret = printf(" %16c", '-');
-
-        for (i = ret; i < 20; i++)
-            printf(" ");
-
-        printf(" %10d\n", rt->rtr_nh_id);
+        vr_bridge_print_route(rt->rtr_mac, rt->rtr_index,
+                rt->rtr_label_flags, rt->rtr_label, rt->rtr_nh_id, 0);
     }
 
     return;
@@ -241,6 +283,7 @@ rt_fill_nl_callbacks()
 {
     nl_cb.vr_response_process = response_process;
     nl_cb.vr_route_req_process = route_req_process;
+    nl_cb.vr_bridge_table_data_process = bridge_table_data_process;
 }
 
 
@@ -263,11 +306,29 @@ vr_print_rtable_header(unsigned int family, unsigned int vrf)
     case AF_BRIDGE:
         printf("vRouter bridge table %d/%d\n", 0, cmd_vrf_id);
         printf("Index       DestMac                  Flags           "
-                "Label/VNID      Nexthop\n");
+                "Label/VNID      Nexthop           Stats\n");
         break;
 
     default:
         break;
+    }
+
+    return;
+}
+
+static void
+vr_bridge_table_dump(unsigned int vrf)
+{
+    unsigned int i;
+    struct vr_bridge_entry *be;
+
+    for (i = 0; i < vr_bridge_table.bt_num_entries; i++) {
+        be = &vr_bridge_table.bt_entries[i];
+        if (!(be->be_flags & VR_BE_VALID_FLAG) ||
+                (be->be_key.be_vrf_id != vrf))
+            continue;
+        vr_bridge_print_route(be->be_key.be_mac, i, be->be_flags,
+                be->be_label, be->be_nh_id, be->be_packets);
     }
 
     return;
@@ -284,9 +345,6 @@ vr_route_op(struct nl_client *cl)
 
     if (cmd_op == SANDESH_OP_DUMP || cmd_op == SANDESH_OP_GET) {
         vr_print_rtable_header(cmd_family_id, cmd_vrf_id);
-        if (cmd_family_id == AF_BRIDGE) {
-            rt_marker_plen = VR_ETHER_ALEN;
-        }
     }
 
     if (cmd_proxy_set)
@@ -310,9 +368,15 @@ op_retry:
         break;
 
     case SANDESH_OP_DUMP:
-        dump = true;
-        ret = vr_send_route_dump(cl, 0, cmd_vrf_id, cmd_family_id,
-                rt_marker, rt_marker_plen);
+        if (cmd_family_id == AF_BRIDGE) {
+            vr_bridge_table_dump(cmd_vrf_id);
+            return 0;
+        } else {
+            dump = true;
+            ret = vr_send_route_dump(cl, 0, cmd_vrf_id, cmd_family_id,
+                rt_marker);
+        }
+
         break;
 
     case SANDESH_OP_DEL:
@@ -341,6 +405,54 @@ op_retry:
 
     if (dump_pending)
         goto op_retry;
+
+    return 0;
+}
+
+static int
+bridge_table_map(vr_bridge_table_data *table)
+{
+    vr_bridge_table.bt_size = table->btable_size;
+    vr_bridge_table.bt_num_entries =
+        table->btable_size / sizeof(struct vr_bridge_entry);
+
+#ifdef _WIN32
+    vr_bridge_table.bt_entries = NULL;
+#else
+    vr_bridge_table.bt_entries =
+        vr_table_map(table->btable_dev, VR_MEM_BRIDGE_TABLE_OBJECT,
+            table->btable_file_path, table->btable_size);
+    if (vr_bridge_table.bt_entries == MAP_FAILED) {
+        printf("bridge table: %s\n", strerror(errno));
+        exit(errno);
+    }
+#endif
+
+    return 0;
+}
+
+static void
+bridge_table_data_process(void *s_req)
+{
+    vr_bridge_table_data *req = (vr_bridge_table_data *)s_req;
+
+    bridge_table_map(req);
+
+    return;
+}
+
+static int
+vr_bridge_table_setup(struct nl_client *cl)
+{
+    int ret;
+
+    ret = vr_send_get_bridge_table_data(cl);
+    if (!ret)
+        return ret;
+
+    ret = vr_recvmsg(cl, false);
+    if (ret <= 0)
+        return -1;
 
     return 0;
 }
@@ -706,6 +818,15 @@ main(int argc, char *argv[])
     cl = vr_get_nl_client(VR_NETLINK_PROTO_DEFAULT);
     if (!cl) {
         exit(1);
+    }
+
+    if (cmd_family_id == AF_BRIDGE) {
+        if (cmd_op == SANDESH_OP_DUMP || cmd_op == SANDESH_OP_GET) {
+            ret = vr_bridge_table_setup(cl);
+            if (ret) {
+                exit(1);
+            }
+        }
     }
 
     vr_route_op(cl);
