@@ -117,7 +117,8 @@ buffer sandesh vr_interface_req {
     60: u32         vifr_isid;
     61: list<byte>  vifr_pbb_mac;
     62: byte        vifr_vhostuser_mode;
-    63: list<byte>  vifr_if_guid;
+    63: i32         vifr_mcast_vrf;
+    64: list<byte>  vifr_if_guid;
 }
 
 buffer sandesh vr_vxlan_req {
@@ -484,4 +485,11 @@ buffer sandesh vr_bridge_table_data {
     3: u32          btable_size;
     4: u16          btable_dev;
     5: string       btable_file_path;
+}
+
+buffer sandesh vr_hugepage_config {
+    1: sandesh_op   vhp_op;
+    2: list<u64>    vhp_mem;
+    3: list<u32>    vhp_msize;
+    4: u32          vhp_resp;
 }

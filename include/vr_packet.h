@@ -739,7 +739,6 @@ vr_ip_transport_header_valid(struct vr_ip *iph)
 }
 
 
-
 #define VR_TCP_FLAG_FIN         0x0001
 #define VR_TCP_FLAG_SYN         0x0002
 #define VR_TCP_FLAG_RST         0x0004

@@ -808,6 +808,9 @@ linux_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
     skb->data = pkt_data(pkt);
     skb->len = pkt_len(pkt);
     skb_set_tail_pointer(skb, pkt_head_len(pkt));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0))
+    skb_sender_cpu_clear(skb);
+#endif
 
     skb->dev = dev;
     if (!dev) {
@@ -2101,14 +2104,16 @@ static rx_handler_result_t
 pkt_gro_dev_rx_handler(struct sk_buff **pskb)
 {
     unsigned short nh_id, vif_id, drop_reason;
-    struct vr_nexthop *nh;
-    struct vr_interface *vif;
-    struct vr_interface *gro_vif;
-    struct vr_interface_stats *gro_vif_stats;
-    struct sk_buff *skb = *pskb;
-    struct vr_packet *pkt = NULL;
+
     struct vrouter *router = vrouter_get(0);
+    struct vr_gro *gro;
+    struct vr_nexthop *nh;
+    struct vr_interface *vif, *gro_vif;
+    struct vr_interface_stats *gro_vif_stats;
+    struct vr_packet *pkt = NULL;
     struct vr_forwarding_md fmd;
+    struct sk_buff *skb = *pskb;
+
 #ifdef XEN_HYPERVISOR
     unsigned char *data;
 
@@ -2119,8 +2124,9 @@ pkt_gro_dev_rx_handler(struct sk_buff **pskb)
         goto drop;
     }
 #else
-    vif_id = *((unsigned short *)skb_mac_header(skb));
-    nh_id = *((unsigned short *)(skb_mac_header(skb) + sizeof(vif_id)));
+    gro = (struct vr_gro *)skb_mac_header(skb);
+    vif_id = gro->vg_vif_id;
+    nh_id = gro->vg_nh_id;
 #endif
 
     gro_vif = skb->dev->ml_priv;

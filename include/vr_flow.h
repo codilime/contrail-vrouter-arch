@@ -88,6 +88,10 @@ typedef enum {
 #define VR_FLOW_DR_OUT_SG                 0x17
 #define VR_FLOW_DR_REVERSE_SG             0x18
 #define VR_FLOW_DR_REVERSE_OUT_SG         0x19
+#define VR_FLOW_DR_FW_POLICY              0x1a
+#define VR_FLOW_DR_OUT_FW_POLICY          0x1b
+#define VR_FLOW_DR_REVERSE_FW_POLICY      0x1c
+#define VR_FLOW_DR_REVERSE_OUT_FW_POLICY  0x1d
 
 #define VR_IP6_ADDRESS_LEN               16
 
@@ -441,6 +445,7 @@ struct vrouter;
 struct vr_ip6;
 
 extern int vr_flow_init(struct vrouter *);
+extern int vr_flow_mem(struct vrouter *);
 extern void vr_flow_exit(struct vrouter *, bool);
 
 extern bool vr_flow_forward(struct vrouter *,

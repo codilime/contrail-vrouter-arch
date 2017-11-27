@@ -184,6 +184,14 @@ vr_bridge_table_data_process(void *s_req)
     }
 }
 
+void
+vr_hugepage_config_process(void *s_req)
+{
+    if (nl_cb.vr_hugepage_config_process) {
+        nl_cb.vr_hugepage_config_process(s_req);
+    }
+}
+
 struct nl_response *
 nl_parse_gen_ctrl(struct nl_client *cl)
 {

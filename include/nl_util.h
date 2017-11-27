@@ -109,6 +109,7 @@ struct nl_sandesh_callbacks {
     void (*vr_qos_map_req_process)(void *);
     void (*vr_flow_table_data_process)(void *);
     void (*vr_bridge_table_data_process)(void *);
+    void (*vr_hugepage_config_process)(void *);
 };
 
 extern struct nl_sandesh_callbacks nl_cb;

@@ -259,6 +259,21 @@ vr_gateway_nexthop(struct vr_nexthop *nh)
     return false;
 }
 
+
+bool
+vr_hosted_nexthop(struct vr_nexthop *nh)
+{
+    if (nh) {
+        if (!nh->nh_dev)
+            return false;
+
+        if ((nh->nh_type == NH_ENCAP) && vif_is_virtual(nh->nh_dev))
+            return true;
+    }
+
+    return false;
+}
+
 static int
 nh_tunnel_loop_detect_handle(struct vr_packet *pkt, struct vr_nexthop *nh,
                                     struct vr_forwarding_md *fmd, uint32_t dip)
@@ -797,6 +812,7 @@ static int
 nh_composite_ecmp_select_nh(struct vr_packet *pkt, struct vr_nexthop *nh,
         struct vr_forwarding_md *fmd)
 {
+    bool hash_computed = false;
     int ret = -1, ecmp_index = -1;
     unsigned int hash, hash_ecmp, count, rflow_src_info;
 
@@ -848,14 +864,21 @@ nh_composite_ecmp_select_nh(struct vr_packet *pkt, struct vr_nexthop *nh,
             if (ret < 0)
                 return ret;
         } else {
-            return ret;
+            /*
+             * packet can be hashed on ethernet header and VRF to identify
+             * the component
+             */
+            hash_ecmp = vr_hash(pkt_data(pkt), VR_ETHER_HLEN, 0);
+            hash_ecmp = vr_hash_2words(hash_ecmp, fmd->fmd_dvrf, 0);
+            hash_computed = true;
         }
     }
 
 
     if (ecmp_index == -1) {
-        hash = hash_ecmp = vr_hash(flowp, flowp->flow_key_len, 0);
-        hash %= count;
+        if (!hash_computed)
+            hash_ecmp = vr_hash(flowp, flowp->flow_key_len, 0);
+        hash = hash_ecmp % count;
         ecmp_index = cnhp[hash].cnh_ecmp_index;
         cnh = cnhp[hash].cnh;
         if (!cnh) {
@@ -2064,6 +2087,16 @@ nh_mpls_udp_tunnel_validate_src(struct vr_packet *pkt, struct vr_nexthop *nh,
     return NH_SOURCE_INVALID;
 }
 
+static int
+nh_vxlan_tunnel_validate_src(struct vr_packet *pkt, struct vr_nexthop *nh,
+                                struct vr_forwarding_md *fmd, void *ret_data)
+{
+    if (fmd->fmd_outer_src_ip == nh->nh_udp_tun_dip)
+        return NH_SOURCE_VALID;
+
+    return NH_SOURCE_INVALID;
+}
+
 
 /*
  * nh_mpls_udp_tunnel - tunnel packet with MPLS label in UDP.
@@ -2553,6 +2586,12 @@ nh_encap_l2(struct vr_packet *pkt, struct vr_nexthop *nh,
         }
     }
 
+    /*
+     * If for some reason, we have GRO flag set and we have not invoked
+     * the GRO, we need to unset
+     */
+    vr_pkt_unset_gro(pkt);
+
     if (stats)
         stats->vrf_l2_encaps++;
 
@@ -2636,6 +2675,12 @@ nh_encap_l3(struct vr_packet *pkt, struct vr_nexthop *nh,
             return NH_PROCESSING_COMPLETE;
         }
     }
+
+    /*
+     * If for some reason, we have GRO flag set and we have not invoked
+     * the GRO, we need to unset
+     */
+    vr_pkt_unset_gro(pkt);
 
     rewrite_len = vif->vif_set_rewrite(vif, &pkt, fmd, nh->nh_data, nh->nh_encap_len);
     if (rewrite_len < 0) {
@@ -3069,6 +3114,7 @@ nh_tunnel_add(struct vr_nexthop *nh, vr_nexthop_req *req)
         nh->nh_udp_tun_sip = req->nhr_tun_sip;
         nh->nh_udp_tun_dip = req->nhr_tun_dip;
         nh->nh_udp_tun_encap_len = req->nhr_encap_size;
+        nh->nh_validate_src = nh_vxlan_tunnel_validate_src;
         nh->nh_dev = vif;
     } else if (nh->nh_flags & NH_FLAG_TUNNEL_PBB) {
         if (!(nh->nh_flags & NH_FLAG_INDIRECT)) {

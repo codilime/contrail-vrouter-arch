@@ -399,6 +399,7 @@ dpdk_gro_process(struct vr_packet *pkt, struct vr_interface *vif, bool l2_pkt)
     struct vrouter *router;
     struct vr_interface *src_vif;
     struct vr_nexthop *nh;
+    struct vr_gro *gro;
 
     if (vif) {
         struct vr_interface_stats *gro_vif_stats;
@@ -436,12 +437,13 @@ dpdk_gro_process(struct vr_packet *pkt, struct vr_interface *vif, bool l2_pkt)
     m->pkt_len = pkt_len(pkt);
     m->data_len = pkt_head_len(pkt);
 
-    /* pop the vif_idx and nh_id */
-    src_vif_idx = *rte_pktmbuf_mtod(m, unsigned short*);
-    nh_id = *((unsigned short*)rte_pktmbuf_adj(m, sizeof(unsigned short)));
-    /* Already done rte_pktmbuf_adj() above for src_vif_idx. Do here for just nh_id */
-    rte_pktmbuf_adj(m, sizeof(unsigned short));
-    pkt_pull(pkt, 2*sizeof(unsigned short));
+    /* get the vif_idx and nh_id */
+    gro = rte_pktmbuf_mtod(m, struct vr_gro *);
+    src_vif_idx = gro->vg_vif_id;
+    nh_id = gro->vg_nh_id;
+    rte_pktmbuf_adj(m, sizeof(struct vr_gro));
+    pkt_pull(pkt, sizeof(struct vr_gro));
+
     src_vif = __vrouter_get_interface(router, src_vif_idx);
 
     /* Make sure nh points to a virtual vif */
@@ -690,8 +692,8 @@ create:
 
 func_exit:
     if (ret != GRO_MERGED) {
-        pkt_push(pkt, 2*sizeof(unsigned short));
-        rte_pktmbuf_prepend(m, 2*sizeof(unsigned short));
+        pkt_push(pkt, sizeof(struct vr_gro));
+        rte_pktmbuf_prepend(m, sizeof(struct vr_gro));
     }
     return (ret == GRO_MERGED)?1:0;
 }

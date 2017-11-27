@@ -8,6 +8,12 @@
 
 #include "vr_packet.h"
 
+__attribute__packed__open__
+struct vr_gro {
+    uint16_t vg_vif_id;
+    uint16_t vg_nh_id;
+} __attribute__packed__close__;
+
 static inline bool
 well_known_mac(unsigned char *dmac)
 {
@@ -49,8 +55,7 @@ extern int vr_forward(struct vrouter *, struct vr_packet *,
 unsigned int
 vr_bridge_input(struct vrouter *, struct vr_packet *,
                                     struct vr_forwarding_md *);
-extern struct vr_nexthop *(*vr_bridge_lookup)(unsigned int,
-                struct vr_route_req *);
+extern struct vr_nexthop *vr_bridge_lookup(unsigned int, struct vr_route_req *);
 extern unsigned short vr_bridge_route_flags(unsigned int, unsigned char *);
 
 mac_response_t vr_get_proxy_mac(struct vr_packet *, struct vr_forwarding_md *,

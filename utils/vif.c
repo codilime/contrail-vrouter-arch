@@ -168,6 +168,7 @@ static struct vr_util_flags flag_metadata[] = {
     {VIF_FLAG_MAC_LEARN,        "L",        "MAC Learning Enabled"},
     {VIF_FLAG_MAC_PROXY,        "Proxy",    "MAC Requests Proxied Always"},
     {VIF_FLAG_ETREE_ROOT,       "Er",       "Etree Root"},
+    {VIF_FLAG_MIRROR_NOTAG,     "Mn",       "Mirror without Vlan Tag"},
 };
 
 static char *
@@ -515,8 +516,9 @@ list_get_print(vr_interface_req *req)
                                                     INET6_ADDRSTRLEN));
     }
     vr_interface_print_head_space();
-    printf("Vrf:%d Flags:%s QOS:%d Ref:%d", req->vifr_vrf,
-            req->vifr_flags ? vr_if_flags(req->vifr_flags) : "NULL" ,
+    printf("Vrf:%d Mcast Vrf:%d Flags:%s QOS:%d Ref:%d", req->vifr_vrf,
+            req->vifr_mcast_vrf, req->vifr_flags ?
+            vr_if_flags(req->vifr_flags) : "NULL" ,
             req->vifr_qos_map_index, req->vifr_ref_cnt);
     if (req->vifr_flags & (VIF_FLAG_MIRROR_TX | VIF_FLAG_MIRROR_RX)) {
         printf(" Mirror index %d\n", req->vifr_mir_id);

@@ -491,6 +491,7 @@ int
 vr_ip_rcv(struct vrouter *router, struct vr_packet *pkt,
         struct vr_forwarding_md *fmd)
 {
+    bool flow_processing = false;
     unsigned int hlen;
     unsigned short drop_reason, l4_port = 0;
     int unhandled = 1;
@@ -545,9 +546,13 @@ vr_ip_rcv(struct vrouter *router, struct vr_packet *pkt,
              * enabled, not in cross connect mode, not mirror packet,
              * lets subject it to flow processing.
              */
-            if (pkt->vp_nh->nh_flags & NH_FLAG_RELAXED_POLICY) {
-                if (!(pkt->vp_flags & VP_FLAG_FLOW_SET) &&
-                      !(pkt->vp_flags & (VP_FLAG_TO_ME | VP_FLAG_FROM_DP))) {
+            if (!(pkt->vp_flags & VP_FLAG_FLOW_SET) &&
+                !(pkt->vp_flags & (VP_FLAG_TO_ME | VP_FLAG_FROM_DP))) {
+
+                if (vif_is_vhost(vif) &&
+                        (vif->vif_flags & VIF_FLAG_POLICY_ENABLED)) {
+                    flow_processing = true;
+                } else if (pkt->vp_nh->nh_flags & NH_FLAG_RELAXED_POLICY) {
 
                     if ((ip->ip_proto == VR_IP_PROTO_UDP) ||
                         (ip->ip_proto == VR_IP_PROTO_TCP)) {
@@ -561,26 +566,38 @@ vr_ip_rcv(struct vrouter *router, struct vr_packet *pkt,
                         }
 
                         if (l4_port && vr_valid_link_local_port(router, AF_INET,
-                                         ip->ip_proto, ntohs(l4_port))) {
-
-                            /* Force the flow lookup */
-                            pkt->vp_flags |= VP_FLAG_FLOW_GET;
-
-                            /* Get back the IP header */
-                            if (!pkt_push(pkt, hlen)) {
-                                drop_reason = VP_DROP_PUSH;
-                                goto drop_pkt;
-                            }
-                            /* Subject it to flow for Linklocal */
-                            if (!vr_flow_forward(router, pkt, fmd))
-                                return 0;
-                            if (!vr_l3_input(pkt, fmd)) {
-                                drop_reason = VP_DROP_NOWHERE_TO_GO;
-                                goto drop_pkt;
-                            }
-                            return 0;
-                        }
+                                         ip->ip_proto, ntohs(l4_port)))
+                            flow_processing = true;
                     }
+                }
+            }
+
+            if (flow_processing) {
+                /* Force the flow lookup */
+                pkt->vp_flags |= VP_FLAG_FLOW_GET;
+
+                /* Get back the IP header */
+                if (!pkt_push(pkt, hlen)) {
+                    drop_reason = VP_DROP_PUSH;
+                    goto drop_pkt;
+                }
+                /* Subject it to flow */
+                if (!vr_flow_forward(router, pkt, fmd))
+                    return 0;
+
+                /*
+                 * For Policy enabled vhost interface, the layer3 processing
+                 * must have been already complete. So it can be
+                 * skipped. But if there is any VRF translation, which
+                 * gets marked in fmd_to_me, lets subject it l3
+                 * processing again.
+                 */
+                if (fmd->fmd_to_me || (pkt->vp_nh->nh_flags & NH_FLAG_RELAXED_POLICY)) {
+                    if (!vr_l3_input(pkt, fmd)) {
+                        drop_reason = VP_DROP_NOWHERE_TO_GO;
+                        goto drop_pkt;
+                    }
+                    return 0;
                 }
             }
         }
@@ -748,7 +765,8 @@ vr_inet_flow_nexthop(struct vr_packet *pkt, unsigned short vlan)
 
     if (vif_is_fabric(pkt->vp_if) && pkt->vp_nh) {
         /* this is more a requirement from agent */
-        if ((pkt->vp_nh->nh_type == NH_ENCAP)) {
+        if ((pkt->vp_nh->nh_type == NH_ENCAP) ||
+                (pkt->vp_nh->nh_type == NH_RCV)) {
             nh_id = pkt->vp_nh->nh_dev->vif_nh_id;
         } else {
             nh_id = pkt->vp_nh->nh_id;
@@ -1002,12 +1020,16 @@ vr_inet_flow_lookup(struct vrouter *router, struct vr_packet *pkt,
         return FLOW_FORWARD;
 
     /*
-     * if the interface is policy enabled, or if somebody else (eg:nexthop)
-     * has requested for a policy lookup, packet has to go through a lookup
+     * Force the flow lookup, if some one has requested a flow lookup
+     * using VP_FLAG_FLOW_GET, if not make a flow lookup if interface
+     * has policy bit set. For link local packets on vhost interfaces,
+     * there is no flow processing even if policy is enabled
      */
-    if ((pkt->vp_if->vif_flags & VIF_FLAG_POLICY_ENABLED) ||
-            (pkt->vp_flags & VP_FLAG_FLOW_GET)) {
+    if (pkt->vp_flags & VP_FLAG_FLOW_GET) {
         lookup = true;
+    } else if (pkt->vp_if->vif_flags & VIF_FLAG_POLICY_ENABLED) {
+        if (!vif_is_vhost(pkt->vp_if) || (!IS_LINK_LOCAL_IP(ip->ip_daddr)))
+            lookup = true;
     }
 
     if (!lookup)
@@ -1034,6 +1056,17 @@ vr_inet_flow_lookup(struct vrouter *router, struct vr_packet *pkt,
         return FLOW_CONSUMED;
     }
 
+
+    if (vif_is_fabric(pkt->vp_if) && !fmd->fmd_outer_src_ip) {
+        if (flow_p->flow4_proto == VR_IP_PROTO_GRE) {
+            return FLOW_FORWARD;
+        } else if (flow_p->flow4_proto == VR_IP_PROTO_UDP) {
+            if (vr_mpls_udp_port(flow_p->flow4_dport) ||
+                    (flow_p->flow4_dport == htons(VR_VXLAN_UDP_DST_PORT))) {
+                return FLOW_FORWARD;
+            }
+        }
+    }
 
     if (vr_ip_fragment_head(ip)) {
         vr_v4_fragment_add(router, fmd->fmd_dvrf, ip, flow_p->flow4_sport,
@@ -1072,8 +1105,13 @@ vm_arp_request(struct vr_interface *vif, struct vr_packet *pkt,
      * Garp coming from other compute nodes can be just flooded without
      * considering the route information
      */
-    if (vr_grat_arp(sarp) && vif_is_fabric(pkt->vp_if))
-        return MR_FLOOD;
+    if (vr_grat_arp(sarp)) {
+        if (vif_is_fabric(pkt->vp_if))
+            return MR_FLOOD;
+
+        if (vif->vif_flags & VIF_FLAG_MAC_PROXY)
+            return MR_DROP;
+    }
 
     memset(&rt, 0, sizeof(rt));
     rt.rtr_req.rtr_vrf_id = fmd->fmd_dvrf;
@@ -1127,6 +1165,13 @@ vm_arp_request(struct vr_interface *vif, struct vr_packet *pkt,
 
     if (stats)
         stats->vrf_arp_virtual_flood++;
+
+    /*
+     * IF underlay ARP request on fabric or from Vhost, cross connect
+     */
+    if (vif_is_vhost(vif) || (vif_is_fabric(vif) && (fmd->fmd_label == -1) &&
+                (fmd->fmd_dvrf == vif->vif_vrf)))
+        return MR_XCONNECT;
 
     return MR_FLOOD;
 }

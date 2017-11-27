@@ -603,7 +603,6 @@ static void
 dpdk_htable_work_cb(struct vrouter *router __attribute__((unused)), void *arg)
 {
     struct dpdk_work_cb_data *defer = (struct dpdk_work_cb_data *)arg;
-
     defer->dwc_fn(defer->dwc_data);
 
     return;
