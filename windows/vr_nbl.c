@@ -85,6 +85,8 @@ FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
     ASSERT(nbl->ParentNetBufferList != NULL);
 
+    FreeForwardingContext(nbl);
+
     PNET_BUFFER_LIST parentNbl = nbl->ParentNetBufferList;
 
     NdisFreeCloneNetBufferList(nbl, 0);
