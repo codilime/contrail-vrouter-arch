@@ -232,7 +232,7 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     pkt->vp_net_buffer_list = nbl;
     pkt->vp_ref_cnt = 1;
-    pkt->vp_cpu = (unsigned char)win_get_cpu();
+    pkt->vp_cpu = (unsigned char)KeGetCurrentProcessorNumberEx(NULL);
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
