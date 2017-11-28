@@ -345,7 +345,7 @@ win_pclone(struct vr_packet *pkt)
         goto cleanup_nbl;
     *npkt = *pkt;
 
-    pkt->vp_ref_cnt++;
+    vr_sync_add_and_fetch_32u(&pkt->vp_ref_cnt, 1);
     npkt->vp_ref_cnt = 1;
 
     npkt->vp_net_buffer_list = nbl;

@@ -10,35 +10,35 @@ FILTER_SEND_NET_BUFFER_LISTS FilterSendNetBufferLists;
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 
 static NDIS_STATUS
-CreateForwardingContext(PNET_BUFFER_LIST Nbl)
+CreateForwardingContext(PNET_BUFFER_LIST nbl)
 {
-    ASSERT(Nbl != NULL);
+    ASSERT(nbl != NULL);
     return VrSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(
         VrSwitchObject->NdisSwitchContext,
-        Nbl);
+        nbl);
 }
 
 static void
-FreeForwardingContext(PNET_BUFFER_LIST Nbl)
+FreeForwardingContext(PNET_BUFFER_LIST nbl)
 {
-    ASSERT(Nbl != NULL);
+    ASSERT(nbl != NULL);
     VrSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(
         VrSwitchObject->NdisSwitchContext,
-        Nbl);
+        nbl);
 }
 
 static PNET_BUFFER_LIST
-CreateNetBufferListUsingBuffer(unsigned int BytesCount, void *Buffer)
+CreateNetBufferListUsingBuffer(unsigned int bytesCount, void *buffer)
 {
-    ASSERT(BytesCount > 0);
-    ASSERT(Buffer != NULL);
+    ASSERT(bytesCount > 0);
+    ASSERT(buffer != NULL);
 
-    PMDL mdl = NdisAllocateMdl(VrSwitchObject->NdisFilterHandle, Buffer, BytesCount);
+    PMDL mdl = NdisAllocateMdl(VrSwitchObject->NdisFilterHandle, buffer, bytesCount);
     if (mdl == NULL)
         return NULL;
     mdl->Next = NULL;
 
-    PNET_BUFFER_LIST nbl = NdisAllocateNetBufferAndNetBufferList(VrNBLPool, 0, 0, mdl, 0, BytesCount);
+    PNET_BUFFER_LIST nbl = NdisAllocateNetBufferAndNetBufferList(VrNBLPool, 0, 0, mdl, 0, bytesCount);
     if (nbl == NULL)
         goto fail;
     nbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
@@ -58,19 +58,19 @@ fail:
 }
 
 PNET_BUFFER_LIST
-CreateNetBufferList(unsigned int BytesCount)
+CreateNetBufferList(unsigned int bytesCount)
 {
-    ASSERT(BytesCount > 0);
+    ASSERT(bytesCount > 0);
 
-    if (BytesCount == 0)
+    if (bytesCount == 0)
         return NULL;
 
-    void *buffer = ExAllocatePoolWithTag(NonPagedPoolNx, BytesCount, VrAllocationTag);
+    void *buffer = ExAllocatePoolWithTag(NonPagedPoolNx, bytesCount, VrAllocationTag);
     if (buffer == NULL)
         return NULL;
-    RtlZeroMemory(buffer, BytesCount);
+    RtlZeroMemory(buffer, bytesCount);
 
-    PNET_BUFFER_LIST nbl = CreateNetBufferListUsingBuffer(BytesCount, buffer);
+    PNET_BUFFER_LIST nbl = CreateNetBufferListUsingBuffer(bytesCount, buffer);
     if (nbl == NULL) {
         ExFreePool(buffer);
         return NULL;
@@ -85,11 +85,11 @@ FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
     ASSERT(nbl->ParentNetBufferList != NULL);
 
-    FreeForwardingContext(nbl);
-
     PNET_BUFFER_LIST parentNbl = nbl->ParentNetBufferList;
 
+    FreeForwardingContext(nbl);
     NdisFreeCloneNetBufferList(nbl, 0);
+
     parentNbl->ChildRefCount--;
 }
 
@@ -138,8 +138,7 @@ FreeNetBufferList(PNET_BUFFER_LIST nbl)
 
     struct vr_packet *pkt = (struct vr_packet *)NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
 
-    pkt->vp_ref_cnt--;
-    if (pkt->vp_ref_cnt == 0) {
+    if (vr_sync_sub_and_fetch_32u(&pkt->vp_ref_cnt, 1) == 0) {
         NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
         if (IS_NBL_OWNED(nbl)) {
@@ -272,8 +271,7 @@ SplitNetBufferListsByForwardingType(
     PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwdDetail;
 
     // Divide the NBL into two: part which requires native forwarding and the rest
-    for (curNbl = nbl; curNbl != NULL; curNbl = nextNbl)
-    {
+    for (curNbl = nbl; curNbl != NULL; curNbl = nextNbl) {
         // Rememeber the next NBL
         nextNbl = curNbl->Next;
 
@@ -314,12 +312,12 @@ GetAssociatedVrInterface(NDIS_SWITCH_PORT_ID vifPort, NDIS_SWITCH_NIC_INDEX vifN
 
 VOID
 FilterSendNetBufferLists(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    NDIS_PORT_NUMBER PortNumber,
-    ULONG SendFlags)
+    NDIS_HANDLE filterModuleContext,
+    PNET_BUFFER_LIST netBufferLists,
+    NDIS_PORT_NUMBER portNumber,
+    ULONG sendFlags)
 {
-    PSWITCH_OBJECT Switch = (PSWITCH_OBJECT)FilterModuleContext;
+    PSWITCH_OBJECT switchObject = (PSWITCH_OBJECT)filterModuleContext;
 
     LOCK_STATE_EX lockState;
 
@@ -332,32 +330,31 @@ FilterSendNetBufferLists(
     PNET_BUFFER_LIST curNbl = NULL;
     PNET_BUFFER_LIST nextNbl = NULL;
 
-    UNREFERENCED_PARAMETER(PortNumber);
+    UNREFERENCED_PARAMETER(portNumber);
 
     // True if packets come from the same switch source port.
-    sameSource = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
+    sameSource = NDIS_TEST_SEND_FLAG(sendFlags, NDIS_SEND_FLAGS_SWITCH_SINGLE_SOURCE);
     if (sameSource) {
         sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE;
     }
 
     // Forward DISPATCH_LEVEL flag.
-    on_dispatch_level = NDIS_TEST_SEND_FLAG(SendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+    on_dispatch_level = NDIS_TEST_SEND_FLAG(sendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
     if (on_dispatch_level) {
         sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL;
     }
 
-    if (Switch->Running == FALSE) {
-        NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, NetBufferLists, sendCompleteFlags);
+    if (switchObject->Running == FALSE) {
+        NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle, netBufferLists, sendCompleteFlags);
         return;
     }
 
     // Acquire the lock, now interfaces cannot disconnect, etc.
-    NdisAcquireRWLockRead(Switch->ExtensionContext->lock, &lockState, on_dispatch_level);
+    NdisAcquireRWLockRead(switchObject->ExtensionContext->lock, &lockState, on_dispatch_level);
 
-    SplitNetBufferListsByForwardingType(NetBufferLists, &extForwardedNbls, &nativeForwardedNbls);
+    SplitNetBufferListsByForwardingType(netBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
-    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl)
-    {
+    for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl) {
         /* Save next NBL, because after passing control to vRouter it might drop curNbl.
         Also vRouter handles packets one-by-one, so we operate on single NBLs.
         */
@@ -372,7 +369,7 @@ FilterSendNetBufferLists(
 
         if (!vif) {
             // If no vif attached yet, then drop NBL.
-            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
 
@@ -381,7 +378,7 @@ FilterSendNetBufferLists(
 
         if (pkt == NULL) {
             /* If `win_get_packet` fails, it will drop the NBL. */
-            NdisFSendNetBufferListsComplete(Switch->NdisFilterHandle, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle, curNbl, sendCompleteFlags);
             continue;
         }
 
@@ -397,27 +394,27 @@ FilterSendNetBufferLists(
     }
 
     if (nativeForwardedNbls != NULL) {
-        NdisFSendNetBufferLists(Switch->NdisFilterHandle,
+        NdisFSendNetBufferLists(switchObject->NdisFilterHandle,
             nativeForwardedNbls,
             NDIS_DEFAULT_PORT_NUMBER,
-            SendFlags);
+            sendFlags);
     }
 
     // Release the lock, now interfaces can disconnect, etc.
-    NdisReleaseRWLock(Switch->ExtensionContext->lock, &lockState);
+    NdisReleaseRWLock(switchObject->ExtensionContext->lock, &lockState);
 }
 
 VOID
 FilterSendNetBufferListsComplete(
-    NDIS_HANDLE FilterModuleContext,
-    PNET_BUFFER_LIST NetBufferLists,
-    ULONG SendCompleteFlags)
+    NDIS_HANDLE filterModuleContext,
+    PNET_BUFFER_LIST netBufferLists,
+    ULONG sendCompleteFlags)
 {
-    PNET_BUFFER_LIST next = NetBufferLists;
+    PNET_BUFFER_LIST next = netBufferLists;
     PNET_BUFFER_LIST current;
 
-    UNREFERENCED_PARAMETER(FilterModuleContext);
-    UNREFERENCED_PARAMETER(SendCompleteFlags);
+    UNREFERENCED_PARAMETER(filterModuleContext);
+    UNREFERENCED_PARAMETER(sendCompleteFlags);
 
     do {
         current = next;
