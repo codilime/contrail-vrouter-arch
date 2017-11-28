@@ -218,14 +218,14 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     if (nbl == NULL)
         return NULL;
 
-    PNET_BUFFER_LIST nb_head = create_nbl(size);
+    PNET_BUFFER_LIST nb_head = CreateNetBufferList(size);
     if (nb_head == NULL)
         return NULL;
 
     struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
-        free_created_nbl(nb_head);
+        FreeCreatedNetBufferList(nb_head);
         return NULL;
     }
 
@@ -248,7 +248,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
     if (original_nbl == NULL)
         return NULL;
 
-    PNET_BUFFER_LIST new_nbl = clone_nbl(original_nbl);
+    PNET_BUFFER_LIST new_nbl = CloneNetBufferList(original_nbl);
     if (new_nbl == NULL)
         goto cleanup;
 
@@ -298,7 +298,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 
 cleanup:
     if (new_nbl)
-        free_cloned_nbl(new_nbl);
+        FreeClonedNetBufferList(new_nbl);
 
     return NULL;
 }
@@ -335,7 +335,7 @@ win_pclone(struct vr_packet *pkt)
 
     ASSERT(original_nbl != NULL);
 
-    PNET_BUFFER_LIST nbl = clone_nbl(original_nbl);
+    PNET_BUFFER_LIST nbl = CloneNetBufferList(original_nbl);
     if (nbl == NULL)
         return NULL;
 
@@ -345,7 +345,7 @@ win_pclone(struct vr_packet *pkt)
         goto cleanup_nbl;
     *npkt = *pkt;
 
-    pkt->vp_ref_cnt++;
+    vr_sync_add_and_fetch_32u(&pkt->vp_ref_cnt, 1);
     npkt->vp_ref_cnt = 1;
 
     npkt->vp_net_buffer_list = nbl;
@@ -367,7 +367,7 @@ cleanup_pkt:
     NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
 cleanup_nbl:
-    free_cloned_nbl(nbl);
+    FreeClonedNetBufferList(nbl);
 
     return NULL;
 }

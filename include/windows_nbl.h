@@ -20,11 +20,11 @@
 
 #define VP_DEFAULT_INITIAL_TTL 64
 
-extern PNET_BUFFER_LIST create_nbl(unsigned int size);
-extern PNET_BUFFER_LIST clone_nbl(PNET_BUFFER_LIST original_nbl);
-extern VOID free_nbl(PNET_BUFFER_LIST nbl);
-extern VOID free_created_nbl(PNET_BUFFER_LIST nbl);
-extern VOID free_cloned_nbl(PNET_BUFFER_LIST nbl);
+extern PNET_BUFFER_LIST CreateNetBufferList(unsigned int bytesCount);
+extern PNET_BUFFER_LIST CloneNetBufferList(PNET_BUFFER_LIST originalNbl);
+extern VOID FreeNetBufferList(PNET_BUFFER_LIST nbl);
+extern VOID FreeCreatedNetBufferList(PNET_BUFFER_LIST nbl);
+extern VOID FreeClonedNetBufferList(PNET_BUFFER_LIST nbl);
 
 extern struct vr_packet *win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif);
 extern struct vr_packet *win_allocate_packet(void *buffer, unsigned int size);
