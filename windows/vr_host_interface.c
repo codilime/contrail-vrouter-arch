@@ -154,7 +154,7 @@ static bool fix_csum(struct vr_packet *pkt, unsigned offset)
     }
 
     if (packet_data_buffer)
-        ExFreePoolWithTag(packet_data_buffer, VrAllocationTag);
+        ExFreePool(packet_data_buffer);
 
     return true;
 }

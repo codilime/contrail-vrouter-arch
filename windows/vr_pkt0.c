@@ -87,7 +87,7 @@ Pkt0DispatchCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
     if (!NT_SUCCESS(status)) {
-        ExFreePoolWithTag(ctx, pkt0_allocation_tag);
+        ExFreePool(ctx);
         return Pkt0CompleteIrp(Irp, status, 0);
     }
 
@@ -108,7 +108,7 @@ Pkt0DispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         free_pkt0_packet(packet);
     }
 
-    ExFreePoolWithTag(Pkt0Context, pkt0_allocation_tag);
+    ExFreePool(Pkt0Context);
     Pkt0Context = NULL;
     KeReleaseSpinLock(&Pkt0ContextLock, old_irql);
 
@@ -190,7 +190,7 @@ Pkt0DeferredWrite(_In_ PVOID IoObject,
 
 fail:
     if (pkt_data) {
-        ExFreePoolWithTag(pkt_data, pkt0_allocation_tag);
+        ExFreePool(pkt_data);
     }
     if (irp) {
         Pkt0CompleteIrp(irp, STATUS_INSUFFICIENT_RESOURCES, 0);
@@ -364,7 +364,7 @@ free_pkt0_packet(struct pkt0_packet *packet)
     if (packet->buffer)
         ExFreePoolWithTag(packet->buffer, pkt0_allocation_tag);
 
-    ExFreePoolWithTag(packet, pkt0_allocation_tag);
+    ExFreePool(packet);
 }
 
 int
