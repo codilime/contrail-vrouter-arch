@@ -191,7 +191,6 @@ win_pexpand_head(struct vr_packet *originalPacket, unsigned int headSpace)
     newPacket->vp_cpu = (unsigned char)KeGetCurrentProcessorNumberEx(NULL);
     newPacket->vp_ref_cnt = 1;
     newPacket->vp_net_buffer_list = newNbl;
-    vr_sync_add_and_fetch_32u(&originalPacket->vp_ref_cnt, 1);
 
     PNET_BUFFER newNb = NET_BUFFER_LIST_FIRST_NB(newNbl);
     ASSERT(newNb != NULL);
@@ -236,7 +235,6 @@ win_pexpand_head(struct vr_packet *originalPacket, unsigned int headSpace)
 
 cleanupContext:
     NdisFreeNetBufferListContext(newNbl, VR_NBL_CONTEXT_SIZE);
-    vr_sync_sub_and_fetch_32u(&originalPacket->vp_ref_cnt, 1);
 
 cleanup:
     FreeClonedNetBufferList(newNbl);
@@ -287,7 +285,6 @@ win_pclone(struct vr_packet *originalPacket)
     newPacket->vp_cpu = (unsigned char)KeGetCurrentProcessorNumberEx(NULL);
     newPacket->vp_ref_cnt = 1;
     newPacket->vp_net_buffer_list = newNbl;
-    vr_sync_add_and_fetch_32u(&originalPacket->vp_ref_cnt, 1);
 
     NDIS_STATUS copy_status = VrSwitchObject->NdisSwitchHandlers.CopyNetBufferListInfo(
         VrSwitchObject->NdisSwitchContext, newNbl, originalNbl, 0);
@@ -298,7 +295,6 @@ win_pclone(struct vr_packet *originalPacket)
 
 cleanupPacket:
     NdisFreeNetBufferListContext(newNbl, VR_NBL_CONTEXT_SIZE);
-    vr_sync_sub_and_fetch_32u(&originalPacket->vp_ref_cnt, 1);
 
 cleanupNbl:
     FreeClonedNetBufferList(newNbl);
