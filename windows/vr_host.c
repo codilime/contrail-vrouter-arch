@@ -236,6 +236,7 @@ win_pexpand_head(struct vr_packet *originalPacket, unsigned int headSpace)
 
 cleanupContext:
     NdisFreeNetBufferListContext(newNbl, VR_NBL_CONTEXT_SIZE);
+    vr_sync_sub_and_fetch_32u(&originalPacket->vp_ref_cnt, 1);
 
 cleanup:
     FreeClonedNetBufferList(newNbl);
@@ -297,6 +298,7 @@ win_pclone(struct vr_packet *originalPacket)
 
 cleanupPacket:
     NdisFreeNetBufferListContext(newNbl, VR_NBL_CONTEXT_SIZE);
+    vr_sync_sub_and_fetch_32u(&originalPacket->vp_ref_cnt, 1);
 
 cleanupNbl:
     FreeClonedNetBufferList(newNbl);
