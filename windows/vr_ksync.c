@@ -67,7 +67,7 @@ KsyncResponseDelete(PKSYNC_RESPONSE resp)
 {
     ASSERT(resp != NULL);
 
-    ExFreePoolWithTag(resp, KsyncAllocationTag);
+    ExFreePool(resp);
 }
 
 static VOID
@@ -145,7 +145,7 @@ KsyncDispatchClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         response = KsyncPopResponse(ctx);
     }
 
-    ExFreePoolWithTag(ctx, KsyncAllocationTag);
+    ExFreePool(ctx);
     return KSyncCompleteIrp(Irp, STATUS_SUCCESS, 0);
 }
 
