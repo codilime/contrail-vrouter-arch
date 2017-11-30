@@ -94,7 +94,7 @@ win_free(void *mem, unsigned int object)
 
     if (mem) {
         vr_free_stats(object);
-        ExFreePoolWithTag(mem, VrAllocationTag);
+        ExFreePool(mem);
     }
 
     return;
@@ -117,75 +117,9 @@ win_page_free(void *address, unsigned int size)
     ASSERT(address != NULL);
 
     if (address)
-        ExFreePoolWithTag(address, VrAllocationTag);
+        ExFreePool(address);
 
     return;
-}
-
-struct vr_packet *
-win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
-{
-    ASSERT(nbl != NULL);
-
-    DbgPrint("%s()\n", __func__);
-    /* Allocate NDIS context, which will store vr_packet pointer */
-    NdisAllocateNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
-    struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
-    if (!pkt)
-        return NULL;
-
-    RtlZeroMemory(pkt, sizeof(struct vr_packet));
-
-    pkt->vp_net_buffer_list = nbl;
-    pkt->vp_ref_cnt = 1;
-    pkt->vp_cpu = (unsigned char)win_get_cpu();
-
-    /* vp_head points to the beginning of accesible non-paged memory of the packet */
-    PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    PMDL current_mdl = NET_BUFFER_CURRENT_MDL(nb);
-    ULONG current_mdl_count = MmGetMdlByteCount(current_mdl);
-    ULONG current_mdl_offset = NET_BUFFER_CURRENT_MDL_OFFSET(nb);
-    unsigned char* mdl_data =
-        (unsigned char*)MmGetSystemAddressForMdlSafe(current_mdl, LowPagePriority | MdlMappingNoExecute);
-    if (!mdl_data)
-        goto drop;
-    pkt->vp_head = mdl_data + current_mdl_offset;
-    /* vp_data is the offset from vp_head, where packet begins.
-       TODO: When packet encapsulation comes into play, then vp_data should differ.
-             There should be enough room between vp_head and vp_data to add packet headers.
-    */
-    pkt->vp_data = 0;
-
-    ULONG packet_length = NET_BUFFER_DATA_LENGTH(nb);
-    ULONG left_mdl_space = current_mdl_count - current_mdl_offset;
-
-    if (IS_NBL_OWNED(nbl) && !IS_NBL_CLONE(nbl))
-        pkt->vp_tail = pkt->vp_len = 0;
-    else
-        pkt->vp_tail = pkt->vp_len = (packet_length < left_mdl_space ? packet_length : left_mdl_space);
-
-    /* vp_end points to the end of accesible non-paged memory */
-    pkt->vp_end = left_mdl_space;
-
-    pkt->vp_if = vif;
-    pkt->vp_network_h = pkt->vp_inner_network_h = 0;
-    pkt->vp_nh = NULL;
-    pkt->vp_flags = 0;
-
-    // If a problem arises concerning IP checksums, tinker with:
-    // if (skb->ip_summed == CHECKSUM_PARTIAL)
-    //	pkt->vp_flags |= VP_FLAG_CSUM_PARTIAL;
-
-    pkt->vp_ttl = VP_DEFAULT_INITIAL_TTL;
-    pkt->vp_type = VP_TYPE_NULL;
-    pkt->vp_queue = 0;
-    pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
-
-    return pkt;
-
-drop:
-    NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
-    return NULL;
 }
 
 static struct vr_packet *
@@ -218,14 +152,14 @@ win_palloc_head(struct vr_packet *pkt, unsigned int size)
     if (nbl == NULL)
         return NULL;
 
-    PNET_BUFFER_LIST nb_head = create_nbl(size);
+    PNET_BUFFER_LIST nb_head = CreateNetBufferList(size);
     if (nb_head == NULL)
         return NULL;
 
     struct vr_packet* npkt = win_get_packet(nb_head, pkt->vp_if);
     if (npkt == NULL)
     {
-        free_created_nbl(nb_head);
+        FreeCreatedNetBufferList(nb_head);
         return NULL;
     }
 
@@ -248,7 +182,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
     if (original_nbl == NULL)
         return NULL;
 
-    PNET_BUFFER_LIST new_nbl = clone_nbl(original_nbl);
+    PNET_BUFFER_LIST new_nbl = CloneNetBufferList(original_nbl);
     if (new_nbl == NULL)
         goto cleanup;
 
@@ -298,7 +232,7 @@ win_pexpand_head(struct vr_packet *pkt, unsigned int hspace)
 
 cleanup:
     if (new_nbl)
-        free_cloned_nbl(new_nbl);
+        FreeClonedNetBufferList(new_nbl);
 
     return NULL;
 }
@@ -335,7 +269,7 @@ win_pclone(struct vr_packet *pkt)
 
     ASSERT(original_nbl != NULL);
 
-    PNET_BUFFER_LIST nbl = clone_nbl(original_nbl);
+    PNET_BUFFER_LIST nbl = CloneNetBufferList(original_nbl);
     if (nbl == NULL)
         return NULL;
 
@@ -345,7 +279,7 @@ win_pclone(struct vr_packet *pkt)
         goto cleanup_nbl;
     *npkt = *pkt;
 
-    pkt->vp_ref_cnt++;
+    vr_sync_add_and_fetch_32u(&pkt->vp_ref_cnt, 1);
     npkt->vp_ref_cnt = 1;
 
     npkt->vp_net_buffer_list = nbl;
@@ -367,7 +301,7 @@ cleanup_pkt:
     NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
 cleanup_nbl:
-    free_cloned_nbl(nbl);
+    FreeClonedNetBufferList(nbl);
 
     return NULL;
 }
@@ -613,7 +547,7 @@ scheduled_work_routine(PVOID work_item_context, NDIS_HANDLE work_item_handle)
     if (work_item_handle) {
         NdisFreeIoWorkItem(work_item_handle);
     }
-    ExFreePoolWithTag(cb_data, VrAllocationTag);
+    ExFreePool(cb_data);
 
     return;
 }

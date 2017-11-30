@@ -250,7 +250,7 @@ if sys.platform != 'darwin':
 
     if sys.platform.startswith('win'):
         def make_cmd(target, source, env):
-            msbuild = [os.environ['MSBUILD'], 'vRouter.sln', '/p:Platform=x64']
+            msbuild = [os.environ['MSBUILD'], 'windows/vRouter.sln', '/p:Platform=x64']
 
             if env['OPT'] == 'debug':
                 msbuild.append('/p:Configuration=Debug')

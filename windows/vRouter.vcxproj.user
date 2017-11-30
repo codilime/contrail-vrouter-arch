@@ -3,7 +3,7 @@
   <PropertyGroup>
     <ShowAllFiles>true</ShowAllFiles>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
     <RemoveDriver>True</RemoveDriver>
     <InstallMode>CustomCommand</InstallMode>
     <HardwareIdString />
@@ -15,7 +15,7 @@
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <TestCertificate>..\third_party\certs\codilime.com-selfsigned-cert.pfx</TestCertificate>
+    <TestCertificate>..\..\third_party\certs\codilime.com-selfsigned-cert.pfx</TestCertificate>
     <Password>$(cerp)</Password>
   </PropertyGroup>
 </Project>

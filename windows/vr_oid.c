@@ -57,7 +57,7 @@ VrQuerySwitchNicArray(PSWITCH_OBJECT Switch, PVOID Buffer, ULONG BufferLength, P
 
     oidRequest = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(*oidRequest), VrAllocationTag);
     if (oidRequest == NULL) {
-        ExFreePoolWithTag(oidRequestStatus, VrAllocationTag);
+        ExFreePool(oidRequestStatus);
         return NDIS_STATUS_RESOURCES;
     }
 
@@ -92,9 +92,9 @@ VrQuerySwitchNicArray(PSWITCH_OBJECT Switch, PVOID Buffer, ULONG BufferLength, P
     }
 
     VrStoreOidRequestStatusHandle(oidRequest, NULL);
-    ExFreePoolWithTag(oidRequest, VrAllocationTag);
+    ExFreePool(oidRequest);
     status = oidRequestStatus->Status;
-    ExFreePoolWithTag(oidRequestStatus, VrAllocationTag);
+    ExFreePool(oidRequestStatus);
 
     return status;
 }
@@ -129,7 +129,7 @@ VrGetNicArray(PSWITCH_OBJECT Switch, PNDIS_SWITCH_NIC_ARRAY *OutputNicArray)
     if (status == NDIS_STATUS_SUCCESS) {
         *OutputNicArray = nicArray;
     } else {
-        ExFreePoolWithTag(nicArray, VrAllocationTag);
+        ExFreePool(nicArray);
     }
 
     return status;
@@ -139,7 +139,7 @@ VOID
 VrFreeNicArray(PNDIS_SWITCH_NIC_ARRAY NicArray)
 {
     if (NicArray != NULL) {
-        ExFreePoolWithTag(NicArray, VrAllocationTag);
+        ExFreePool(NicArray);
     }
 }
 

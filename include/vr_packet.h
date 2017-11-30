@@ -210,7 +210,7 @@ struct vr_packet {
                   vp_notused:4;
 #ifdef _WIN32
     void* vp_net_buffer_list;
-    unsigned vp_ref_cnt;
+    uint32_t vp_ref_cnt;
 #endif
 };
 
