@@ -7,6 +7,10 @@
 #include <vtest.h>
 #include <vr_types.h>
 #include <vt_gen_lib.h>
+<<<<<<< HEAD
+=======
+
+>>>>>>> juniper/master
 #include <nl_util.h>
 
 struct expect_vrouter expect_msg;
@@ -219,10 +223,11 @@ vt_fill_nl_callbacks()
     nl_cb.vrouter_ops_process = vt_vrouter_ops_process;
     nl_cb.vr_vrf_assign_req_process = vrf_assign_req_process;
     nl_cb.vr_flow_req_process = flow_req_process;
+    nl_cb.vr_flow_response_process = flow_response_process;
     nl_cb.vr_vxlan_req_process = vxlan_req_process;
     nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
     nl_cb.vr_mpls_req_process = mpls_req_process;
     nl_cb.vr_mirror_req_process = mirror_req_process;
     nl_cb.vr_mem_stats_req_process = mem_stats_req_process;
-    nl_cb.hugepage_config_process = hugepage_config_process;
+    nl_cb.vr_hugepage_config_process = hugepage_config_process;
 }

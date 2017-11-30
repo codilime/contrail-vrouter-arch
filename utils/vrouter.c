@@ -382,7 +382,7 @@ print_enabled_log_types(vrouter_ops *req)
 }
 
 static void
-local_vrouter_ops_process(void *s_req)
+_vrouter_ops_process(void *s_req)
 {
     vrouter_ops *req = (vrouter_ops *)s_req;
 
@@ -406,7 +406,7 @@ local_vrouter_ops_process(void *s_req)
 }
 
 static void
-response_process(void *s)
+_response_process(void *s)
 {
     vr_response_common_process((vr_response *)s, NULL);
     return;
@@ -415,8 +415,8 @@ response_process(void *s)
 static void
 vrouter_fill_nl_callbacks()
 {
-    nl_cb.vrouter_ops_process = local_vrouter_ops_process;
-    nl_cb.vr_response_process = response_process;
+    nl_cb.vrouter_ops_process = _vrouter_ops_process;
+    nl_cb.vr_response_process = _response_process;
 }
 
 static int

@@ -2275,12 +2275,13 @@ lh_soft_reset(struct vrouter *router)
     return;
 }
 
-void
-lh_register_nic(struct vr_interface* vif __attribute__unused__,
-                vr_interface_req* vifr __attribute__unused__)
+static void
+lh_register_nic(struct vr_interface* vif __attribute__((unused)),
+                vr_interface_req* vifr __attribute__((unused)))
 {
-    // nothing is needed to be done on linux
+    // This callback is Windows-specific and does not need to be implemented on Linux
 }
+
 
 /*
  * This functions configures the huge pages in kernel based Vrouter

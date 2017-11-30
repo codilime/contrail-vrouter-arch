@@ -162,8 +162,20 @@ response_process(void *sresp)
     return;
 }
 
+static void
+flow_response_process(void *sresp)
+{
+    if (array_index == -1)
+        return;
 
-void
+    vr_flow_response *resp = (vr_flow_response *)sresp;
+    flow_md_mem[array_index].fmd_index = resp->fresp_index;
+    flow_md_mem[array_index].fmd_gen_id = resp->fresp_gen_id;
+    return;
+}
+
+
+static void
 flow_table_data_process(void *sreq)
 {
     vr_flow_table_data *ftable = (vr_flow_table_data *)sreq;
@@ -216,11 +228,13 @@ drop_stats_req_process(void *arg)
 static void
 flow_fill_nl_callbacks()
 {
-    nl_cb.vr_interface_req_process = interface_req_process;
     nl_cb.vr_response_process = response_process;
-    nl_cb.vr_nexthop_req_process = nexthop_req_process;
-    nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
+    nl_cb.vr_flow_response_process = flow_response_process;
     nl_cb.vr_flow_table_data_process = flow_table_data_process;
+    nl_cb.vr_interface_req_process = interface_req_process;
+    nl_cb.vr_nexthop_req_process = nexthop_req_process;
+    nl_cb.vr_route_req_process = route_req_process;
+    nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
 }
 
 struct vr_flow_entry *

@@ -1001,7 +1001,7 @@ int
 vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
         int os_index, int vif_index, int vif_xconnect_index, int vif_type,
         unsigned int vrf, unsigned int flags, int8_t *vif_mac, int8_t vif_transport,
-        const char* guid)
+        const char *guid)
 {
     int platform;
     vr_interface_req req;
@@ -1032,8 +1032,7 @@ vr_send_interface_add(struct nl_client *cl, int router_id, char *vif_name,
     }
 
 #ifdef _WIN32
-    if (guid == NULL)
-    {
+    if (guid == NULL) {
         NET_LUID system_luid;
         GUID system_guid;
         ConvertInterfaceNameToLuidA(req.vifr_name, &system_luid);

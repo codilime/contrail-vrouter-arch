@@ -118,7 +118,7 @@ struct vr_flow_defer_data {
 };
 
 __attribute__packed__open__
-struct vr_common_flow{
+struct vr_common_flow {
     unsigned char  ip_family;
     unsigned char  ip_proto;
     unsigned short ip_unused;
@@ -127,7 +127,6 @@ struct vr_common_flow{
     unsigned int   ip_nh_id;
     unsigned char  ip_addr[2 * VR_IP6_ADDRESS_LEN];
 } __attribute__packed__close__;
-
 
 __attribute__packed__open__
 struct vr_inet_flow {
@@ -248,7 +247,6 @@ struct vr_flow_table_info {
  * is also better probably because processor does not have to
  * do bit operations
  */
-
 __attribute__packed__open__
 struct vr_flow_stats {
     uint32_t flow_bytes;
@@ -366,7 +364,6 @@ struct vr_dummy_flow_entry {
 #define VR_FLOW_ENTRY_PACK (128 - sizeof(struct vr_dummy_flow_entry))
 
 /* do not change. any field positions as it might lead to incompatibility */
-
 __attribute__packed__open__
 struct vr_flow_entry {
     vr_hentry_t fe_hentry;

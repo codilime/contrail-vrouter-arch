@@ -830,9 +830,10 @@ response_process(void *s)
 static void
 vif_fill_nl_callbacks()
 {
+    nl_cb.vr_drop_stats_req_process = drop_stats_req_process;
+    nl_cb.vr_vrf_assign_req_process = vrf_assign_req_process;
     nl_cb.vr_interface_req_process = interface_req_process;
     nl_cb.vr_response_process = response_process;
-    nl_cb.vr_vrf_assign_req_process = vrf_assign_req_process;
 }
 
 /*
@@ -948,17 +949,19 @@ op_retry:
         if (vr_ifindex < 0)
             vr_ifindex = if_kindex;
 
-#ifndef _WIN32
-        ret = vr_send_interface_add(cl, 0, if_name, if_kindex, vr_ifindex,
-                if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac, vr_transport, NULL);
-#else
+#ifdef _WIN32
         if (!guid_set) {
             ret = vr_send_interface_add(cl, 0, if_name, if_kindex, vr_ifindex,
-                    if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac, vr_transport, NULL);
+                    if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac,
+                    vr_transport, NULL);
         } else {
             ret = vr_send_interface_add(cl, 0, if_name, if_kindex, vr_ifindex,
-                    if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac, vr_transport, vr_if_guid);
+                    if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac,
+                    vr_transport, vr_if_guid);
         }
+#else
+        ret = vr_send_interface_add(cl, 0, if_name, if_kindex, vr_ifindex,
+                if_xconnect_kindex, vr_if_type, vrf, vr_ifflags, vr_ifmac, vr_transport, NULL);
 #endif
         break;
 
@@ -1032,10 +1035,10 @@ Usage()
     printf("\t   \t--xconnect <physical interface name>\n");
     printf("\t   \t--policy, --vhost-phys, --dhcp-enable]\n");
     printf("\t   \t--vif <vif ID> --id <intf_id> --pmd --pci]\n");
-#ifdef _WINDOWS
+#ifdef _WIN32
     printf("\t   \t--guid <GUID>\n");
 #endif
-    printf("\t   [--delete <intf_id>]\n");
+    printf("\t   [--delete <intf_id>|<intf_name>]\n");
     printf("\t   [--get <intf_id>][--kernel][--core <core number>][--rate] [--get-drop-stats]\n");
     printf("\t   [--set <intf_id> --vlan <vlan_id> --vrf <vrf_id>]\n");
     printf("\t   [--list][--core <core number>][--rate]\n");

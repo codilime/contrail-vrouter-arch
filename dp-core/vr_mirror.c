@@ -292,23 +292,23 @@ vr_mirror_meta_entry_destroy(unsigned int index, void *arg)
     return;
 }
 
-struct vr_mirror_meta_entry *
+int
 vr_mirror_meta_entry_set(struct vrouter *router, unsigned int index,
                          unsigned int mir_sip, unsigned short mir_sport,
                          void *meta_data, unsigned int meta_data_len,
                          unsigned short mirror_vrf)
 {
     char *buf;
-    struct vr_mirror_meta_entry *me;
+    struct vr_mirror_meta_entry *me, *me_old;
 
     me = vr_malloc(sizeof(*me), VR_MIRROR_META_OBJECT);
     if (!me)
-        return NULL;
+        return -ENOMEM;
 
     buf = vr_malloc(meta_data_len, VR_MIRROR_META_OBJECT);
     if (!buf) {
         vr_free(me, VR_MIRROR_META_OBJECT);
-        return NULL;
+        return -ENOMEM;
     }
 
     memcpy(buf, meta_data, meta_data_len);
@@ -319,7 +319,11 @@ vr_mirror_meta_entry_set(struct vrouter *router, unsigned int index,
     me->mirror_sport = mir_sport;
     me->mirror_vrf = mirror_vrf;
 
-    return me;
+    me_old = vr_itable_set(router->vr_mirror_md, index, me);
+    if (me_old && me_old != VR_ITABLE_ERR_PTR)
+        vr_mirror_meta_entry_destroy(index, (void *)me_old);
+
+    return 0;
 }
 
 void

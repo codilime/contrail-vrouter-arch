@@ -64,18 +64,18 @@ vr_flow_req_process(void *s_req)
 }
 
 void
-vr_flow_response_process(void *s__req)
+vr_flow_response_process(void *s_req)
 {
     if (nl_cb.vr_flow_response_process) {
-        nl_cb.vr_flow_response_process(s__req);
+        nl_cb.vr_flow_response_process(s_req);
     }
 }
 
 void
-vr_flow_table_data_process(void *s__req)
+vr_flow_table_data_process(void *s_req)
 {
     if (nl_cb.vr_flow_table_data_process) {
-        nl_cb.vr_flow_table_data_process(s__req);
+        nl_cb.vr_flow_table_data_process(s_req);
     }
 }
 

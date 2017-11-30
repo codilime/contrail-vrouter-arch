@@ -8,7 +8,6 @@
 #define __VR_OS_H__
 
 #ifndef _WIN32
-
 #define __attribute__packed__open__                     /* do nothing */
 #define __attribute__packed__close__                    __attribute__((__packed__))
 #define __attribute__format__(...)                      __attribute__((format(__VA_ARGS__)))
@@ -90,9 +89,6 @@ typedef unsigned short __u16;
 
 typedef __signed__ int __s32;
 typedef unsigned int __u32;
-
-#define true 1
-#define false 0
 
 #endif /* __KERNEL__ */
 #endif /* __linux__ */

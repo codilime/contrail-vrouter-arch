@@ -71,9 +71,6 @@ enum rt_type{
 #define AGENT_PKT_HEAD_SPACE (sizeof(struct vr_eth) + \
         sizeof(struct agent_hdr))
 
-#define AGENT_PKT_HEAD_SPACE (sizeof(struct vr_eth) + \
-                sizeof(struct agent_hdr))
-
 __attribute__packed__open__
 struct agent_hdr {
     unsigned short hdr_ifindex;
