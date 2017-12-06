@@ -908,7 +908,6 @@ static unsigned int
 win_get_log_level(void)
 {
     // TODO(Windows): Implement
-    ASSERTMSG("Not implemented", FALSE);
 
     return 0;
 }
@@ -917,8 +916,8 @@ static unsigned int *
 win_get_enabled_log_types(int *size)
 {
     // TODO(Windows): Implement
-    ASSERTMSG("Not implemented", FALSE);
 
+    *size = 0;
     return NULL;
 }
 
