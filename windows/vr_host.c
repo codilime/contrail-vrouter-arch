@@ -252,8 +252,8 @@ win_preset(struct vr_packet *pkt)
         return;
     }
 
-    win_vr_packet_map_from_mdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
-                               NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
+    win_packet_map_from_mdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
+                            NET_BUFFER_CURRENT_MDL_OFFSET(nb), NET_BUFFER_DATA_LENGTH(nb));
 
     return;
 }

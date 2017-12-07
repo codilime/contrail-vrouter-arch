@@ -217,7 +217,7 @@ cleanup:
 }
 
 void
-win_vr_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG data_length)
+win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG data_length)
 {
     pkt->vp_head = (unsigned char*) MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
     if (!pkt->vp_head) {
@@ -266,9 +266,9 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
         data_length = 0;
     }
 
-    win_vr_packet_map_from_mdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
-                               NET_BUFFER_CURRENT_MDL_OFFSET(nb),
-                               data_length);
+    win_packet_map_from_mdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
+                            NET_BUFFER_CURRENT_MDL_OFFSET(nb),
+                            data_length);
 
     if (!pkt->vp_head) {
         goto drop;
