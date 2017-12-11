@@ -187,7 +187,7 @@ win_pexpand_head(struct vr_packet *originalPacket, unsigned int headSpace)
     struct vr_packet* newPacket = GetVrPacketFromNetBufferList(newNbl);
     ASSERT(newPacket != NULL);
 
-    RtlCopyMemory(newPacket, originalPacket, sizeof(*originalPacket));
+    *newPacket = *originalPacket;
     newPacket->vp_cpu = (unsigned char)KeGetCurrentProcessorNumberEx(NULL);
     newPacket->vp_ref_cnt = 1;
     newPacket->vp_net_buffer_list = newNbl;
