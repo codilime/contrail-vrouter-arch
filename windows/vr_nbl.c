@@ -194,7 +194,7 @@ cleanup:
 }
 
 void
-win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG data_length)
+GetVrPacketMapFromMdl(struct vr_packet *pkt, PMDL mdl, ULONG mdlOffset, ULONG dataLength)
 {
     pkt->vp_head = (unsigned char*) MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
     if (!pkt->vp_head) {
@@ -202,7 +202,7 @@ win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG
         return;
     }
 
-    pkt->vp_head += mdl_offset;
+    pkt->vp_head += mdlOffset;
     /* vp_data is the offset from vp_head, where packet begins.
        TODO: When packet encapsulation comes into play, then vp_data should differ.
              There should be enough room between vp_head and vp_data to add packet headers.
@@ -210,9 +210,9 @@ win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG
     pkt->vp_data = 0;
 
     // left_mdl_space is a space from begin of data section to the end of mdl
-    ULONG left_mdl_space = MmGetMdlByteCount(mdl) - mdl_offset;
-    pkt->vp_tail = pkt->vp_len = (data_length < left_mdl_space ? data_length : left_mdl_space);
-    pkt->vp_end = left_mdl_space;
+    ULONG leftMdlSpace = MmGetMdlByteCount(mdl) - mdlOffset;
+    pkt->vp_tail = pkt->vp_len = (dataLength < leftMdlSpace ? dataLength : leftMdlSpace);
+    pkt->vp_end = leftMdlSpace;
 
     return;
 }
@@ -243,15 +243,15 @@ AllocateVrPacketForNetBufferList(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG dataLength = NET_BUFFER_DATA_LENGTH(nb);
 
     if (IS_NBL_OWNED(nbl) && !IS_NBL_CLONE(nbl)) {
-        data_length = 0;
+        dataLength = 0;
     }
 
-    win_packet_map_from_mdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
+    GetVrPacketMapFromMdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
                             NET_BUFFER_CURRENT_MDL_OFFSET(nb),
-                            data_length);
+                            dataLength);
 
     if (!pkt->vp_head) {
         NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
