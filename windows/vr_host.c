@@ -965,14 +965,18 @@ UpdateVifToPortMapping(struct vr_interface *vif, vr_interface_req *vifr, PNDIS_S
         }  else if (element->NicType == NdisSwitchNicTypeEmulated || element->NicType == NdisSwitchNicTypeSynthetic) {
             ANSI_STRING ansiName;
             ansiName.Buffer = vifr->vifr_if_guid;
-            ansiName.Length = vifr->vifr_if_guid_size + 1; // For NULL character
-            ansiName.MaximumLength = vifr->vifr_if_guid_size + 1; // For NULL character
+            ansiName.Length = vifr->vifr_if_guid_size;
+            ansiName.MaximumLength = vifr->vifr_if_guid_size;
 
             UNICODE_STRING unicodeName;
             RtlAnsiStringToUnicodeString(&unicodeName, &ansiName, TRUE);
-            ULONG length = (element->NicName.Length < unicodeName.Length ? element->NicName.Length : unicodeName.Length);
 
-            if (memcmp(unicodeName.Buffer, element->NicName.String, length) == 0) {
+            UNICODE_STRING nicName;
+            nicName.Buffer = element->NicName.String;
+            nicName.Length = element->NicName.Length;
+            nicName.MaximumLength = element->NicName.Length;
+
+            if (RtlCompareUnicodeString(&nicName, &unicodeName, FALSE) == 0) {
                 vif->vif_port = element->PortId;
                 vif->vif_nic = element->NicIndex;
                 RtlFreeUnicodeString(&unicodeName);
