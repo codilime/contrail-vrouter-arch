@@ -774,9 +774,9 @@ win_pcow(struct vr_packet *pkt, unsigned short head_room)
     UNREFERENCED_PARAMETER(head_room);
 
     // TODO(Windows): Implement
-    ASSERTMSG("Not implemented", FALSE);
+    DbgPrint("win_pcow called, returning error\r\n");
 
-    return 0;
+    return 1;
 }
 
 static int
