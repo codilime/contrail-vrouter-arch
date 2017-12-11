@@ -231,6 +231,9 @@ win_pexpand_head(struct vr_packet *originalPacket, unsigned int headSpace)
     newPacket->vp_network_h += (unsigned short)headSpace;
     newPacket->vp_inner_network_h += (unsigned short)headSpace;
 
+    // Mark the original packet as garbage, so it will be cleaned recursively.
+    originalPacket->vp_net_buffer_list = NULL;
+
     return newPacket;
 
 cleanupContext:

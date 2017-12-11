@@ -134,19 +134,22 @@ FreeNetBufferList(PNET_BUFFER_LIST nbl)
     ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
     struct vr_packet *pkt = GetVrPacketFromNetBufferList(nbl);
+
     if (vr_sync_sub_and_fetch_32u(&pkt->vp_ref_cnt, 1) == 0) {
         NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
         if (IS_NBL_OWNED(nbl)) {
-            PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
-
-            if (IS_NBL_CLONE(nbl))
+            if (IS_NBL_CLONE(nbl)) {
+                PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
                 FreeClonedNetBufferList(nbl);
-            else
-                FreeCreatedNetBufferList(nbl);
 
-            if (parent != NULL)
-                FreeNetBufferList(parent);
+                struct vr_packet *parent_pkt = GetVrPacketFromNetBufferList(parent);
+                if (parent_pkt->vp_net_buffer_list == NULL) {
+                    FreeNetBufferList(parent);
+                }
+            } else {
+                FreeCreatedNetBufferList(nbl);
+            }
         } else {
             CompleteReceivedNetBufferList(nbl);
         }
