@@ -761,11 +761,11 @@ win_pull_inner_headers(struct vr_packet *pkt,
 {
     UNREFERENCED_PARAMETER(pkt);
     UNREFERENCED_PARAMETER(ip_proto);
-    UNREFERENCED_PARAMETER(reason);
     UNREFERENCED_PARAMETER(tunnel_type_cb);
 
     // TODO(Windows): Implement
-    ASSERTMSG("Not implemented", FALSE);
+    DbgPrint("%s: Unimplemented, calling stub", __func__);
+    *reason = VP_DROP_MISC;
 
     return 1;
 }

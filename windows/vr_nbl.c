@@ -133,7 +133,16 @@ FreeNetBufferList(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
     ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
+    if (nbl->ChildRefCount > 0) {
+        return;
+    }
+
     struct vr_packet *pkt = GetVrPacketFromNetBufferList(nbl);
+
+    if (pkt->vp_net_buffer_list != NULL) {
+        // NBL has no children, but pkt is still owned by dp-core
+        return;
+    }
 
     if (vr_sync_sub_and_fetch_32u(&pkt->vp_ref_cnt, 1) == 0) {
         NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
@@ -143,10 +152,7 @@ FreeNetBufferList(PNET_BUFFER_LIST nbl)
                 PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
                 FreeClonedNetBufferList(nbl);
 
-                struct vr_packet *parent_pkt = GetVrPacketFromNetBufferList(parent);
-                if (parent_pkt->vp_net_buffer_list == NULL) {
-                    FreeNetBufferList(parent);
-                }
+                FreeNetBufferList(parent);
             } else {
                 FreeCreatedNetBufferList(nbl);
             }
@@ -316,7 +322,9 @@ void
 FreeVrPacket(struct vr_packet *pkt)
 {
     ASSERT(pkt != NULL);
-    FreeNetBufferList(pkt->vp_net_buffer_list);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    pkt->vp_net_buffer_list = NULL;
+    FreeNetBufferList(nbl);
 }
 
 static VOID
@@ -414,6 +422,8 @@ FilterSendNetBufferLists(
     SplitNetBufferListsByForwardingType(netBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
     for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl) {
+        ASSERTMSG("Incoming NBL already has some clones ", curNbl->ChildRefCount == 0);
+
         /* Save next NBL, because after passing control to vRouter it might drop curNbl.
         Also vRouter handles packets one-by-one, so we operate on single NBLs.
         */
@@ -485,6 +495,20 @@ FilterSendNetBufferListsComplete(
         next = current->Next;
         current->Next = NULL;
 
-        FreeNetBufferList(current);
+        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwdDetail;
+        fwdDetail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(current);
+        if (fwdDetail->NativeForwardingRequired) {
+            CompleteReceivedNetBufferList(current);
+            DbgPrint("!!! Internal packed found in FilterSendNetBufferListComplete\r\n");
+        } else {
+            struct vr_packet *pkt = GetVrPacketFromNetBufferList(current);
+            unsigned char thisCore = KeGetCurrentProcessorNumberEx(NULL);
+            unsigned char oldCore = pkt->vp_cpu;
+            if (thisCore != oldCore) {
+                DbgPrint("!!! Complete -- packet switched cores: %hhd -> %hhd\r\n", oldCore, thisCore);
+            }
+
+            FreeNetBufferList(current);
+        }
     } while (next != NULL);
 }

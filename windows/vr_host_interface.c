@@ -205,6 +205,12 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 
     PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
 
+    ASSERTMSG("win_if_tx: trying to send NBL with children\r\n", nbl->ChildRefCount == 0);
+    if (nbl->ChildRefCount > 0) {
+        // TODO proper error code (or clone the NBL) or clone before send
+        return 1;
+    }
+
     NDIS_SWITCH_PORT_DESTINATION newDestination = { 0 };
 
     newDestination.PortId = vif->vif_port;
@@ -223,6 +229,8 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
         NDIS_DEFAULT_PORT_NUMBER,
         0);
 
+    pkt->vp_net_buffer_list = NULL;
+
     return 0;
 }
 
@@ -231,7 +239,7 @@ win_if_tx(struct vr_interface *vif, struct vr_packet* pkt)
 {
     windows_host.hos_printf("%s: Got pkt\n", __func__);
     if (vif == NULL) {
-        FreeNetBufferList(pkt->vp_net_buffer_list);
+        FreeVrPacket(pkt);
         return 0; // Sent into /dev/null
     }
 
