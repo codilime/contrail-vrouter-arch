@@ -77,7 +77,7 @@ CreateNetBufferList(unsigned int bytesCount)
     return nbl;
 }
 
-VOID
+LONG
 FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
@@ -88,7 +88,7 @@ FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
     FreeForwardingContext(nbl);
     NdisFreeCloneNetBufferList(nbl, 0);
 
-    InterlockedDecrement(&parentNbl->ChildRefCount);
+    return InterlockedDecrement(&parentNbl->ChildRefCount);
 }
 
 VOID
@@ -150,9 +150,9 @@ FreeNetBufferList(PNET_BUFFER_LIST nbl)
         if (IS_NBL_OWNED(nbl)) {
             if (IS_NBL_CLONE(nbl)) {
                 PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
-                FreeClonedNetBufferList(nbl);
-
-                FreeNetBufferList(parent);
+                if (FreeClonedNetBufferList(nbl) == 0) {
+                    FreeNetBufferList(parent);
+                }
             } else {
                 FreeCreatedNetBufferList(nbl);
             }
