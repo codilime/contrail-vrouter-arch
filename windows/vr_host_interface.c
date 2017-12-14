@@ -224,12 +224,12 @@ __win_if_tx(struct vr_interface *vif, struct vr_packet *pkt)
 
     NdisAdvanceNetBufferListDataStart(nbl, pkt->vp_data, TRUE, NULL);
 
+    pkt->vp_net_buffer_list = NULL;
+
     NdisFSendNetBufferLists(VrSwitchObject->NdisFilterHandle,
         nbl,
         NDIS_DEFAULT_PORT_NUMBER,
         0);
-
-    pkt->vp_net_buffer_list = NULL;
 
     return 0;
 }
