@@ -502,20 +502,7 @@ FilterSendNetBufferListsComplete(
             DbgPrint("!!! Internal packed found in FilterSendNetBufferListComplete\r\n");
         } else {
             struct vr_packet *pkt = GetVrPacketFromNetBufferList(current);
-            unsigned char thisCore = KeGetCurrentProcessorNumberEx(NULL);
-            unsigned char oldCore = pkt->vp_cpu;
-            if (thisCore != oldCore) {
-                DbgPrint("!!! Complete -- packet switched cores: %hhd -> %hhd\r\n", oldCore, thisCore);
-            }
-
-            // TODO proper msg
             ASSERTMSG("Completed NBLS should already be marked as garbage ", pkt->vp_net_buffer_list == NULL);
-
-            if (IS_NBL_OWNED(current) && IS_NBL_CLONE(current)) {
-                PNET_BUFFER_LIST parent = current->ParentNetBufferList;
-                struct vr_packet *parent_pkt = GetVrPacketFromNetBufferList(parent);
-                ASSERTMSG("Completed NBLS' parents should already be marked as garbage ", parent_pkt->vp_net_buffer_list == NULL);
-            }
 
             FreeNetBufferList(current);
         }
