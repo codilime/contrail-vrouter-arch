@@ -14,8 +14,7 @@ CreateForwardingContext(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
     return VrSwitchObject->NdisSwitchHandlers.AllocateNetBufferListForwardingContext(
-        VrSwitchObject->NdisSwitchContext,
-        nbl);
+        VrSwitchObject->NdisSwitchContext, nbl);
 }
 
 static void
@@ -23,8 +22,7 @@ FreeForwardingContext(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
     VrSwitchObject->NdisSwitchHandlers.FreeNetBufferListForwardingContext(
-        VrSwitchObject->NdisSwitchContext,
-        nbl);
+        VrSwitchObject->NdisSwitchContext, nbl);
 }
 
 static PNET_BUFFER_LIST
@@ -79,7 +77,7 @@ CreateNetBufferList(unsigned int bytesCount)
     return nbl;
 }
 
-VOID
+LONG
 FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
 {
     ASSERT(nbl != NULL);
@@ -90,7 +88,7 @@ FreeClonedNetBufferList(PNET_BUFFER_LIST nbl)
     FreeForwardingContext(nbl);
     NdisFreeCloneNetBufferList(nbl, 0);
 
-    parentNbl->ChildRefCount--;
+    return InterlockedDecrement(&parentNbl->ChildRefCount);
 }
 
 VOID
@@ -101,15 +99,15 @@ FreeCreatedNetBufferList(PNET_BUFFER_LIST nbl)
 
     PNET_BUFFER nb = NULL;
     PMDL mdl = NULL;
-    PMDL mdl_next = NULL;
+    PMDL mdlNext = NULL;
     PVOID data = NULL;
 
     FreeForwardingContext(nbl);
 
     /* Free MDLs associated with NET_BUFFERS */
     for (nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb))
-        for (mdl = NET_BUFFER_FIRST_MDL(nb); mdl != NULL; mdl = mdl_next) {
-            mdl_next = mdl->Next;
+        for (mdl = NET_BUFFER_FIRST_MDL(nb); mdl != NULL; mdl = mdlNext) {
+            mdlNext = mdl->Next;
             data = MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
             NdisFreeMdl(mdl);
             if (data != NULL)
@@ -125,8 +123,7 @@ CompleteReceivedNetBufferList(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
 
     /* Flag SINGLE_SOURCE is used, because of singular NBLS */
-    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
-        nbl,
+    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle, nbl,
         NDIS_SEND_COMPLETE_FLAGS_SWITCH_SINGLE_SOURCE | NDIS_SEND_FLAGS_SWITCH_DESTINATION_GROUP);
 }
 
@@ -136,47 +133,33 @@ FreeNetBufferList(PNET_BUFFER_LIST nbl)
     ASSERT(nbl != NULL);
     ASSERTMSG("A non-singular NBL made it's way into the process", nbl->Next == NULL);
 
-    struct vr_packet *pkt = (struct vr_packet *)NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+    if (nbl->ChildRefCount > 0) {
+        return;
+    }
+
+    struct vr_packet *pkt = GetVrPacketFromNetBufferList(nbl);
+
+    if (pkt->vp_net_buffer_list != NULL) {
+        // NBL has no children, but pkt is still owned by dp-core
+        return;
+    }
 
     if (vr_sync_sub_and_fetch_32u(&pkt->vp_ref_cnt, 1) == 0) {
         NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
 
         if (IS_NBL_OWNED(nbl)) {
-            PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
-
-            if (IS_NBL_CLONE(nbl))
-                FreeClonedNetBufferList(nbl);
-            else
+            if (IS_NBL_CLONE(nbl)) {
+                PNET_BUFFER_LIST parent = nbl->ParentNetBufferList;
+                if (FreeClonedNetBufferList(nbl) == 0) {
+                    FreeNetBufferList(parent);
+                }
+            } else {
                 FreeCreatedNetBufferList(nbl);
-
-            if (parent != NULL)
-                FreeNetBufferList(parent);
+            }
         } else {
             CompleteReceivedNetBufferList(nbl);
         }
     }
-}
-
-static void
-free_associated_nbl(struct vr_packet* pkt)
-{
-    ASSERT(pkt != NULL);
-
-    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
-
-    ASSERT(nbl != NULL);
-
-    FreeNetBufferList(nbl);
-}
-
-void
-delete_unbound_nbl(PNET_BUFFER_LIST nbl, unsigned long flags)
-{
-    ASSERT(nbl != NULL);
-
-    NdisFSendNetBufferListsComplete(VrSwitchObject->NdisFilterHandle,
-        nbl,
-        flags);
 }
 
 PNET_BUFFER_LIST
@@ -191,7 +174,7 @@ CloneNetBufferList(PNET_BUFFER_LIST originalNbl)
 
     newNbl->SourceHandle = VrSwitchObject->NdisFilterHandle;
     newNbl->ParentNetBufferList = originalNbl;
-    originalNbl->ChildRefCount++;
+    InterlockedIncrement(&originalNbl->ChildRefCount);
 
     if (CreateForwardingContext(newNbl) != NDIS_STATUS_SUCCESS)
         goto cleanup;
@@ -210,14 +193,14 @@ cleanup:
 
     if (newNbl) {
         NdisFreeCloneNetBufferList(newNbl, 0);
-        originalNbl->ChildRefCount--;
+        InterlockedDecrement(&originalNbl->ChildRefCount);
     }
 
     return NULL;
 }
 
 void
-win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG data_length)
+GetVrPacketMapFromMdl(struct vr_packet *pkt, PMDL mdl, ULONG mdlOffset, ULONG dataLength)
 {
     pkt->vp_head = (unsigned char*) MmGetSystemAddressForMdlSafe(mdl, LowPagePriority | MdlMappingNoExecute);
     if (!pkt->vp_head) {
@@ -225,7 +208,7 @@ win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG
         return;
     }
 
-    pkt->vp_head += mdl_offset;
+    pkt->vp_head += mdlOffset;
     /* vp_data is the offset from vp_head, where packet begins.
        TODO: When packet encapsulation comes into play, then vp_data should differ.
              There should be enough room between vp_head and vp_data to add packet headers.
@@ -233,45 +216,52 @@ win_packet_map_from_mdl(struct vr_packet *pkt, PMDL mdl, ULONG mdl_offset, ULONG
     pkt->vp_data = 0;
 
     // left_mdl_space is a space from begin of data section to the end of mdl
-    ULONG left_mdl_space = MmGetMdlByteCount(mdl) - mdl_offset;
-    pkt->vp_tail = pkt->vp_len = (data_length < left_mdl_space ? data_length : left_mdl_space);
-    pkt->vp_end = left_mdl_space;
+    ULONG leftMdlSpace = MmGetMdlByteCount(mdl) - mdlOffset;
+    pkt->vp_tail = pkt->vp_len = (dataLength < leftMdlSpace ? dataLength : leftMdlSpace);
+    pkt->vp_end = leftMdlSpace;
 
     return;
 }
 
 struct vr_packet *
-win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
+GetVrPacketFromNetBufferList(PNET_BUFFER_LIST nbl)
+{
+    return (struct vr_packet *)NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
+}
+
+struct vr_packet *
+AllocateVrPacketForNetBufferList(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
 {
     ASSERT(nbl != NULL);
 
-    DbgPrint("%s()\n", __func__);
     /* Allocate NDIS context, which will store vr_packet pointer */
-    NdisAllocateNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
-    struct vr_packet *pkt = (struct vr_packet*) NET_BUFFER_LIST_CONTEXT_DATA_START(nbl);
-    if (!pkt)
+    NDIS_STATUS status = NdisAllocateNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE, 0, VrAllocationTag);
+    if (status != NDIS_STATUS_SUCCESS)
         return NULL;
 
-    RtlZeroMemory(pkt, sizeof(struct vr_packet));
+    struct vr_packet *pkt = GetVrPacketFromNetBufferList(nbl);
+    ASSERT(pkt != NULL);
 
+    RtlZeroMemory(pkt, sizeof(*pkt));
     pkt->vp_net_buffer_list = nbl;
     pkt->vp_ref_cnt = 1;
     pkt->vp_cpu = (unsigned char)KeGetCurrentProcessorNumberEx(NULL);
 
     /* vp_head points to the beginning of accesible non-paged memory of the packet */
     PNET_BUFFER nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    ULONG data_length = NET_BUFFER_DATA_LENGTH(nb);
+    ULONG dataLength = NET_BUFFER_DATA_LENGTH(nb);
 
     if (IS_NBL_OWNED(nbl) && !IS_NBL_CLONE(nbl)) {
-        data_length = 0;
+        dataLength = 0;
     }
 
-    win_packet_map_from_mdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
+    GetVrPacketMapFromMdl(pkt, NET_BUFFER_CURRENT_MDL(nb),
                             NET_BUFFER_CURRENT_MDL_OFFSET(nb),
-                            data_length);
+                            dataLength);
 
     if (!pkt->vp_head) {
-        goto drop;
+        NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
+        return NULL;    
     }
 
     pkt->vp_if = vif;
@@ -289,14 +279,10 @@ win_get_packet(PNET_BUFFER_LIST nbl, struct vr_interface *vif)
     pkt->vp_priority = 0;  /* PCP Field from IEEE 802.1Q. vp_priority = 0 is a default value for this. */
 
     return pkt;
-
-drop:
-    NdisFreeNetBufferListContext(nbl, VR_NBL_CONTEXT_SIZE);
-    return NULL;
 }
 
 struct vr_packet *
-win_allocate_packet(void *buffer, unsigned int size)
+AllocateVrPacket(void *buffer, unsigned int size)
 {
     ASSERT(size > 0);
 
@@ -312,7 +298,7 @@ win_allocate_packet(void *buffer, unsigned int size)
     if (nbl == NULL)
         goto fail;
 
-    pkt = win_get_packet(nbl, NULL);
+    pkt = AllocateVrPacketForNetBufferList(nbl, NULL);
     if (pkt == NULL)
         goto fail;
 
@@ -333,10 +319,12 @@ fail:
 }
 
 void
-win_free_packet(struct vr_packet *pkt)
+FreeVrPacket(struct vr_packet *pkt)
 {
     ASSERT(pkt != NULL);
-    free_associated_nbl(pkt);
+    PNET_BUFFER_LIST nbl = pkt->vp_net_buffer_list;
+    pkt->vp_net_buffer_list = NULL;
+    FreeNetBufferList(nbl);
 }
 
 static VOID
@@ -402,7 +390,7 @@ FilterSendNetBufferLists(
 
     BOOLEAN sameSource;
     ULONG sendCompleteFlags = 0;
-    BOOLEAN on_dispatch_level;
+    BOOLEAN onDispatchLevel;
 
     PNET_BUFFER_LIST extForwardedNbls = NULL;  // NBLs forwarded by extension.
     PNET_BUFFER_LIST nativeForwardedNbls = NULL;  // NBLs that require native forwarding - extension just sends them.
@@ -418,8 +406,8 @@ FilterSendNetBufferLists(
     }
 
     // Forward DISPATCH_LEVEL flag.
-    on_dispatch_level = NDIS_TEST_SEND_FLAG(sendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
-    if (on_dispatch_level) {
+    onDispatchLevel = NDIS_TEST_SEND_FLAG(sendFlags, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+    if (onDispatchLevel) {
         sendCompleteFlags |= NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL;
     }
 
@@ -429,44 +417,51 @@ FilterSendNetBufferLists(
     }
 
     // Acquire the lock, now interfaces cannot disconnect, etc.
-    NdisAcquireRWLockRead(switchObject->ExtensionContext->lock, &lockState, on_dispatch_level);
+    NdisAcquireRWLockRead(switchObject->ExtensionContext->lock, &lockState, onDispatchLevel);
 
     SplitNetBufferListsByForwardingType(netBufferLists, &extForwardedNbls, &nativeForwardedNbls);
 
     for (curNbl = extForwardedNbls; curNbl != NULL; curNbl = nextNbl) {
+        ASSERTMSG("Incoming NBL already has some clones ", curNbl->ChildRefCount == 0);
+
         /* Save next NBL, because after passing control to vRouter it might drop curNbl.
         Also vRouter handles packets one-by-one, so we operate on single NBLs.
         */
         nextNbl = curNbl->Next;
         curNbl->Next = NULL;
 
-        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
-        NDIS_SWITCH_PORT_ID source_port = fwd_detail->SourcePortId;
-        NDIS_SWITCH_NIC_INDEX source_nic = fwd_detail->SourceNicIndex;
+        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwd_detail;
+        NDIS_SWITCH_PORT_ID source_port;
+        NDIS_SWITCH_NIC_INDEX source_nic;
+        struct vr_interface *vif;
+        struct vr_packet *pkt;
 
-        struct vr_interface *vif = GetAssociatedVrInterface(source_port, source_nic);
+        fwd_detail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(curNbl);
+        source_port = fwd_detail->SourcePortId;
+        source_nic = fwd_detail->SourceNicIndex;
 
-        if (!vif) {
+        vif = GetAssociatedVrInterface(source_port, source_nic);
+        if (vif == NULL) {
             // If no vif attached yet, then drop NBL.
-            NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle, curNbl, sendCompleteFlags);
+            NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle,
+                curNbl, sendCompleteFlags);
             continue;
         }
 
-        struct vr_packet *pkt = win_get_packet(curNbl, vif);
+        pkt = AllocateVrPacketForNetBufferList(curNbl, vif);
         ASSERTMSG("win_get_packed failed!", pkt != NULL);
-
         if (pkt == NULL) {
-            /* If `win_get_packet` fails, it will drop the NBL. */
-            NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle, curNbl, sendCompleteFlags);
+            // If allocating vr_packed has failed, we drop the NBL.
+            NdisFSendNetBufferListsComplete(switchObject->NdisFilterHandle,
+                curNbl, sendCompleteFlags);
             continue;
         }
 
         ASSERTMSG("VIF doesn't have a vif_rx method set!", vif->vif_rx != NULL);
         if (vif->vif_rx) {
             vif->vif_rx(vif, pkt, VLAN_ID_INVALID);
-        }
-        else {
-            /* If `vif_rx` is not set (unlikely in production), then drop the packet. */
+        } else {
+            // If `vif_rx` is not set (unlikely in production), then drop the packet.
             vr_pfree(pkt, VP_DROP_INTERFACE_DROP);
             continue;
         }
@@ -500,6 +495,16 @@ FilterSendNetBufferListsComplete(
         next = current->Next;
         current->Next = NULL;
 
-        FreeNetBufferList(current);
+        PNDIS_SWITCH_FORWARDING_DETAIL_NET_BUFFER_LIST_INFO fwdDetail;
+        fwdDetail = NET_BUFFER_LIST_SWITCH_FORWARDING_DETAIL(current);
+        if (fwdDetail->NativeForwardingRequired) {
+            CompleteReceivedNetBufferList(current);
+            DbgPrint("!!! Internal packed found in FilterSendNetBufferListComplete\r\n");
+        } else {
+            struct vr_packet *pkt = GetVrPacketFromNetBufferList(current);
+            ASSERTMSG("Completed NBLS should already be marked as garbage ", pkt->vp_net_buffer_list == NULL);
+
+            FreeNetBufferList(current);
+        }
     } while (next != NULL);
 }
